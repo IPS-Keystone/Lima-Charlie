@@ -12,8 +12,7 @@ Two halves that must be installed and updated together:
 
 They talk through two JSON files in the Reforger profile directory. Neither one works alone.
 
-**Current versions:** mod protocol 6, plugin 0.9.0. A version mismatch is rejected outright, so everyone in
-a session needs the same pair.
+A version mismatch is rejected outright, so everyone in a session needs the same pair.
 
 ## Documentation
 
