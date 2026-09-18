@@ -110,9 +110,3 @@ to match the mod.
 - **Terrain answers can be missed.** The plugin waits 300 ms for a clearance answer and then assumes line
   of sight. A dropped answer silently removes the terrain effect for that transmission rather than
   reporting anything.
-- **Transmit state can flicker.** During a sustained hold, `tx` has been observed dropping to 1 (direct)
-  for a single sample before returning to 2, which means the radio entry momentarily failed to resolve. The
-  plugin's 300 ms debounce covers a gap that short, so the transmission survives, but the cause has not
-  been tracked down.
-- **Game Master transmission has never been confirmed working with a second player.** The sending side is
-  verified correct in the log; delivery is not.
