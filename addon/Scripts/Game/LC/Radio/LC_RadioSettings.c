@@ -185,21 +185,6 @@ class LC_RadioSettings
 	}
 
 	//------------------------------------------------------------------------------------------------
-	static string GetBeepSetDisplayName(int index)
-	{
-		switch (index)
-		{
-			case 0: return "TFAR short range beeps";
-			case 1: return "TFAR long range beeps";
-			case 2: return "TFAR airborne beeps";
-			case 3: return "TFAR classic beeps";
-			case 4: return "ACRE2 clicks";
-		}
-
-		return "No beeps";
-	}
-
-	//------------------------------------------------------------------------------------------------
 	//! Compact beep set label for the radial menu
 	string GetBeepSetShortName(notnull SCR_VONEntryRadio entry)
 	{
@@ -226,17 +211,5 @@ class LC_RadioSettings
 		}
 
 		return "C";
-	}
-
-	//------------------------------------------------------------------------------------------------
-	static string GetEarDisplayName(int ear)
-	{
-		switch (ear)
-		{
-			case EAR_LEFT: return "Left ear";
-			case EAR_RIGHT: return "Right ear";
-		}
-
-		return "Both ears";
 	}
 }

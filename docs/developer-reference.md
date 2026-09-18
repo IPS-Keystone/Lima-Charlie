@@ -41,7 +41,10 @@ Both files live in `$profile/LimaCharlie/`.
 ### `game_state.json` — game to plugin
 
 Written at 20 Hz while anyone is talking, 10 Hz idle, and immediately on any change to transmit state,
-radios, terrain links or the sound queue. Protocol 6.
+voice range, terrain links or the sound queue. Radio state is rebuilt on the write itself rather than
+compared every frame, so a radio setting reaches the plugin at the next scheduled write — at most 100 ms,
+and in practice sooner, since the settings that change it all queue a sound, which forces a write.
+Protocol 6.
 
 ```json
 {
@@ -131,7 +134,7 @@ build that predates this.
 
 | Constant | Value | Where |
 | --- | --- | --- |
-| Plugin worker poll | 5 ms | `lc_core.c` |
+| Plugin worker poll | 5 ms in game, 50 ms idle | `lc_core.c` |
 | Game state stale | 3000 ms | `lc_core.c` |
 | Transmit stop debounce | 300 ms | `lc_core.c` |
 | Terrain link wait | 300 ms | `lc_core.c` |
@@ -139,6 +142,10 @@ build that predates this.
 | Occlusion refresh | 100 ms, 60 m | `LC_GameStateWriter.c` |
 | Terrain link refresh | 1000 ms, or 10 m of movement | `LC_RadioLinks.c` |
 | AI hearing report | 1000 ms | `LC_Client.c` |
+| Sound event retention | 1000 ms | `LC_SoundQueue.c` |
+
+The worker only raises the Windows timer resolution to 1 ms while a game is running; the setting is
+process-wide and costs power system-wide, and TeamSpeak is usually open far longer than Reforger is.
 
 ## Script map
 

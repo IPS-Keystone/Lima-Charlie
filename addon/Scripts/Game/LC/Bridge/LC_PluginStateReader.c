@@ -191,18 +191,6 @@ class LC_PluginStateReader
 	}
 
 	//------------------------------------------------------------------------------------------------
-	bool IsTeamSpeakConnected()
-	{
-		return m_bTeamSpeakConnected;
-	}
-
-	//------------------------------------------------------------------------------------------------
-	bool IsInGameChannel()
-	{
-		return m_bInGameChannel;
-	}
-
-	//------------------------------------------------------------------------------------------------
 	bool IsSelfTalking()
 	{
 		return m_bSelfTalking;
@@ -213,13 +201,6 @@ class LC_PluginStateReader
 	bool IsAnyPlayerTalking()
 	{
 		return !m_TalkingPlayers.IsEmpty();
-	}
-
-	//------------------------------------------------------------------------------------------------
-	//! True while the plugin hears this player talking in TeamSpeak
-	bool IsPlayerTalking(int playerId)
-	{
-		return m_TalkingPlayers.Contains(playerId);
 	}
 
 	//------------------------------------------------------------------------------------------------

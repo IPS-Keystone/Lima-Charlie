@@ -283,9 +283,12 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
         float     x    = channels > 1 ? 0.5f * ((float)samples[base + left] + (float)samples[base + right]) : (float)samples[base];
         x /= 32768.0f;
 
-        float direct = x;
-        for (int s = 0; s < LC_FILTER_STAGES; ++s)
-            direct = biquad_tick(&state->stages[s], direct);
+        /* Both direct gains are zero unless useDirect, so the muffle filters would only shape silence. */
+        float direct = useDirect ? x : 0.0f;
+        if (useDirect) {
+            for (int s = 0; s < LC_FILTER_STAGES; ++s)
+                direct = biquad_tick(&state->stages[s], direct);
+        }
         const float radio = useRadio ? radio_tick(state, x, &garble) : 0.0f;
 
         const float t        = (float)(i + 1) * step;

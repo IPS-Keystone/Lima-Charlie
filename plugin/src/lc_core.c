@@ -20,6 +20,9 @@
 #include <string.h>
 
 #define LC_POLL_MS 5
+/* Nothing here is latency-critical until a game is running, and TeamSpeak often runs for hours without one.
+   While idle the worker polls slowly and leaves the system timer resolution alone. */
+#define LC_IDLE_POLL_MS 50
 #define LC_GAME_STALE_MS 3000
 #define LC_STATE_HEARTBEAT_MS 250
 #define LC_STATE_MIN_INTERVAL_MS 20
@@ -715,6 +718,7 @@ static DWORD WINAPI core_main(LPVOID param)
         return 1;
     }
 
+    int fastTimer = 0;
     while (g_quit == 0) {
         const unsigned long long nowMs = GetTickCount64();
         poll_game_state(buf, parsed);
@@ -741,8 +745,19 @@ static DWORD WINAPI core_main(LPVOID param)
         publish_voice(connected, inGame, nowMs);
         write_plugin_state(sch, connected, inGame, nowMs);
 
-        Sleep(LC_POLL_MS);
+        /* A 1 ms system timer is what makes the 5 ms poll actually sleep 5 ms, but it is process-wide and
+           costs power everywhere, so it is only held while a game is running. */
+        if (inGame != fastTimer) {
+            if (inGame)
+                timeBeginPeriod(1);
+            else
+                timeEndPeriod(1);
+            fastTimer = inGame;
+        }
+        Sleep(inGame ? LC_POLL_MS : LC_IDLE_POLL_MS);
     }
+    if (fastTimer)
+        timeEndPeriod(1);
 
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
@@ -764,10 +779,8 @@ int lc_core_start(void)
     lc_transmissions_init();
     load_sounds();
     g_quit = 0;
-    timeBeginPeriod(1);
     g_thread = CreateThread(NULL, 0, core_main, NULL, 0, NULL);
     if (!g_thread) {
-        timeEndPeriod(1);
         lc_sounds_unload();
         lc_transmissions_shutdown();
         lc_peers_shutdown();
@@ -787,7 +800,6 @@ void lc_core_stop(void)
     WaitForSingleObject(g_thread, 3000);
     CloseHandle(g_thread);
     g_thread = NULL;
-    timeEndPeriod(1);
     lc_sounds_unload();
     lc_transmissions_shutdown();
     lc_peers_shutdown();

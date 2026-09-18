@@ -13,12 +13,6 @@ class LC_FrequencyInput
 	protected SCR_VONEntryRadio m_Entry;
 
 	//------------------------------------------------------------------------------------------------
-	bool IsOpen()
-	{
-		return m_wRoot != null;
-	}
-
-	//------------------------------------------------------------------------------------------------
 	bool Open(notnull SCR_VONEntryRadio entry, string title)
 	{
 		Close();

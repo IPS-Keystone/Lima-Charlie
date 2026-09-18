@@ -28,7 +28,6 @@ class LC_GameStateWriter
 	protected EVONTransmitType m_eLastTransmitType = EVONTransmitType.NONE;
 	protected float m_fLastVoiceRange;
 	protected string m_sLastTransmitRadio;
-	protected string m_sLastRadios;
 	protected int m_iLastLinkRevision;
 	protected int m_iLastSoundSeq;
 	protected ref array<int> m_aPlayerIds = {};
@@ -56,21 +55,24 @@ class LC_GameStateWriter
 			transmitFrequency = transmitEntry.GetTransceiver().GetFrequency();
 		}
 
-		// A Game Master talks to the whole map from the camera, if the server allows it
-		bool unlimitedRange = client.GetGameMasterUnlimitedRange() && IsEditorOpen();
-		string radios = LC_Radio.BuildJson(client.GetRadioEntries(), client.GetRadioSettings(), unlimitedRange);
 		int linkRevision = client.GetRadioLinks().GetRevision();
 		int soundSeq = client.GetSoundQueue().GetSeq();
 
+		// Only the cheap fields are compared every frame. Radio state is rebuilt on the write itself, so a
+		// change to it is picked up at the next scheduled write rather than costing a string per frame; at
+		// 10 Hz idle that is at most 100 ms, and the settings that change it all play a sound, which writes.
 		bool changed = transmitType != m_eLastTransmitType || voiceRange != m_fLastVoiceRange || transmitRadio != m_sLastTransmitRadio
-			|| radios != m_sLastRadios || linkRevision != m_iLastLinkRevision || soundSeq != m_iLastSoundSeq;
+			|| linkRevision != m_iLastLinkRevision || soundSeq != m_iLastSoundSeq;
 		if (!changed && now < m_iNextWriteTick)
 			return;
+
+		// A Game Master talks to the whole map from the camera, if the server allows it
+		bool unlimitedRange = client.GetGameMasterUnlimitedRange() && IsEditorOpen();
+		string radios = LC_Radio.BuildJson(client.GetRadioEntries(), client.GetRadioSettings(), unlimitedRange);
 
 		m_eLastTransmitType = transmitType;
 		m_fLastVoiceRange = voiceRange;
 		m_sLastTransmitRadio = transmitRadio;
-		m_sLastRadios = radios;
 		m_iLastLinkRevision = linkRevision;
 		m_iLastSoundSeq = soundSeq;
 		m_iNextWriteTick = now + GetWriteInterval(client, transmitType);

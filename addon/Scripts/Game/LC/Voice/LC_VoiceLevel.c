@@ -13,12 +13,6 @@ class LC_VoiceLevel
 	protected static int s_iLevel = NORMAL;
 
 	//------------------------------------------------------------------------------------------------
-	static int GetLevel()
-	{
-		return s_iLevel;
-	}
-
-	//------------------------------------------------------------------------------------------------
 	//! Range in metres at which the local player can still be heard
 	static float GetRange()
 	{
@@ -32,21 +26,6 @@ class LC_VoiceLevel
 		}
 
 		return 20;
-	}
-
-	//------------------------------------------------------------------------------------------------
-	static string GetName()
-	{
-		switch (s_iLevel)
-		{
-			case WHISPER:
-				return "Whisper";
-
-			case SHOUT:
-				return "Shout";
-		}
-
-		return "Normal";
 	}
 
 	//------------------------------------------------------------------------------------------------

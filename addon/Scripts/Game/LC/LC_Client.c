@@ -352,8 +352,8 @@ class LC_Client
 		if (!entry)
 			return;
 
-		int keyNumber = m_RadioSettings.CycleKey(entry, m_aRadioEntries) + 1;
-		ShowRadioNotice(entry, "Transmit key " + keyNumber.ToString());
+		m_RadioSettings.CycleKey(entry, m_aRadioEntries);
+		RefreshRadioMenu();
 		PlayUiSound("cycle");
 	}
 
@@ -364,8 +364,8 @@ class LC_Client
 		if (!entry)
 			return;
 
-		int ear = m_RadioSettings.CycleEar(entry);
-		ShowRadioNotice(entry, LC_RadioSettings.GetEarDisplayName(ear));
+		m_RadioSettings.CycleEar(entry);
+		RefreshRadioMenu();
 		PlaySampleBeep(entry);
 	}
 
@@ -376,8 +376,8 @@ class LC_Client
 		if (!entry)
 			return;
 
-		int beepSet = m_RadioSettings.CycleBeepSet(entry);
-		ShowRadioNotice(entry, LC_RadioSettings.GetBeepSetDisplayName(beepSet));
+		m_RadioSettings.CycleBeepSet(entry);
+		RefreshRadioMenu();
 		PlaySampleBeep(entry);
 	}
 
@@ -389,7 +389,8 @@ class LC_Client
 		if (!entry)
 			return;
 
-		ShowVolumeNotice(entry, m_RadioSettings.CycleVolume(entry));
+		m_RadioSettings.CycleVolume(entry);
+		RefreshRadioMenu();
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -414,14 +415,8 @@ class LC_Client
 		if (!entry)
 			return;
 
-		ShowVolumeNotice(entry, m_RadioSettings.AdjustVolume(entry, direction));
-	}
-
-	//------------------------------------------------------------------------------------------------
-	protected void ShowVolumeNotice(notnull SCR_VONEntryRadio entry, float volume)
-	{
-		int percent = Math.Round(volume * 100);
-		ShowRadioNotice(entry, "Volume " + percent.ToString() + "%");
+		m_RadioSettings.AdjustVolume(entry, direction);
+		RefreshRadioMenu();
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -453,7 +448,7 @@ class LC_Client
 
 		entry.LC_SetFrequency(frequency);
 		RefreshRadioEntries();
-		ShowRadioNotice(entry, "Tuned", frequency);
+		RefreshRadioMenu();
 		PlayUiSound("confirm");
 	}
 
@@ -465,7 +460,7 @@ class LC_Client
 
 	//------------------------------------------------------------------------------------------------
 	//! A setting changed on a channel: the radio menu entry shows the new value, so it only needs redrawing
-	protected void ShowRadioNotice(notnull SCR_VONEntryRadio entry, string setting, int frequency = 0)
+	protected void RefreshRadioMenu()
 	{
 		SCR_VONController vonController = GetVONController();
 		if (vonController)
