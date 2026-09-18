@@ -1,0 +1,47 @@
+FrameWidgetClass {
+ Name "LC_VoiceLevelRoot"
+ {
+  ImageWidgetClass "{6A5C69DD20000021}" {
+   Name "VoiceLevelIcon"
+   Slot FrameWidgetSlot "{6A5C69DD20000022}" {
+    Anchor 1 1 1 1
+    PositionX -130
+    OffsetLeft -130
+    PositionY -408
+    OffsetTop -408
+    SizeX 112
+    OffsetRight 18
+    SizeY 112
+    OffsetBottom 296
+   }
+   Opacity 0
+   Texture "{C000E7C94EE19B30}UI/Textures/VoiceLevel/LC_VoiceLevel_Normal.edds"
+   Size 112 112
+   "Shadow Size Increase" 1.5 1.5
+   "Shadow Color" 0 0 0 0.5
+  }
+  TextWidgetClass "{6A5C69DD20000031}" {
+   Name "RadioNotice"
+   Slot FrameWidgetSlot "{6A5C69DD20000032}" {
+    Anchor 1 1 1 1
+    PositionX -536
+    OffsetLeft -536
+    PositionY -368
+    OffsetTop -368
+    SizeX 400
+    OffsetRight 136
+    SizeY 32
+    OffsetBottom 336
+   }
+   Opacity 0
+   "Font Size" 20
+   "Min Font Size" 20
+   "Horizontal Alignment" Right
+   FontProperties FontProperties "{6A5C69DD20000033}" {
+    Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+    ShadowSize 10
+    ShadowColor 0 0 0 0.7
+   }
+  }
+ }
+}

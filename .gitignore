@@ -1,0 +1,17 @@
+# Build output. Everything here is produced by plugin/build.bat: object files, the DLL,
+# the test executable and the packaged .ts3_plugin. Releases belong on the Releases page.
+plugin/build/
+
+# Local research material: unpacked vanilla Reforger, ACE, RHS, CoalitionVON and 506IRRU,
+# extracted ACRE2 and TFAR PBOs, and clones of other projects. Other people's code, ~1.7 GB.
+reference/
+
+# Workbench rebuilds this cache on open, and it churns on every resource change.
+addon/resourceDatabase.rdb
+
+# Editor and OS noise
+__pycache__/
+*.pyc
+Thumbs.db
+desktop.ini
+*.swp

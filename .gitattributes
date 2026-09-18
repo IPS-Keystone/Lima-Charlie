@@ -1,0 +1,19 @@
+# Keep source line endings stable across machines: LF in the repository, native on checkout.
+* text=auto
+
+*.c    text eol=lf
+*.h    text eol=lf
+*.py   text eol=lf
+*.md   text eol=lf
+*.conf text eol=lf
+*.layout text eol=lf
+*.meta text eol=lf
+*.gproj text eol=lf
+
+# Windows-only scripts are easier to live with as CRLF.
+*.bat  text eol=crlf
+
+*.wav  binary
+*.edds binary
+*.png  binary
+*.ent  binary

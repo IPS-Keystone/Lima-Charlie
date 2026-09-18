@@ -1,0 +1,168 @@
+FrameWidgetClass {
+ Name "Entry"
+ Slot FrameWidgetSlot "{5CC692416D077269}" {
+  OffsetLeft 0
+  OffsetTop 0
+  SizeX 1920
+  OffsetRight -1920
+  SizeY 1080
+  OffsetBottom -1080
+  Alignment 0.5 0.5
+ }
+ components {
+  SCR_VONEntryComponent "{5CD2E57FB3B702DE}" {
+  }
+ }
+ {
+  SizeLayoutWidgetClass "{5CEAF8054DC82357}" {
+   Name "Size"
+   Slot FrameWidgetSlot "{5CEAF8054DC82306}" {
+    Anchor 0.5 0.5 0.5 0.5
+    OffsetLeft 0
+    OffsetTop 0
+    SizeX 96
+    OffsetRight -96
+    SizeY 80
+    OffsetBottom -80
+    Alignment 0.5 0.5
+   }
+   Clipping False
+   {
+    VerticalLayoutWidgetClass "{5CC6924FF67CE111}" {
+     Name "VerticalLayout"
+     Slot AlignableSlot "{5CEAF8054DDAF15A}" {
+      HorizontalAlign 3
+      VerticalAlign 3
+     }
+     {
+      HorizontalLayoutWidgetClass "{5D0A86953EF7769B}" {
+       Name "HorizontalLayout"
+       Slot LayoutSlot "{5D0A86953EF776BD}" {
+        HorizontalAlign 0
+        VerticalAlign 0
+       }
+       {
+        ImageWidgetClass "{5D0A86950B6A29DD}" {
+         Name "ActiveIcon"
+         Slot LayoutSlot "{5D0A86950B6A2998}" {
+          HorizontalAlign 0
+         }
+         Color 0.761 0.392 0.078 1
+         Texture "{2EFEA2AF1F38E7F0}UI/Textures/Icons/icons_wrapperUI-64.imageset"
+         Image "VON_directspeech"
+         Size 32 32
+        }
+        TextWidgetClass "{5D0A869544D6DE67}" {
+         Name "TransceiverText"
+         Slot LayoutSlot "{5D0A869544D6DE1F}" {
+          HorizontalAlign 1
+         }
+         Opacity 0.5
+         Text "CH1"
+         "Font Size" 14
+         "Min Font Size" 14
+         "Horizontal Alignment" Center
+         "Vertical Alignment" Center
+         FontProperties FontProperties "{5D0A869E353F452C}" {
+          Font "{3E7733BAC8C831F6}UI/Fonts/RobotoCondensed/RobotoCondensed_Regular.fnt"
+          Bold 1
+         }
+        }
+        FrameWidgetClass "{5D0A869088DA3ACD}" {
+         Name "PowerFrame"
+         Slot LayoutSlot "{5D0A869088DA3A85}" {
+          HorizontalAlign 2
+         }
+         {
+          ImageWidgetClass "{5D0A86950C209DCC}" {
+           Name "PowerIcon"
+           Slot FrameWidgetSlot "{5D0A8690888A18C4}" {
+            SizeToContent 1
+           }
+           Color 0.071 0.561 0.192 1
+           Texture "{2EFEA2AF1F38E7F0}UI/Textures/Icons/icons_wrapperUI-64.imageset"
+           Image "circle"
+           Size 20 20
+          }
+          ImageWidgetClass "{5D0A8690B29E08F0}" {
+           Name "PowerIconGlow"
+           Slot FrameWidgetSlot "{5D0A86909131CDE7}" {
+            SizeToContent 1
+           }
+           Color 1 1 1 0.392
+           Texture "{ABC6B36856013403}UI/Textures/Icons/icons_wrapperUI-64-glow.imageset"
+           Image "circle"
+           Size 20 20
+          }
+         }
+        }
+        ImageWidgetClass "{64E6D8650E75A08C}" {
+         Name "MuteIcon"
+         Slot LayoutSlot "{5D0A86950B6A2998}" {
+          HorizontalAlign 0
+         }
+         Color 0.761 0.392 0.078 1
+         Texture "{2EFEA2AF1F38E7F0}UI/Textures/Icons/icons_wrapperUI-64.imageset"
+         Image "sound-off"
+         Size 32 32
+        }
+       }
+      }
+      TextWidgetClass "{5CCC91E0C44B6341}" {
+       Name "FrequencyText"
+       Slot LayoutSlot "{5D0AEE0CE85C65B2}" {
+        HorizontalAlign 0
+        VerticalAlign 0
+        Padding 0 0 0 2
+       }
+       Clipping False
+       Text "38.5 MHz"
+       "Min Font Size" 24
+       "Horizontal Alignment" Center
+       FontProperties FontProperties "{52EF3224C71893AC}" {
+        Font "{3E7733BAC8C831F6}UI/Fonts/RobotoCondensed/RobotoCondensed_Regular.fnt"
+        DisabledColor 0.6 0.6 0.6 1
+        OutlineColor 0 0 0 0.769
+        ShadowSize 10
+        ShadowColor 0 0 0 1
+        ShadowOffset 0 0
+       }
+      }
+      TextWidgetClass "{6A5C69DD20000051}" {
+       Name "RadioDetailsText"
+       Slot LayoutSlot "{6A5C69DD20000052}" {
+        HorizontalAlign 1
+       }
+       Text "TX 1 | TFAR SW"
+       "Font Size" 14
+       "Min Font Size" 14
+       "Horizontal Alignment" Center
+       "Vertical Alignment" Center
+       FontProperties FontProperties "{6A5C69DD20000053}" {
+        Font "{3E7733BAC8C831F6}UI/Fonts/RobotoCondensed/RobotoCondensed_Regular.fnt"
+        Bold 1
+        OutlineSize 1
+       }
+      }
+      TextWidgetClass "{5D0A869549EE82A6}" {
+       Name "ChannelText"
+       Slot LayoutSlot "{5D0A869549EE8260}" {
+        HorizontalAlign 1
+       }
+       Text "#AR-Workshop_Error"
+       "Font Size" 14
+       "Min Font Size" 14
+       "Horizontal Alignment" Center
+       "Vertical Alignment" Center
+       FontProperties FontProperties "{5D0A869E0EE5B6B9}" {
+        Font "{3E7733BAC8C831F6}UI/Fonts/RobotoCondensed/RobotoCondensed_Regular.fnt"
+        Bold 1
+        OutlineSize 1
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}

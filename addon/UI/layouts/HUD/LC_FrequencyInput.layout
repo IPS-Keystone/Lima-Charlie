@@ -1,0 +1,110 @@
+FrameWidgetClass {
+ Name "LC_FrequencyInputRoot"
+ {
+  FrameWidgetClass "{6A5C69DD20000041}" {
+   Name "Panel"
+   Slot FrameWidgetSlot "{6A5C69DD20000042}" {
+    Anchor 0.5 0.5 0.5 0.5
+    PositionX -170
+    OffsetLeft -170
+    PositionY -80
+    OffsetTop -80
+    SizeX 340
+    OffsetRight -170
+    SizeY 160
+    OffsetBottom -80
+   }
+   {
+    ImageWidgetClass "{6A5C69DD20000043}" {
+     Name "Background"
+     Slot FrameWidgetSlot "{6A5C69DD20000044}" {
+      Anchor 0 0 0 0
+      PositionX 0
+      OffsetLeft 0
+      PositionY 0
+      OffsetTop 0
+      SizeX 340
+      OffsetRight -340
+      SizeY 160
+      OffsetBottom -160
+     }
+     Color 0.02 0.02 0.02 0.88
+    }
+    TextWidgetClass "{6A5C69DD20000045}" {
+     Name "Title"
+     Slot FrameWidgetSlot "{6A5C69DD20000046}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 10
+      OffsetTop 10
+      SizeX 308
+      OffsetRight -324
+      SizeY 30
+      OffsetBottom -40
+     }
+     Text "Radio frequency (MHz)"
+     "Font Size" 22
+     "Min Font Size" 22
+     FontProperties FontProperties "{6A5C69DD20000047}" {
+      Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+     }
+    }
+    TextWidgetClass "{6A5C69DD20000048}" {
+     Name "RangeText"
+     Slot FrameWidgetSlot "{6A5C69DD20000049}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 42
+      OffsetTop 42
+      SizeX 308
+      OffsetRight -324
+      SizeY 24
+      OffsetBottom -66
+     }
+     "Font Size" 16
+     "Min Font Size" 16
+     FontProperties FontProperties "{6A5C69DD2000004A}" {
+      Font "{3E7733BAC8C831F6}UI/Fonts/RobotoCondensed/RobotoCondensed_Regular.fnt"
+     }
+    }
+    EditBoxWidgetClass "{6A5C69DD2000004B}" {
+     Name "FrequencyEdit"
+     Slot FrameWidgetSlot "{6A5C69DD2000004C}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 72
+      OffsetTop 72
+      SizeX 308
+      OffsetRight -324
+      SizeY 44
+      OffsetBottom -116
+     }
+     Color 0.1569 0.6235 0.2745 1
+    }
+    TextWidgetClass "{6A5C69DD2000004D}" {
+     Name "HintText"
+     Slot FrameWidgetSlot "{6A5C69DD2000004E}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 126
+      OffsetTop 126
+      SizeX 308
+      OffsetRight -324
+      SizeY 24
+      OffsetBottom -150
+     }
+     Text "Enter to set, Esc to cancel"
+     "Font Size" 14
+     "Min Font Size" 14
+     FontProperties FontProperties "{6A5C69DD2000004F}" {
+      Font "{3E7733BAC8C831F6}UI/Fonts/RobotoCondensed/RobotoCondensed_Regular.fnt"
+     }
+    }
+   }
+  }
+ }
+}

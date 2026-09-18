@@ -1,0 +1,167 @@
+# How it works
+
+## The shape of it
+
+```
+Reforger client                    TeamSpeak client
++-------------------+              +--------------------------+
+| LC_Client         |              | limacharlie_win64.dll    |
+|   writes 20 Hz -> | game_state   |                          |
+|                   | plugin_state | <- writes 4+ Hz          |
+|   reads      <-   |              |                          |
++-------------------+              +--------------------------+
+         ^                                      |
+         | RPC: token + settings                | plugin commands
+         |                                      v
+   Reforger server                      other players' plugins
+```
+
+Enfusion cannot load a DLL, so there is no in-process bridge. Two JSON files in the Reforger profile
+directory carry everything. An HTTP route through `RestContext` was measured first and rejected: the engine
+batches request dispatch on a roughly 100 ms cadence, giving a flat ~104 ms round trip regardless of
+payload. The file route runs at about 10 ms average, 13 ms at the 95th percentile.
+
+The game never touches voice audio. TeamSpeak carries it, and the plugin edits each incoming stream before
+the mix.
+
+## Who decides what
+
+The server decides almost nothing. It issues a session token and a settings object, and that is the whole
+of its involvement in voice.
+
+Everything audible is decided **on the listening client**, from data that speakers volunteer about
+themselves. This is TFAR's trust model, and it has TFAR's consequence: a modified client can lie about
+where it is or what it carries. Accepted deliberately — the alternative is routing voice through the game
+server.
+
+The session token is the one guard. Plugins ignore any peer reporting a different token, so two groups on
+different Reforger servers can share a TeamSpeak channel.
+
+## Direct speech
+
+The speaker's plugin announces its voice range to the channel. Each listener's plugin computes gain per
+speaker from its own copy of the positions:
+
+- Falls off to **−30 dB** at the edge of range, with a fade over the last 15%.
+- **Equal-power pan** from the listener's facing, width 0.85.
+- **Behind attenuation** of 0.25, so someone at your back is quieter than someone in front.
+- **Muffle** from occlusion: up to −9 dB plus a low-pass sliding from 8 kHz down to 700 Hz.
+
+Positions come from the listener's camera, not their body, so a Game Master or spectator hears from where
+they are looking. The character's head is used only when the camera is close to it — within 20 m, which
+covers first person and any third-person boom but not a free camera.
+
+### Occlusion
+
+Traced at 10 Hz, only for players within 60 m. Two traces, one from each end: if each end hits a different
+first obstacle, there are at least two things in the way.
+
+| Situation | Muffle |
+| --- | --- |
+| Clear line | 0 |
+| One obstacle | 0.6 |
+| Two or more | 0.9 |
+| Either party in a vehicle | 0.5, or more if traces find walls too |
+| Both in the same vehicle | 0 |
+
+## Radio reception
+
+A transmitting plugin announces itself to the TeamSpeak channel roughly once a second, plus whenever it
+starts, stops, changes radio, or moves more than 25 m:
+
+```
+LC1|RTX|<token>|<player id>|<on>|<frequency kHz>|<range m>|<x>|<y>|<z>|<encryption key>
+```
+
+A receiving plugin plays it if it has a radio switched on, tuned to that frequency, with a matching
+encryption key, and the transmitter is in range. Quality then comes from one number:
+
+```
+effective distance = d + h*7 + h*7*(d/2000)
+ratio              = effective distance / range
+```
+
+`h` is the terrain clearance and 7 is TFAR's coefficient. Below the clean fraction, quality is 1. Above it,
+quality falls linearly to 0.05 at the edge. Beyond the edge, nothing is heard.
+
+Everything audible is driven off that single degradation figure:
+
+| Stage | Clean | Edge of range |
+| --- | --- | --- |
+| Band-pass | 300–3400 Hz | unchanged |
+| Distortion drive | 1.5 | 9.5 |
+| Sample-and-hold | 1 sample | 8 samples |
+| Bit depth | 10 bits | 4 bits |
+| Dropouts | none | starts past 25% degradation |
+| Signal-to-noise | 30 dB | −3 dB |
+| Voice level | 1.0 | 0.7 |
+
+The voice is deliberately held *down* as degradation rises while the noise rises past it. Normalising the
+distortion on peak amplitude instead made bad signals louder than good ones, which is backwards.
+
+### Terrain
+
+The game computes clearance, not the plugin, because only the game can query terrain height. The plugin
+asks for the links it needs via `plugin_state.json`, and the game answers in `game_state.json`.
+
+Clearance is how far the midpoint of the path must rise for both halves to clear the ground, sampled every
+25 m up to 128 samples, ignoring the first and last 10 m so standing on a slope does not block your own
+radio. The result is 0 for line of sight, otherwise clamped to 10–250 m.
+
+The server's terrain setting is applied when computing clearance rather than in the plugin. Scaling `h`
+scales the whole penalty exactly as scaling the coefficient would, and the bridge protocol stays fixed.
+
+**Known fragility:** the plugin waits 300 ms for a terrain answer before assuming line of sight. A missed
+answer degrades silently to "no terrain effect at all" for that transmission rather than failing loudly.
+
+## AI hearing
+
+When you speak out loud, your client tells the server once a second. The server broadcasts a danger event
+at your position with a radius equal to your voice level, capped at 120 m. Each AI that receives it checks
+distance, then whether you are an enemy by faction, then what is in the way:
+
+| Obstacles | Range kept |
+| --- | --- |
+| None | 100% |
+| One | 35% |
+| Two or more | 15% |
+
+So a shout carries out of a building to the street at 21 m, a normal voice stops at 7 m, and a whisper
+through anything at all is inaudible.
+
+The reaction is a **look only** — no move, no investigate, no combat state. It repeats each second you keep
+talking, so the head turn holds rather than flicking. The enemy check is faction-based and does not require
+the AI to have spotted you.
+
+Radio traffic is never audible to AI.
+
+## Game Master
+
+The editor camera is the listener, so direct speech and occlusion both work from where you are looking
+rather than from the body you left behind.
+
+While the editor is open and the server allows it, a Game Master transmits **and** receives without range
+or terrain limits. Both directions use the same lever: the radios are treated as having a range of 1000 km.
+Since terrain only ever adds to distance, and distance is divided by range, both collapse to nothing.
+
+Transmitting is done by announcing the limitless range, which needs nothing from the plugin. Receiving
+needs the plugin, because the range a transmission is judged against comes from the sender — hence the
+`unlimitedRx` flag.
+
+A Game Master with no character at all still hears, through the editor camera. One whose character is dead
+does not: a body that is not alive is dead regardless of what the camera is doing. The check is
+`SCR_EditorManagerEntity.IsOpened()` rather than "has no body", because "has no body" is also true on the
+deploy screen, whose camera can sit over a base full of talking players.
+
+**Static radio stations are unaffected.** `RadioStation_base.et` derives from `Props_Base.et` and carries no
+`SCR_RadioComponent`, so it has no duplex attribute and is out of scope.
+
+## Extending radios
+
+The duplex attribute rides `modded class SCR_RadioComponent`, which already sits in
+`Prefabs/Items/Core/Radio_base.et`. Every radio deriving from it inherits the attribute with no prefab
+override, and several mods can add their own attributes to the same component — which overriding
+`Radio_base.et` itself would not allow.
+
+`BaseRadioComponent` is engine-generated and cannot be extended. `SCR_RadioComponent` is scripted, which is
+why it is the attachment point.
