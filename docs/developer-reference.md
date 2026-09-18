@@ -28,11 +28,35 @@ is not already on the path. It compiles the DLL, compiles and **runs** the offli
 
 `build.bat` does `pushd "%~dp0"`, so it is path-independent and can be moved anywhere.
 
-Version and protocol live in `src/lc_version.h` and must be bumped together with
-`LC_GameStateWriter.PROTOCOL_VERSION` on the game side.
+Version and protocol live in `src/lc_version.h`; see **Versioning and releases** below for what to bump.
 
 `package.py` builds the `.ts3_plugin` zip with directory entries and DOS file attributes, mimicking TFAR's
 package — TeamSpeak's installer extracted 0-byte files from the plain zip .NET produced.
+
+## Versioning and releases
+
+Version numbers matter for the **plugin**, not the addon: the Reforger Workshop keeps every published
+version of a mod, so the addon's history is recoverable from there. The plugin has no such store, and it
+has to be matched to the mod it is bridged to, so it carries the scheme.
+
+`MAJOR.STABLE.DEV`, in `plugin/src/lc_version.h`:
+
+| Position | Bumped for | Example |
+| --- | --- | --- |
+| **Major** | The first public release, and each major feature afterwards | 1.0.0 → 2.0.0 for electronic warfare |
+| **Stable** | Bug fixes and small feature changes | 1.0.0 → 1.1.0 |
+| **Dev** | Testing new features or changes | 1.1.0 → 1.1.1 |
+
+The first public release is **1.0.0**.
+
+New features are developed on their own GitHub branch, never straight onto `main`. The branch merges to
+`main` as part of the major release that introduces the feature — so `main` only ever moves from one
+released state to the next, and a half-finished feature never sits in it.
+
+`LC_PROTOCOL_VERSION` is independent of all three and only moves when the bridge format changes
+incompatibly; it must be bumped together with `LC_GameStateWriter.PROTOCOL_VERSION` on the game side. A
+plugin rejects a game state whose protocol it does not recognise outright, so the two halves must ship
+together whenever it changes.
 
 ## The bridge
 
