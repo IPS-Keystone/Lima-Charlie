@@ -13,8 +13,7 @@ ArmaReforgerWorkbench/addons/Lima Charlie/   the published mod, nothing else
 ```
 
 **Nothing but addon content may live in the addon folder.** Workbench packs `.c` files from anywhere inside
-it, so the plugin's C sources were previously ending up in `data.pak` on every publish. Reference material
-is kept out for a second reason: Workbench indexes it, and cloned `.meta` files hijack resource GUIDs.
+it, so the plugin's C sources will end up in `data.pak` on every publish if they are in the addon folder.
 
 ## Building the plugin
 
@@ -184,7 +183,7 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 | AI | `LC_AIHearing.c`, `LC_AIConfigComponent.c`, `LC_VoiceDangerEvent.c` |
 | UI | `LC_Hud.c`, `LC_VonDisplay.c`, `LC_VonDisplayFeed.c`, `LC_VONMenu.c`, `LC_VONEntryComponent.c` |
 
-## Enfusion notes worth keeping
+## Enfusion notes
 
 - A `modded` class that carries container attributes **must repeat `[BaseContainerProps()]`**, or prefabs
   fail to load that member. It is not inherited.
@@ -196,9 +195,3 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 - Vanilla RPCs take at most 8 arguments. The settings RPC is at 8.
 - `set` and `event` are reserved in Enforce Script.
 - There is no compile-time detection of other addons, so soft compatibility needs a separate compat addon.
-
-## Reading packed game files
-
-`unpak.py` in `Common Context` extracts Reforger `.pak` archives; `unpbo.py` does Arma 3 `.pbo`. Vanilla
-scripts are spread across `addons/data/data*.pak` in the game install — `SCR_VONController.c` and most AI
-and VON code are in `data007.pak`.
