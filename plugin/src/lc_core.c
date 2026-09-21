@@ -259,6 +259,7 @@ static void on_connection_switched(uint64 sch)
     release_mic();
     lc_peers_reset();
     lc_transmissions_reset();
+    lc_audio_reset();
     clear_talkers();
     g_previousChannel    = 0;
     g_gameChannel        = 0;
@@ -344,18 +345,14 @@ static void on_left_game(uint64 sch, int connected)
     g_helloToken[0]   = '\0';
     lc_peers_reset();
     lc_transmissions_reset();
+    lc_audio_reset();
     lc_logf(LC_LOG_INFO, "Left game");
 }
 
-static void update_handshake(uint64 sch, int connected, int inGame, unsigned long long nowMs)
+static void update_handshake(uint64 sch, int inGame, int haveChannel, uint64 channel, unsigned long long nowMs)
 {
     const LONG requested = InterlockedExchange(&g_helloRequested, 0);
-    if (!inGame || !connected || !g_game.token[0] || g_game.playerId <= 0 || !lc_plugin_id())
-        return;
-
-    anyID  me      = 0;
-    uint64 channel = 0;
-    if (!get_own_channel(sch, &me, &channel))
+    if (!inGame || !haveChannel || !g_game.token[0] || g_game.playerId <= 0 || !lc_plugin_id())
         return;
 
     const int identityChanged = strcmp(g_helloToken, g_game.token) != 0 || g_helloPlayerId != g_game.playerId || g_helloChannel != channel || fabs(g_helloVoiceRange - g_game.voiceRange) > 0.05f;
@@ -616,14 +613,10 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     lc_audio_publish(1, targets, count);
 }
 
-static void write_plugin_state(uint64 sch, int connected, int inGame, unsigned long long nowMs)
+static void write_plugin_state(int connected, int inGame, int haveChannel, anyID me, uint64 channel, unsigned long long nowMs)
 {
     if (g_gameDir < 0)
         return;
-
-    anyID     me          = 0;
-    uint64    channel     = 0;
-    const int haveChannel = connected && get_own_channel(sch, &me, &channel);
 
     /* Reforger player ids of peers from this session who are talking right now. */
     char   talking[1024];
@@ -737,13 +730,20 @@ static DWORD WINAPI core_main(LPVOID param)
 
         update_mic(sch, connected, inGame);
         update_channel(sch, connected, inGame, nowMs);
-        update_handshake(sch, connected, inGame, nowMs);
+
+        /* Looked up once for the whole loop: each lookup takes TeamSpeak's own locks, and this runs 200 times a
+           second in game. A channel move made just above is seen next loop. */
+        anyID     me          = 0;
+        uint64    channel     = 0;
+        const int haveChannel = connected && get_own_channel(sch, &me, &channel);
+
+        update_handshake(sch, inGame, haveChannel, channel, nowMs);
         update_radio_tx(sch, connected, inGame, nowMs);
         update_sound_events(inGame);
         lc_peers_expire(nowMs, LC_PEER_MAX_AGE_MS);
         lc_transmissions_expire(nowMs, LC_TRANSMISSION_MAX_AGE_MS);
         publish_voice(connected, inGame, nowMs);
-        write_plugin_state(sch, connected, inGame, nowMs);
+        write_plugin_state(connected, inGame, haveChannel, me, channel, nowMs);
 
         /* A 1 ms system timer is what makes the 5 ms poll actually sleep 5 ms, but it is process-wide and
            costs power everywhere, so it is only held while a game is running. */

@@ -1,4 +1,15 @@
 //------------------------------------------------------------------------------------------------
+//! The last occlusion result for one nearby player, and where both ends were when it was traced
+class LC_MuffleSample
+{
+	float m_fMuffle;
+	vector m_vListener;
+	vector m_vSpeaker;
+	int m_iTracedTick;
+	int m_iSeenTick;
+}
+
+//------------------------------------------------------------------------------------------------
 //! Writes $profile:LimaCharlie/game_state.json for the TeamSpeak plugin. Format is documented in the
 //! plugin's lc_game_state.h; bump PROTOCOL_VERSION on both sides for incompatible changes.
 class LC_GameStateWriter
@@ -12,18 +23,26 @@ class LC_GameStateWriter
 	protected static const int IDLE_INTERVAL_MS = 100;
 	//! Players beyond this distance cannot matter for direct speech
 	protected static const float NEARBY_RANGE_M = 60;
-	//! Occlusion traces are the expensive part, so they run at 10 Hz and only within the longest voice range
-	protected static const int OCCLUSION_INTERVAL_MS = 100;
-	protected static const float OCCLUSION_RANGE_M = 60;
+	//! Occlusion traces are the expensive part, so each nearby player is re-traced only as often as it can
+	//! matter: often while they talk, less often while silent (so the result is ready when they start), and
+	//! rarely when neither end has moved, which is most of a briefing or a building clear
+	protected static const int OCCLUSION_TALKING_MS = 100;
+	protected static const int OCCLUSION_SILENT_MS = 500;
+	protected static const int OCCLUSION_STILL_MS = 2000;
+	protected static const float OCCLUSION_MOVE_M = 0.25;
+	//! At most this many players are re-traced in one write, so a crowd arriving at once is spread over
+	//! several frames instead of landing in one
+	protected static const int OCCLUSION_BUDGET = 8;
+	//! A player not seen nearby for this long has their cached result dropped
+	protected static const int OCCLUSION_FORGET_MS = 5000;
 	//! A camera further than this from the body it belongs to is a free camera: Game Master, spectator or photo
 	//! mode. Character cameras, including a vehicle's third person boom, stay well inside it.
 	protected static const float FREE_CAMERA_RANGE_M = 20;
-	//! How often the whole state goes to the log while a Game Master has the editor open
+	//! How often the whole state goes to the log while the server's diagnostic setting is on
 	protected static const int DIAGNOSTIC_INTERVAL_MS = 1000;
 
 	protected int m_iSeq;
 	protected int m_iNextWriteTick;
-	protected int m_iNextOcclusionTick;
 	protected int m_iNextDiagnosticTick;
 	protected EVONTransmitType m_eLastTransmitType = EVONTransmitType.NONE;
 	protected float m_fLastVoiceRange;
@@ -31,7 +50,9 @@ class LC_GameStateWriter
 	protected int m_iLastLinkRevision;
 	protected int m_iLastSoundSeq;
 	protected ref array<int> m_aPlayerIds = {};
-	protected ref map<int, float> m_mMuffle = new map<int, float>();
+	protected ref map<int, ref LC_MuffleSample> m_mMuffle = new map<int, ref LC_MuffleSample>();
+	protected ref array<int> m_aForget = {};
+	protected int m_iTraceBudget;
 	protected ref LC_Occlusion m_Occlusion = new LC_Occlusion();
 
 	//------------------------------------------------------------------------------------------------
@@ -51,8 +72,13 @@ class LC_GameStateWriter
 		SCR_VONEntryRadio transmitEntry = client.GetTransmitRadioEntry();
 		if (transmitEntry && transmitType != EVONTransmitType.NONE && transmitType != EVONTransmitType.DIRECT)
 		{
-			transmitRadio = LC_Radio.GetId(transmitEntry);
-			transmitFrequency = transmitEntry.GetTransceiver().GetFrequency();
+			// The entry can outlive its transceiver for a frame when the radio is dropped mid-transmission
+			BaseTransceiver transceiver = transmitEntry.GetTransceiver();
+			if (transceiver)
+			{
+				transmitRadio = LC_Radio.GetId(transmitEntry);
+				transmitFrequency = transceiver.GetFrequency();
+			}
 		}
 
 		int linkRevision = client.GetRadioLinks().GetRevision();
@@ -98,11 +124,11 @@ class LC_GameStateWriter
 
 	//------------------------------------------------------------------------------------------------
 	//! The state goes to the log once a second as well as to disk, so a transmit key can be held and read back
-	//! afterwards. A Game Master always gets this while the editor is open; the server's diagnostic setting
-	//! turns it on for everyone, which is the only way to see it on the receiving end of a transmission.
+	//! afterwards. Only while the server's diagnostic setting is on: with a full server this is several
+	//! kilobytes a second of log, and a Game Master can sit in the editor for an entire mission.
 	protected void LogDiagnostic(int now, string json, bool enabled)
 	{
-		if (!enabled && !IsEditorOpen())
+		if (!enabled)
 		{
 			m_iNextDiagnosticTick = 0;
 			return;
@@ -162,13 +188,6 @@ class LC_GameStateWriter
 		// Occlusion is traced from the listener's head, not the camera, so third person does not hear around walls.
 		// A free camera is nowhere near the body it belongs to, and that camera is where the player really listens
 		// from, so it is traced from instead and the body is ignored entirely.
-		bool refreshOcclusion = now >= m_iNextOcclusionTick;
-		if (refreshOcclusion)
-		{
-			m_iNextOcclusionTick = now + OCCLUSION_INTERVAL_MS;
-			m_mMuffle.Clear();
-		}
-
 		IEntity occlusionListener;
 		vector occlusionOrigin = listenerPosition;
 		if (localEntity)
@@ -184,8 +203,9 @@ class LC_GameStateWriter
 		json += ",\"players\":[";
 		m_aPlayerIds.Clear();
 		playerManager.GetPlayers(m_aPlayerIds);
+		LC_PluginStateReader reader = client.GetPluginState();
 		float maxDistanceSq = NEARBY_RANGE_M * NEARBY_RANGE_M;
-		float occlusionDistanceSq = OCCLUSION_RANGE_M * OCCLUSION_RANGE_M;
+		m_iTraceBudget = OCCLUSION_BUDGET;
 		bool first = true;
 		foreach (int playerId : m_aPlayerIds)
 		{
@@ -202,18 +222,7 @@ class LC_GameStateWriter
 			if (distanceSq > maxDistanceSq)
 				continue;
 
-			float muffle;
-			if (refreshOcclusion)
-			{
-				if (distanceSq <= occlusionDistanceSq)
-					muffle = m_Occlusion.Compute(occlusionListener, occlusionOrigin, entity, position);
-
-				m_mMuffle.Set(playerId, muffle);
-			}
-			else
-			{
-				m_mMuffle.Find(playerId, muffle);
-			}
+			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now);
 
 			if (!first)
 				json += ",";
@@ -226,7 +235,62 @@ class LC_GameStateWriter
 		}
 
 		json += "],\"links\":" + client.GetRadioLinks().BuildJson() + "}";
+		ForgetMuffles(now);
 		return json;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! How muffled a nearby player is, from the cache unless their result is due and there is budget left in
+	//! this write. Due means their interval has passed and either end has moved, or it has gone stale.
+	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
+	{
+		LC_MuffleSample sample = m_mMuffle.Get(playerId);
+		if (!sample)
+		{
+			// Due straight away: the zero positions read as moved
+			sample = new LC_MuffleSample();
+			sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
+			m_mMuffle.Set(playerId, sample);
+		}
+
+		sample.m_iSeenTick = now;
+
+		int interval = OCCLUSION_SILENT_MS;
+		if (talking)
+			interval = OCCLUSION_TALKING_MS;
+
+		int age = now - sample.m_iTracedTick;
+		if (age < interval || m_iTraceBudget <= 0)
+			return sample.m_fMuffle;
+
+		float moveSq = OCCLUSION_MOVE_M * OCCLUSION_MOVE_M;
+		bool moved = vector.DistanceSq(sample.m_vListener, listenerPosition) > moveSq || vector.DistanceSq(sample.m_vSpeaker, speakerPosition) > moveSq;
+		if (!moved && age < OCCLUSION_STILL_MS)
+			return sample.m_fMuffle;
+
+		m_iTraceBudget--;
+		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
+		sample.m_vListener = listenerPosition;
+		sample.m_vSpeaker = speakerPosition;
+		sample.m_iTracedTick = now;
+		return sample.m_fMuffle;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Drops the cached results of players who left, died out of range or were streamed out
+	protected void ForgetMuffles(int now)
+	{
+		m_aForget.Clear();
+		foreach (int playerId, LC_MuffleSample sample : m_mMuffle)
+		{
+			if (now - sample.m_iSeenTick > OCCLUSION_FORGET_MS)
+				m_aForget.Insert(playerId);
+		}
+
+		foreach (int playerId : m_aForget)
+		{
+			m_mMuffle.Remove(playerId);
+		}
 	}
 
 	//------------------------------------------------------------------------------------------------

@@ -204,6 +204,20 @@ class LC_PluginStateReader
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! True while the plugin hears this player talking in TeamSpeak
+	bool IsPlayerTalking(int playerId)
+	{
+		return m_TalkingPlayers.Contains(playerId);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Changes whenever a new plugin state has been read, so readers of it can skip frames with nothing new
+	int GetSeq()
+	{
+		return m_iLastSeq;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Radio transmitters the plugin is receiving and needs terrain clearance for
 	map<int, vector> GetRadioRequests()
 	{

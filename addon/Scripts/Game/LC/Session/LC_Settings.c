@@ -30,7 +30,7 @@ class LC_Settings
 	[Attribute(defvalue: "1", desc: "AI turn towards players they hear speaking out loud. Radio traffic is never audible to AI, and friendly AI ignore voices either way.")]
 	bool m_bAIHearing;
 
-	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client writes a line a second to its console log: what the game told the plugin, and what the plugin reports hearing back. Leave off for normal play, it is noisy. A Game Master always gets the first half while the editor is open, whatever this is set to.")]
+	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client writes a line a second to its console log: what the game told the plugin, and what the plugin reports hearing back. Leave off for normal play: with a full server it is several kilobytes a second of log on every client.")]
 	bool m_bDiagnosticLog;
 
 	[Attribute(defvalue: "", desc: "TeamSpeak server players are moved to. Leave empty to leave everyone on the server they are already connected to.")]

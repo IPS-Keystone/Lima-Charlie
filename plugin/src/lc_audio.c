@@ -73,10 +73,29 @@ typedef struct {
 static lc_audio_snapshot g_snapshots[2];
 static volatile LONG      g_readIndex;
 
-/* Audio thread only. Slot index + 1 per TeamSpeak client id; 0 means no state yet. */
+/* Audio thread only. Slot index + 1 per TeamSpeak client id; 0 means no state yet. Slots are never freed
+   individually, so the table is emptied whenever the worker asks, on leaving a game or changing server:
+   otherwise TeamSpeak left running for days eventually fills it, and every new talker after that is silent. */
 static unsigned short  g_slotOfClient[65536];
 static lc_voice_state g_states[LC_AUDIO_MAX_STATES];
 static int             g_stateCount;
+static volatile LONG   g_resetRequested;
+static LONG            g_resetSeen;
+
+void lc_audio_reset(void)
+{
+    InterlockedIncrement(&g_resetRequested);
+}
+
+static void apply_reset(void)
+{
+    const LONG requested = g_resetRequested;
+    if (requested == g_resetSeen)
+        return;
+    memset(g_slotOfClient, 0, sizeof(g_slotOfClient));
+    g_stateCount = 0;
+    g_resetSeen  = requested;
+}
 
 void lc_audio_publish(int active, const lc_voice_target* targets, int count)
 {
@@ -232,6 +251,7 @@ static short to_sample(float value)
 
 void lc_audio_process(anyID client, short* samples, int sampleCount, int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask)
 {
+    apply_reset();
     const lc_audio_snapshot* snapshot = &g_snapshots[g_readIndex & 1];
     if (!snapshot->active || !samples || sampleCount <= 0 || channels <= 0)
         return;

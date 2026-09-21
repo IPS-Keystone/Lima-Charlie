@@ -21,14 +21,21 @@ class LC_RadioLinks
 	protected static const float MOVE_REFRESH_M = 10;
 	//! A link the plugin stopped asking about this long ago is dropped from the file
 	protected static const int STALE_MS = 1000;
+	//! The plugin's requests change at most this often, and a 10 m move takes far longer than this
+	protected static const int UPDATE_MS = 50;
 
 	protected ref map<int, ref LC_RadioLink> m_mLinks = new map<int, ref LC_RadioLink>();
 	protected ref array<int> m_aStale = {};
 	protected int m_iRevision;
+	protected int m_iNextUpdateTick;
 
 	//------------------------------------------------------------------------------------------------
 	void Update(int now, notnull map<int, vector> requests, vector listenerPosition, float terrainFactor = 1)
 	{
+		if (now < m_iNextUpdateTick)
+			return;
+
+		m_iNextUpdateTick = now + UPDATE_MS;
 		m_aStale.Clear();
 		foreach (int playerId, LC_RadioLink link : m_mLinks)
 		{
