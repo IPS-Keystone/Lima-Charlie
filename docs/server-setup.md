@@ -122,7 +122,7 @@ At session start the server logs its resolved settings:
 On a client, the plugin reports itself once it pairs up:
 
 ```
-[LC] Plugin 1.0.7: TeamSpeak connected=1, client id=7, in game channel=1, peers=3
+[LC] Plugin 1.0.8: TeamSpeak connected=1, client id=7, in game channel=1, peers=3
 ```
 
 `in game channel=1` means the move into your channel worked. `peers` is how many other Lima Charlie players

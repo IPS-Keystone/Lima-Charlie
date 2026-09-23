@@ -27,7 +27,7 @@ cat "$USERPROFILE/Documents/My Games/ArmaReforger/profile/LimaCharlie/plugin_sta
 The game log also prints a status line whenever any of it changes:
 
 ```
-[LC] Plugin 1.0.7: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
+[LC] Plugin 1.0.8: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
 ```
 
 Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.log`.
@@ -133,8 +133,13 @@ Nothing in Lima Charlie touches your microphone any more, so this is TeamSpeak's
 capture device and mode as you would for any other channel. If TeamSpeak shows you as talking and nobody
 hears you, the problem is elsewhere — read the status notice and `peers`.
 
-Older versions gated the microphone on the game's keys and fought TeamSpeak's push-to-talk. If you are on
-one of those, the symptom is transmitting nothing at all; update both halves.
+**Builds before 1.0.7 gated the microphone on the game's transmit keys**, by holding TeamSpeak's own local
+mute shut whenever no key was held. On those, voice activation could not open the microphone at all, and a
+session that ended while it was shut could leave TeamSpeak muted afterwards. If a player is stuck muted
+after running one, unmute the microphone in TeamSpeak once; from 1.0.7 nothing touches it again.
+
+From 1.0.8 the status notice says so outright: **"Microphone: muted in TeamSpeak"**, whenever the local
+mute, the mute toggle or a muted speaker is holding it shut.
 
 ## Keybinds show as unbound but work
 

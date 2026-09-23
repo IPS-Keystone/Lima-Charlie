@@ -21,6 +21,7 @@ class LC_StatusNotice
 	protected bool m_bLastPlugin;
 	protected bool m_bLastConnected;
 	protected bool m_bLastInChannel;
+	protected bool m_bLastMicMuted;
 
 	//------------------------------------------------------------------------------------------------
 	void Update(int now, notnull LC_Client client)
@@ -47,6 +48,7 @@ class LC_StatusNotice
 		bool plugin = reader.IsPluginRunning(now);
 		bool connected = plugin && reader.IsTeamSpeakConnected();
 		bool inChannel = plugin && reader.IsInGameChannel();
+		bool micMuted = plugin && reader.IsMicMuted();
 
 		if (!m_bShown)
 		{
@@ -57,7 +59,7 @@ class LC_StatusNotice
 		else
 		{
 			// A session arriving after we gave up on it counts as a change worth correcting
-			bool changed = !m_bLastSession || plugin != m_bLastPlugin || connected != m_bLastConnected || inChannel != m_bLastInChannel;
+			bool changed = !m_bLastSession || plugin != m_bLastPlugin || connected != m_bLastConnected || inChannel != m_bLastInChannel || micMuted != m_bLastMicMuted;
 			if (!changed || now - m_iLastShowTick < RESHOW_MS)
 				return;
 		}
@@ -68,14 +70,15 @@ class LC_StatusNotice
 		m_bLastPlugin = plugin;
 		m_bLastConnected = connected;
 		m_bLastInChannel = inChannel;
+		m_bLastMicMuted = micMuted;
 
-		Show(client, reader, plugin, connected, inChannel);
+		Show(client, reader, plugin, connected, inChannel, micMuted);
 	}
 
 	//------------------------------------------------------------------------------------------------
-	protected void Show(notnull LC_Client client, notnull LC_PluginStateReader reader, bool plugin, bool connected, bool inChannel)
+	protected void Show(notnull LC_Client client, notnull LC_PluginStateReader reader, bool plugin, bool connected, bool inChannel, bool micMuted)
 	{
-		bool allWell = plugin && connected;
+		bool allWell = plugin && connected && !micMuted;
 		string text = "Mod loaded: " + LC_Version.VERSION;
 
 		if (!plugin)
@@ -95,6 +98,10 @@ class LC_StatusNotice
 		else
 		{
 			text += "\nTeamSpeak: connected";
+			// Being muted in TeamSpeak looks exactly like the mod being broken, and a build before 1.0.7
+			// could leave it that way, having gated the microphone itself
+			if (micMuted)
+				text += "\nMicrophone: muted in TeamSpeak. Nobody can hear you until you unmute it.";
 			text += "\n" + DescribeChannel(client, inChannel);
 			// Nought is normal for whoever joins first, so it is reported without being treated as a fault
 			text += "\nOthers with the plugin here: " + reader.GetPeers().ToString();
@@ -109,7 +116,7 @@ class LC_StatusNotice
 		{
 			SCR_PopUpNotification popup = SCR_PopUpNotification.GetInstance();
 			if (popup)
-				popup.PopupMsg("Lima Charlie " + LC_Version.VERSION, HINT_SECONDS, Summarise(plugin, connected));
+				popup.PopupMsg("Lima Charlie " + LC_Version.VERSION, HINT_SECONDS, Summarise(plugin, connected, micMuted));
 		}
 
 		Print("[LC] Status: " + text, LogLevel.NORMAL);
@@ -135,13 +142,16 @@ class LC_StatusNotice
 
 	//------------------------------------------------------------------------------------------------
 	//! One line for the popup, which has room for far less than the hint
-	protected string Summarise(bool plugin, bool connected)
+	protected string Summarise(bool plugin, bool connected, bool micMuted)
 	{
 		if (!plugin)
 			return "TeamSpeak plugin not running";
 
 		if (!connected)
 			return "TeamSpeak not connected to a server";
+
+		if (micMuted)
+			return "Microphone muted in TeamSpeak";
 
 		return "Ready";
 	}

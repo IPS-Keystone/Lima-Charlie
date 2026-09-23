@@ -112,11 +112,13 @@ Protocol 8.
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.7", "inGame": false,
+{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.8", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
-  "selfTalking": true, "talking": "", "radioRx": "", "radioHeard": "" }
+  "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
 ```
 
+- `micMuted` — TeamSpeak is holding the microphone shut, by its local mute, its mute toggle, or a muted
+  speaker. Nothing here sets it; it is reported so the status notice can say why nobody can hear you.
 - `talking` — semicolon-delimited player ids currently speaking.
 - `radioRx` — `playerId,x,y,z;` requests for terrain clearance the game should answer.
 - `radioHeard` — `playerId,radioId,frequency,quality;` for every transmission actually being heard.

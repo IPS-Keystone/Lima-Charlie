@@ -30,6 +30,8 @@ class LC_PluginStateReader
 	protected bool m_bInGameChannel;
 	protected int m_iPeers;
 	protected bool m_bSelfTalking;
+	//! TeamSpeak is holding the microphone shut: its local mute, its mute toggle, or a muted speaker
+	protected bool m_bMicMuted;
 	protected ref set<int> m_TalkingPlayers = new set<int>();
 	//! Transmitting player id -> position the plugin needs the terrain clearance from
 	protected ref map<int, vector> m_mRadioRequests = new map<int, vector>();
@@ -66,6 +68,7 @@ class LC_PluginStateReader
 		bool inGameChannel;
 		int peers;
 		bool selfTalking;
+		bool micMuted;
 		string talking;
 		string radioRx;
 		string radioHeard;
@@ -75,6 +78,7 @@ class LC_PluginStateReader
 		load.ReadValue("inGameChannel", inGameChannel);
 		load.ReadValue("peers", peers);
 		load.ReadValue("selfTalking", selfTalking);
+		load.ReadValue("micMuted", micMuted);
 		load.ReadValue("talking", talking);
 		load.ReadValue("radioRx", radioRx);
 		load.ReadValue("radioHeard", radioHeard);
@@ -90,6 +94,7 @@ class LC_PluginStateReader
 		m_bInGameChannel = inGameChannel;
 		m_iPeers = peers;
 		m_bSelfTalking = selfTalking;
+		m_bMicMuted = micMuted;
 		UpdateTalkingPlayers(talking);
 		UpdateRadioRequests(radioRx);
 		UpdateHeard(radioHeard);
@@ -188,6 +193,13 @@ class LC_PluginStateReader
 	bool IsPluginRunning(int now)
 	{
 		return m_iLastSeq >= 0 && now - m_iLastSeqTick < STALE_MS;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether TeamSpeak is holding our own microphone shut, so nobody can hear us whatever we do in game
+	bool IsMicMuted()
+	{
+		return m_bMicMuted;
 	}
 
 	//------------------------------------------------------------------------------------------------

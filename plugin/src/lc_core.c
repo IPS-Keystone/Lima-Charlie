@@ -114,6 +114,25 @@ static long long          g_stateSeq;
 static unsigned long long g_lastStateWriteMs;
 static char               g_lastStateBody[LC_STATE_BODY_CAP];
 
+/* Whether TeamSpeak itself is holding the microphone shut, by the local mute, the muted-microphone
+   toggle, or a muted speaker, which implies the microphone too. A build before 1.0.7 gated the microphone
+   to follow the game's transmit keys, and one that stopped while it was shut could leave it that way, with
+   nothing on screen to say so. */
+static int is_mic_muted(uint64 sch)
+{
+    int value = 0;
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, &value) == ERROR_ok && value != INPUT_ACTIVE)
+        return 1;
+
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_MUTED, &value) == ERROR_ok && value != 0)
+        return 1;
+
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_OUTPUT_MUTED, &value) == ERROR_ok && value != 0)
+        return 1;
+
+    return 0;
+}
+
 static int is_connected(uint64 sch)
 {
     int status = STATUS_DISCONNECTED;
@@ -568,7 +587,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     lc_audio_publish(1, targets, count);
 }
 
-static void write_plugin_state(int connected, int inGame, int haveChannel, anyID me, uint64 channel, unsigned long long nowMs)
+static void write_plugin_state(int connected, int inGame, int haveChannel, int micMuted, anyID me, uint64 channel, unsigned long long nowMs)
 {
     if (g_gameDir < 0)
         return;
@@ -598,9 +617,9 @@ static void write_plugin_state(int connected, int inGame, int haveChannel, anyID
 
     char      body[LC_STATE_BODY_CAP];
     const int bodyLen = _snprintf(body, sizeof(body),
-        "\"pluginVersion\":\"%s\",\"inGame\":%s,\"tsConnected\":%s,\"tsClientId\":%u,\"inGameChannel\":%s,\"peers\":%d,\"selfTalking\":%s,\"talking\":\"%s\",\"radioRx\":\"%s\",\"radioHeard\":\"%s\"",
+        "\"pluginVersion\":\"%s\",\"inGame\":%s,\"tsConnected\":%s,\"tsClientId\":%u,\"inGameChannel\":%s,\"peers\":%d,\"selfTalking\":%s,\"micMuted\":%s,\"talking\":\"%s\",\"radioRx\":\"%s\",\"radioHeard\":\"%s\"",
         LC_PLUGIN_VERSION, inGame ? "true" : "false", connected ? "true" : "false", haveChannel ? (unsigned)me : 0U,
-        inGameChannel ? "true" : "false", peers, selfTalking ? "true" : "false", talking, g_radioRx, g_radioHeard);
+        inGameChannel ? "true" : "false", peers, selfTalking ? "true" : "false", micMuted ? "true" : "false", talking, g_radioRx, g_radioHeard);
     if (bodyLen <= 0 || (size_t)bodyLen >= sizeof(body))
         return;
 
@@ -697,7 +716,7 @@ static DWORD WINAPI core_main(LPVOID param)
         lc_peers_expire(nowMs, LC_PEER_MAX_AGE_MS);
         lc_transmissions_expire(nowMs, LC_TRANSMISSION_MAX_AGE_MS);
         publish_voice(connected, inGame, nowMs);
-        write_plugin_state(connected, inGame, haveChannel, me, channel, nowMs);
+        write_plugin_state(connected, inGame, haveChannel, connected && is_mic_muted(sch), me, channel, nowMs);
 
         /* A 1 ms system timer is what makes the 5 ms poll actually sleep 5 ms, but it is process-wide and
            costs power everywhere, so it is only held while a game is running. */
