@@ -62,8 +62,14 @@ bedroom do not.
 | Room | Wet | Tail |
 | --- | --- | --- |
 | Outdoors, or under 25 m³ | none | — |
-| About 150 m³ | 0.10 | short |
-| 4000 m³ and up | 0.26 | long |
+| About 150 m³ | 0.04 | short |
+| About 600 m³ | 0.10 | longer |
+| 3000 m³ | 0.05 | fading out |
+| 6000 m³ and up | none | — |
+
+The tail is fullest in an ordinary enclosed room and fades away towards both ends. A cupboard has nothing
+to ring; a hangar or warehouse is an open structure whose doors are most of its wall, so it does not ring
+like a sealed box either — and one tail stretched over a space that size sounds wrong even when it is shut.
 
 Each voice's contribution to that tail is scaled by how much of the room it actually fills: all of it from
 inside the same room, 0.35 from elsewhere in the building, and 0.1 from outdoors, where the voice arrives
@@ -96,6 +102,11 @@ A path adds up what each doorway on it costs: 0.2 wide open, 0.6 shut, and the s
 window, which is not a path at all until it breaks. So an open door two rooms away is worth hearing
 through and a closed one is worth about as much as the wall beside it. Nothing has to be in line of sight
 for this, which is the part traces cannot do: shouting round a corner through an open door now carries.
+
+**An open path is checked against a trace.** When the cheapest path costs little — through open doorways —
+the two may simply be able to see each other, as through an open hangar door, and the path cost would be
+wrong. A trace settles it and whichever is clearer wins. With the door shut the trace agrees with the graph
+anyway, so nothing is lost.
 
 **Closer than 5 m, geometry decides instead**, unless the two are in the same room. Two people standing in
 a doorway are in different areas, and the graph can only charge them for the doorway even though they can

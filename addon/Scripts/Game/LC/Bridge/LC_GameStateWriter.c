@@ -291,19 +291,32 @@ class LC_GameStateWriter
 
 		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
 		float roomMuffle;
-		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, roomMuffle))
+		bool verify;
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, roomMuffle, verify))
 		{
 			sample.m_bFromRooms = true;
-			sample.m_fMuffle = roomMuffle;
-			// Any trace result is now stale: a later fallback has to trace again rather than reuse it
-			sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
 			m_iRoomsResolved++;
-			return roomMuffle;
+			if (!verify)
+			{
+				// Any trace result is now stale: a later fallback has to trace again rather than reuse it
+				sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
+				return roomMuffle;
+			}
+
+			// The path is open, so they may be able to see each other: take whichever is clearer
+			return Math.Min(roomMuffle, TraceMuffle(sample, speaker, speakerPosition, listener, listenerPosition, talking, now));
 		}
 
 		sample.m_bFromRooms = false;
 		m_iRoomsTraced++;
+		return TraceMuffle(sample, speaker, speakerPosition, listener, listenerPosition, talking, now);
+	}
 
+	//------------------------------------------------------------------------------------------------
+	//! The traced muffle for this player, from the cache unless it is due and there is budget left in this
+	//! write. Due means their interval has passed and either end has moved, or it has gone stale.
+	protected float TraceMuffle(notnull LC_MuffleSample sample, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
+	{
 		int interval = OCCLUSION_SILENT_MS;
 		if (talking)
 			interval = OCCLUSION_TALKING_MS;

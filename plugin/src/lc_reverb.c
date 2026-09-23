@@ -23,15 +23,19 @@ static const int kAllpassDelay[LC_ALLPASSES] = {601, 431};
 #define LC_DAMPING 0.28f
 #define LC_ALLPASS_GAIN 0.5f
 
-/* Room volumes in cubic metres at which the tail reaches its small, medium and large shape */
+/* Room volumes in cubic metres. The tail is fullest in an ordinary enclosed room and fades away towards
+   both ends: a cupboard has nothing to ring, and a hangar or warehouse is an open structure whose doors are
+   most of its wall, so it does not ring like a sealed box either - and a single tail over a space that
+   large sounds wrong even when it is closed. */
 #define LC_ROOM_MIN_M3 25.0f
 #define LC_ROOM_SMALL_M3 150.0f
-#define LC_ROOM_LARGE_M3 4000.0f
+#define LC_ROOM_PEAK_M3 600.0f
+#define LC_ROOM_OPEN_M3 6000.0f
 
-#define LC_WET_SMALL 0.10f
-#define LC_WET_LARGE 0.26f
+#define LC_WET_SMALL 0.04f
+#define LC_WET_PEAK 0.10f
 #define LC_DECAY_SMALL 0.62f
-#define LC_DECAY_LARGE 0.87f
+#define LC_DECAY_PEAK 0.80f
 
 typedef struct {
     float buffer[LC_MAX_DELAY];
@@ -83,22 +87,27 @@ void lc_reverb_room_params(float volumeM3, float* wet, float* decay)
 {
     *wet   = 0.0f;
     *decay = LC_DECAY_SMALL;
-    if (volumeM3 < LC_ROOM_MIN_M3)
-        return; /* outdoors, or a space too small to ring */
 
-    /* Between the small and large room sizes both the amount and the length of the tail grow with the
-       logarithm of the volume, so a garage and a hangar are clearly different but a cupboard and a bedroom
-       are not. */
-    float t = 0.0f;
-    if (volumeM3 > LC_ROOM_SMALL_M3) {
-        const float span = (float)log(LC_ROOM_LARGE_M3 / LC_ROOM_SMALL_M3);
-        t                = (float)log(volumeM3 / LC_ROOM_SMALL_M3) / span;
-        if (t > 1.0f)
-            t = 1.0f;
+    /* Outdoors, a space too small to ring, or one so large it behaves like the outdoors */
+    if (volumeM3 < LC_ROOM_MIN_M3 || volumeM3 >= LC_ROOM_OPEN_M3)
+        return;
+
+    if (volumeM3 <= LC_ROOM_PEAK_M3) {
+        /* Rising with the logarithm of the volume, so a garage and a hall differ clearly while a cupboard
+           and a bedroom do not */
+        float t = 0.0f;
+        if (volumeM3 > LC_ROOM_SMALL_M3)
+            t = (float)log(volumeM3 / LC_ROOM_SMALL_M3) / (float)log(LC_ROOM_PEAK_M3 / LC_ROOM_SMALL_M3);
+
+        *wet   = LC_WET_SMALL + (LC_WET_PEAK - LC_WET_SMALL) * t;
+        *decay = LC_DECAY_SMALL + (LC_DECAY_PEAK - LC_DECAY_SMALL) * t;
+        return;
     }
 
-    *wet   = LC_WET_SMALL + (LC_WET_LARGE - LC_WET_SMALL) * t;
-    *decay = LC_DECAY_SMALL + (LC_DECAY_LARGE - LC_DECAY_SMALL) * t;
+    /* Past the peak it fades out again, reaching nothing by the point a space counts as open */
+    const float t = (float)log(volumeM3 / LC_ROOM_PEAK_M3) / (float)log(LC_ROOM_OPEN_M3 / LC_ROOM_PEAK_M3);
+    *wet          = LC_WET_PEAK * (1.0f - t);
+    *decay        = LC_DECAY_PEAK;
 }
 
 static void init_channel(lc_reverb_channel* channel, int offset)

@@ -25,8 +25,8 @@ failures make a sound on their own:
 
 ```
 Lima Charlie
-Mod loaded: 1.0.5
-TeamSpeak plugin: 1.0.5
+Mod loaded: 1.0.6
+TeamSpeak plugin: 1.0.6
 TeamSpeak: connected
 Channel: LimaCharlie
 Others with the plugin here: 3
@@ -65,6 +65,8 @@ Buildings are understood room by room rather than as one lump.
 
 - **Same room** — you hear each other clearly, whatever furniture is in the way.
 - **Within a few metres** — what you can see decides it, so standing in a doorway together is clear.
+- **Through an open door or hangar opening** — if you can see each other, you are not muffled, at any
+  range.
 - **Next room** — muffled by whatever is between you. An **open door** carries voices far better than a
   closed one, and it does not need line of sight: shouting round a corner through an open doorway works.
   A closed door is worth about as much as the wall beside it.
@@ -72,7 +74,8 @@ Buildings are understood room by room rather than as one lump.
 - **Inside to outside** — the same rules, through whichever doors and windows are open.
 
 Speech heard indoors also picks up the room's **reverb**, sized by the room: a small office barely rings,
-a warehouse or hangar clearly does. Voices from elsewhere in the building ring it far less, and a voice
+a hall rings most. Very large open spaces — hangars, warehouses — do not ring at all, because their doors
+are most of their walls. Voices from elsewhere in the building ring a room far less, and a voice
 from outside barely at all, since it reaches you through a doorway rather than filling the room. Outdoors
 there is none, and radio never reverberates — only speech in the air does.
 

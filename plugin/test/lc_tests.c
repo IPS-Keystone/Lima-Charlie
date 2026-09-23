@@ -302,15 +302,22 @@ static void test_reverb(void)
     lc_reverb_room_params(10.0f, &wet, &decay);
     CHECK(wet == 0.0f);
 
-    /* A room the size of a shed is wet but short; a hangar is wetter and longer. */
-    float smallWet, smallDecay, mediumWet, mediumDecay, largeWet, largeDecay;
+    /* A shed is wet but short, an ordinary hall is the wettest, and a hangar does not ring at all: it is an
+       open structure whose doors are most of its wall. */
+    float smallWet, smallDecay, peakWet, peakDecay, bigWet, bigDecay, hangarWet, hangarDecay;
     lc_reverb_room_params(100.0f, &smallWet, &smallDecay);
-    lc_reverb_room_params(800.0f, &mediumWet, &mediumDecay);
-    lc_reverb_room_params(20000.0f, &largeWet, &largeDecay);
-    CHECK(smallWet > 0.0f && smallWet < mediumWet && mediumWet < largeWet);
-    CHECK(smallDecay < mediumDecay && mediumDecay < largeDecay);
+    lc_reverb_room_params(600.0f, &peakWet, &peakDecay);
+    lc_reverb_room_params(3000.0f, &bigWet, &bigDecay);
+    lc_reverb_room_params(20000.0f, &hangarWet, &hangarDecay);
+    CHECK(smallWet > 0.0f && smallWet < peakWet);
+    CHECK(smallDecay < peakDecay);
+    /* Past the peak it fades back out rather than growing without limit. */
+    CHECK(bigWet > 0.0f && bigWet < peakWet);
+    CHECK(hangarWet == 0.0f);
     /* However large the room, the tail must stay below unity or it would never die away. */
-    CHECK(largeDecay < 1.0f && largeWet < 0.5f);
+    CHECK(peakDecay < 1.0f && peakWet < 0.5f);
+    /* Sixty per cent quieter than the first cut of this, which testers found far too strong. */
+    CHECK(peakWet < 0.12f);
 
     /* An impulse into a room decays towards silence and never turns into a NaN or a rising howl. */
     lc_reverb_set_room(800.0f);

@@ -231,6 +231,8 @@ class LC_Rooms
 	protected static const float CLOSED_MUFFLE = 0.6;
 	//! Muffle for a wide open doorway
 	protected static const float OPEN_MUFFLE = 0.2;
+	//! A path costing no more than this is open enough that the two may be able to see each other
+	protected static const float OPEN_PATH_MUFFLE = 0.45;
 	//! Closer than this, geometry decides rather than the room graph. Two people a metre apart in a doorway
 	//! are in different areas and the graph can only charge them for the doorway, when in truth they can see
 	//! each other; a trace gets that right, and at this range the direct path dominates anyway.
@@ -398,10 +400,14 @@ class LC_Rooms
 	//! How muffled the speaker is for this listener, from the room model alone.
 	//! \param distanceSq how far apart they are, squared
 	//! \param muffle 0 clear to 1 fully obstructed, only meaningful when this returns true
+	//! \param verify set when the path runs through open doorways, so a trace should be taken as well and
+	//!        whichever is clearer used. Through an open hangar door the two can simply see each other, and
+	//!        the path cost is then wrong; with the door shut the trace agrees with the graph anyway.
 	//! \return false when the room model cannot answer, so tracing is needed instead
-	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, out float muffle)
+	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, out float muffle, out bool verify)
 	{
 		muffle = 0;
+		verify = false;
 
 		// Both outdoors tells us nothing: a building can still stand between them
 		if (!listener.IsIndoors() && !speaker.IsIndoors())
@@ -455,6 +461,9 @@ class LC_Rooms
 			return false;
 
 		muffle = Math.Min(distance, 1);
+
+		// An open path means line of sight is possible, and a trace settles whether there is any
+		verify = muffle <= OPEN_PATH_MUFFLE;
 		return true;
 	}
 
