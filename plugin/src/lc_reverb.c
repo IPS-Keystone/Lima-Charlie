@@ -125,6 +125,12 @@ static float comb_tick(lc_comb* comb, float input, float decay)
 {
     const float output = comb->buffer[comb->index];
     comb->store        = output + (comb->store - output) * LC_DAMPING;
+
+    /* A tail decaying below this is inaudible, and letting it run on into denormal floats costs far more
+       per sample than the silence is worth in an audio callback */
+    if (comb->store > -1.0e-8f && comb->store < 1.0e-8f)
+        comb->store = 0.0f;
+
     comb->buffer[comb->index] = input + comb->store * decay;
     comb->index++;
     if (comb->index >= comb->length)
@@ -187,8 +193,13 @@ void lc_reverb_mix(short* samples, int sampleCount, int channels, const unsigned
 {
     const int sent = g_sendCount;
     g_sendCount    = 0;
-    if (!samples || sampleCount <= 0 || channels <= 0)
+    if (!samples || sampleCount <= 0 || channels <= 0) {
+        /* The send is accumulated, so leaving this period's voice in it would add to the next one */
+        if (sent > 0)
+            memset(g_send, 0, sizeof(float) * (size_t)sent);
+
         return;
+    }
 
     float wet, decay;
     lc_reverb_room_params(bits_to_float(g_roomVolumeBits), &wet, &decay);

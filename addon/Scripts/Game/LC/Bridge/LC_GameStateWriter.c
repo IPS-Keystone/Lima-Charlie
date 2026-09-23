@@ -25,6 +25,9 @@ class LC_GameStateWriter
 	protected static const int INTERVAL_MS = 50;
 	//! 10 Hz when nobody is talking and we are not transmitting: positions still move, but nothing is audible
 	protected static const int IDLE_INTERVAL_MS = 100;
+	//! 2 Hz with no plugin reading any of it - TeamSpeak not running, or not yet started. Still often enough
+	//! for the plugin to find a fresh state within half a second of starting up.
+	protected static const int NO_PLUGIN_INTERVAL_MS = 500;
 	//! Players beyond this distance cannot matter for direct speech
 	protected static const float NEARBY_RANGE_M = 60;
 	//! Occlusion traces are the expensive part, so each nearby player is re-traced only as often as it can
@@ -127,10 +130,15 @@ class LC_GameStateWriter
 	//! Voice only needs fresh positions while someone can be heard
 	protected int GetWriteInterval(notnull LC_Client client, EVONTransmitType transmitType)
 	{
+		LC_PluginStateReader reader = client.GetPluginState();
+
+		// Nobody is reading this. Somebody playing without TeamSpeak running should not pay for the bridge.
+		if (!reader.IsPluginRunning(System.GetTickCount()))
+			return NO_PLUGIN_INTERVAL_MS;
+
 		if (transmitType != EVONTransmitType.NONE)
 			return INTERVAL_MS;
 
-		LC_PluginStateReader reader = client.GetPluginState();
 		if (reader.IsSelfTalking() || reader.IsAnyPlayerTalking())
 			return INTERVAL_MS;
 

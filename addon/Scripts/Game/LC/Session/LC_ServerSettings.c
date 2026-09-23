@@ -243,9 +243,13 @@ class LC_ServerSettings
 		JsonSaveContext save = new JsonSaveContext();
 		save.WriteValue("teamspeakChannel", m_sTeamSpeakChannel);
 		save.WriteValue("teamspeakChannelPassword", m_sTeamSpeakChannelPassword);
-		save.WriteValue("cleanRangePercent", Math.Round(m_fCleanFraction * 100));
-		save.WriteValue("beepRangePercent", Math.Round(m_fBeepFraction * 100));
-		save.WriteValue("terrainEffectPercent", Math.Round(m_fTerrainFactor * 100));
+		// Whole percentages, so the file reads as something a person wrote
+		int cleanPercent = Math.Round(m_fCleanFraction * 100);
+		int beepPercent = Math.Round(m_fBeepFraction * 100);
+		int terrainPercent = Math.Round(m_fTerrainFactor * 100);
+		save.WriteValue("cleanRangePercent", cleanPercent);
+		save.WriteValue("beepRangePercent", beepPercent);
+		save.WriteValue("terrainEffectPercent", terrainPercent);
 		save.WriteValue("gameMasterUnlimitedRange", m_bGameMasterUnlimitedRange);
 		save.WriteValue("aiHearing", m_bAIHearing);
 		save.WriteValue("diagnosticLog", m_bDiagnosticLog);
