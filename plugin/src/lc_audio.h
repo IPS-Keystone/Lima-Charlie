@@ -22,6 +22,9 @@ typedef struct {
    is left untouched. */
 void lc_audio_publish(int active, const lc_voice_target* targets, int count);
 
+/* Worker thread. Asks the audio thread to forget every talker's filter state before its next buffer. */
+void lc_audio_reset(void);
+
 /* TeamSpeak audio thread, from ts3plugin_onEditPostProcessVoiceDataEvent. */
 void lc_audio_process(anyID client, short* samples, int sampleCount, int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask);
 

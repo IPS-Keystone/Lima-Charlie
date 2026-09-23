@@ -9,17 +9,31 @@
 //! Radio's frequency colouring, keep working because nothing about the display itself is replaced.
 class LC_VonDisplayFeed
 {
+	//! Vanilla fades an entry out a second after its last refresh, so this keeps one lit with room to spare
+	protected static const int RECEIVE_KEEPALIVE_MS = 250;
+
 	protected SCR_VonDisplay m_Display;
 	protected ref array<SCR_VONEntryRadio> m_aEntries = {};
+	protected int m_iLastPluginSeq = -1;
+	protected int m_iNextReceiveTick;
 
 	//------------------------------------------------------------------------------------------------
-	void Update(notnull LC_Client client)
+	void Update(notnull LC_Client client, int now)
 	{
 		SCR_VonDisplay display = GetDisplay();
 		if (!display)
 			return;
 
+		// One call that returns at once unless something changed, so the transmit indicator follows the key
 		ShowTransmitting(display, client);
+
+		// What we hear only changes when the plugin writes, at most 20 times a second
+		int pluginSeq = client.GetPluginState().GetSeq();
+		if (pluginSeq == m_iLastPluginSeq && now < m_iNextReceiveTick)
+			return;
+
+		m_iLastPluginSeq = pluginSeq;
+		m_iNextReceiveTick = now + RECEIVE_KEEPALIVE_MS;
 		ShowReceiving(display, client);
 	}
 

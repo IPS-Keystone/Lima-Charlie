@@ -28,7 +28,8 @@ Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.
 ## Diagnostic logging
 
 Set `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs both sides of the bridge
-once a second. A Game Master always gets the sending half while the editor is open, whatever the setting.
+once a second. That includes a Game Master in the editor, who used to get the sending half regardless;
+it now needs the setting like everyone else.
 
 **Sending half** — the whole game state as written:
 

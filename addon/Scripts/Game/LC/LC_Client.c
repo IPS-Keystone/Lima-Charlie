@@ -196,7 +196,7 @@ class LC_Client
 		m_RadioLinks.Update(now, m_Reader.GetRadioRequests(), GetRadioPosition(), m_fTerrainFactor);
 		m_Writer.Update(now, this);
 		m_Hud.Update(elapsedMs / 1000);
-		m_VonDisplay.Update(this);
+		m_VonDisplay.Update(this, now);
 
 		if (!m_bPluginWarningShown && now - m_iStartTick > PLUGIN_WARNING_DELAY_MS && !m_Reader.IsPluginRunning(now))
 		{

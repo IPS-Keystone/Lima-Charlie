@@ -93,7 +93,7 @@ deleting the list.
 ## Diagnostic logging
 
 Off by default and noisy — one line per second per client, plus a second line on the receive side. Turn it
-on only while investigating something, and take it back out afterwards. A Game Master always gets the
-sending half while the editor is open, regardless of this setting.
+on only while investigating something, and take it back out afterwards: the sending half is the whole
+game state, which with 30 players nearby is around 3 KB a line.
 
 See [troubleshooting.md](troubleshooting.md) for how to read the output.
