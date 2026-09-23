@@ -219,20 +219,11 @@ void lc_reverb_mix(short* samples, int sampleCount, int channels, const unsigned
     int left, right;
     lc_audio_find_stereo(channels, channelSpeakerArray, &left, &right);
 
-    /* Channels TeamSpeak has not filled hold whatever was there before: clear them before mixing in */
-    if (channelFillMask && channels <= 32) {
-        const int used[2] = {left, right};
-        for (int u = 0; u < 2; ++u) {
-            const unsigned int bit = 1u << used[u];
-            if (*channelFillMask & bit)
-                continue;
-
-            for (int i = 0; i < sampleCount; ++i)
-                samples[i * channels + used[u]] = 0;
-
-            *channelFillMask |= bit;
-        }
-    }
+    /* This buffer is the finished mix of every voice, so it is added to and never cleared. Zeroing an
+       unfilled channel here, as the per-speaker path does, wiped the mixed voices every period and chopped
+       all speech to pieces. The mask is only marked, to say these channels now carry something. */
+    if (channelFillMask && channels <= 32)
+        *channelFillMask |= (1u << left) | (1u << right);
 
     for (int i = 0; i < sampleCount; ++i) {
         float input = 0.0f;

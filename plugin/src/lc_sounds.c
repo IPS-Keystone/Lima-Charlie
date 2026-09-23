@@ -292,18 +292,10 @@ void lc_sounds_mix(short* samples, int sampleCount, int channels, const unsigned
     int left, right;
     lc_audio_find_stereo(channels, channelSpeakerArray, &left, &right);
 
-    /* Channels TeamSpeak has not filled hold garbage: clear them before mixing in and mark them filled. */
-    if (channelFillMask && channels <= 32) {
-        const int used[2] = {left, right};
-        for (int u = 0; u < 2; ++u) {
-            const unsigned int bit = 1u << used[u];
-            if (*channelFillMask & bit)
-                continue;
-            for (int i = 0; i < sampleCount; ++i)
-                samples[i * channels + used[u]] = 0;
-            *channelFillMask |= bit;
-        }
-    }
+    /* Beeps are added to the finished mix, never cleared into it: this buffer already holds every voice,
+       and zeroing a channel TeamSpeak had not marked as filled cut the speech underneath the beep. */
+    if (channelFillMask && channels <= 32)
+        *channelFillMask |= (1u << left) | (1u << right);
 
     for (int p = 0; p < LC_MAX_PLAYING; ++p) {
         lc_playing* playing = &g_playing[p];
