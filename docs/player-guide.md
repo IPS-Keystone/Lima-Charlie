@@ -25,8 +25,8 @@ failures make a sound on their own:
 
 ```
 Lima Charlie
-Mod loaded: 1.0.3
-TeamSpeak plugin: 1.0.3
+Mod loaded: 1.0.4
+TeamSpeak plugin: 1.0.4
 TeamSpeak: connected
 Channel: LimaCharlie
 Others with the plugin here: 3
