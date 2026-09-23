@@ -122,10 +122,7 @@ class LC_Occlusion
 	//! still counts while a post does not.
 	protected bool FilterCover(notnull IEntity entity, vector start = "0 0 0", vector dir = "0 0 0")
 	{
-		// Neither trees nor people are cover, whatever their bounding boxes say. A tree's box is its whole
-		// canopy, several metres across, so the width test below could never rule one out - and a wood
-		// between two people should not sound like a wall between them.
-		if (IsVegetation(entity) || ChimeraCharacter.Cast(entity))
+		if (IsNeverCover(entity))
 		{
 			m_iSkipped++;
 			return false;
@@ -139,16 +136,33 @@ class LC_Occlusion
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Trees, saplings, bushes that use the tree classes, and the parts a felled tree breaks into.
-	//! Vanilla's own vegetation checks cast to Tree the same way.
-	protected bool IsVegetation(notnull IEntity entity)
+	//! Things that never muffle a voice however large their bounding box is, which is what rules them out
+	//! of the width test below: a tree's box is its whole canopy and a powerline's spans two poles.
+	protected bool IsNeverCover(notnull IEntity entity)
 	{
-		// Tree derives from BaseTree, as do the destructible trees and their fallen parts
+		// Trees, the destructible ones and the parts a felled one breaks into. Vanilla's own vegetation
+		// checks cast to Tree the same way.
 		if (BaseTree.Cast(entity))
 			return true;
 
-		// Plain static trees, placed without any destruction of their own
-		return TreeEntity.Cast(entity) != null;
+		// Plain static trees, placed without destruction of their own
+		if (TreeEntity.Cast(entity))
+			return true;
+
+		// The wire itself, whose box spans the whole distance between its poles
+		if (PowerlineEntity.Cast(entity))
+			return true;
+
+		// Telegraph and power poles: thin, but with crossarms wide enough to pass for cover
+		if (PowerPoleEntity.Cast(entity))
+			return true;
+
+		// Rubble, splinters and other small debris, including what a felled tree leaves behind
+		if (SCR_BaseDebrisSmallEntity.Cast(entity))
+			return true;
+
+		// Nobody is cover, whatever their bounding box says
+		return ChimeraCharacter.Cast(entity) != null;
 	}
 
 	//------------------------------------------------------------------------------------------------

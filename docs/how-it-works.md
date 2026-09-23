@@ -139,11 +139,17 @@ The engine's trace filter is given the verdict for each entity along the path, s
 with any number of them on it:
 
 - **Vegetation** — anything deriving from `BaseTree`, which covers trees, the destructible ones and the
-  parts a felled one breaks into, plus plain `TreeEntity` static trees. A class check, not a size one: a
-  tree's bounding box is its whole canopy, so no width test could ever rule one out.
+  parts a felled one breaks into, plus plain `TreeEntity` static trees.
+- **Powerlines** — `PowerlineEntity`, whose bounding box spans the whole distance between its poles.
+- **Power and telegraph poles** — `PowerPoleEntity`, thin but with crossarms wide enough to pass the width
+  test.
+- **Small debris** — `SCR_BaseDebrisSmallEntity`: rubble, splinters and what a felled tree leaves behind.
 - **Characters** — whatever their bounding box says.
 - **Anything under 0.8 m across in plan**, measured on the wider of its two horizontal sides, so a fence
   panel or a wall section still counts while a post does not.
+
+The first four are class checks rather than size ones, because their bounding boxes are far larger than
+the thing that would actually be in the way.
 
 Terrain and other geometry with no entity behind it always counts as cover.
 
