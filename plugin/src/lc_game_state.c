@@ -124,7 +124,6 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
         copy_string(session, "token", out->token, sizeof(out->token));
         out->playerId = get_int(session, "playerId", 0);
         copy_string(session, "playerName", out->playerName, sizeof(out->playerName));
-        copy_string(session, "tsServer", out->tsServer, sizeof(out->tsServer));
         copy_string(session, "tsChannel", out->tsChannel, sizeof(out->tsChannel));
         copy_string(session, "tsChannelPassword", out->tsChannelPassword, sizeof(out->tsChannelPassword));
         copy_string(session, "modVersion", out->modVersion, sizeof(out->modVersion));

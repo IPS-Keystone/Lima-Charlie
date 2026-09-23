@@ -37,7 +37,6 @@ class LC_Client
 
 	protected bool m_bHasSession;
 	protected string m_sSessionToken;
-	protected string m_sTeamSpeakServer;
 	protected string m_sTeamSpeakChannel;
 	protected string m_sTeamSpeakChannelPassword;
 	protected int m_iNextSessionRequestTick;
@@ -541,11 +540,10 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
-	void OnSessionReceived(string token, string teamSpeakServer, string teamSpeakChannel, string teamSpeakChannelPassword)
+	void OnSessionReceived(string token, string teamSpeakChannel, string teamSpeakChannelPassword)
 	{
 		m_bHasSession = true;
 		m_sSessionToken = token;
-		m_sTeamSpeakServer = teamSpeakServer;
 		m_sTeamSpeakChannel = teamSpeakChannel;
 		m_sTeamSpeakChannelPassword = teamSpeakChannelPassword;
 		Print("[LC] Session received, TeamSpeak channel: '" + teamSpeakChannel + "'", LogLevel.NORMAL);
@@ -670,12 +668,6 @@ class LC_Client
 	string GetSessionToken()
 	{
 		return m_sSessionToken;
-	}
-
-	//------------------------------------------------------------------------------------------------
-	string GetTeamSpeakServer()
-	{
-		return m_sTeamSpeakServer;
 	}
 
 	//------------------------------------------------------------------------------------------------

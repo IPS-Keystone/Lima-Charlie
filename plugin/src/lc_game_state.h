@@ -4,7 +4,7 @@
 {
   "v": 6, "seq": 42, "inGame": true,
   "session": { "token": "1789377566-123-456-789", "playerId": 1, "playerName": "Name",
-               "tsServer": "", "tsChannel": "Reforger", "tsChannelPassword": "",
+               "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
   "self": { "alive": true, "pos": [x, y, z], "dir": [x, y, z], "tx": 2, "txFrequency": 45000, "txRadio": "123:1",
             "voiceRange": 20, "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false,
@@ -97,7 +97,6 @@ typedef struct {
     char token[LC_TOKEN_CAP];
     int  playerId;
     char playerName[128];
-    char tsServer[256];
     char tsChannel[256];
     char tsChannelPassword[128];
     char modVersion[32];

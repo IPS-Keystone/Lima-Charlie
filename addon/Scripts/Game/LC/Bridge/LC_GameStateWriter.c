@@ -181,7 +181,6 @@ class LC_GameStateWriter
 		json += ",\"session\":{\"token\":" + LC_Json.String(client.GetSessionToken());
 		json += ",\"playerId\":" + localPlayerId.ToString();
 		json += ",\"playerName\":" + LC_Json.String(playerManager.GetPlayerName(localPlayerId));
-		json += ",\"tsServer\":" + LC_Json.String(client.GetTeamSpeakServer());
 		json += ",\"tsChannel\":" + LC_Json.String(client.GetTeamSpeakChannel());
 		json += ",\"tsChannelPassword\":" + LC_Json.String(client.GetTeamSpeakChannelPassword());
 		json += ",\"modVersion\":" + LC_Json.String(LC_Version.VERSION) + "}";

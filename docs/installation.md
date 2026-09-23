@@ -57,16 +57,19 @@ The token changes every time the server session restarts.
 
 ## For server operators
 
-The TeamSpeak server, channel and password are set server-side and pushed to every client. Two places to
-put them, in priority order:
+The channel and its password are set server-side and pushed to every client. Players are moved into that
+channel on whichever TeamSpeak server they are already connected to; the mod never connects anyone to a
+TeamSpeak server. The channel defaults to **`LimaCharlie`**, so create a channel of that name and it works
+untouched. Two places to change it, in priority order:
 
 1. **The mission header** — per scenario, overrides everything else.
 2. **`Configs/LC/Settings.conf`** — shipped with the mod, the normal place.
 
-A legacy third option still works: `$profile/LimaCharlie/server.json` with `teamspeakServer`, `teamspeakChannel`
-and `teamspeakChannelPassword`. It is only read when the configured channel is empty, and logs a warning
-each launch telling you to move it into `Settings.conf`. It exists so servers set up before the settings
-config existed keep working.
+Setting the channel to empty disables channel moves and leaves everyone where they are.
+
+A legacy third option still works: `$profile/LimaCharlie/server.json` with `teamspeakChannel` and
+`teamspeakChannelPassword`. It is only read when the configured channel is empty, which now takes a
+deliberate blanking, and it logs a warning telling you to move it into `Settings.conf`.
 
 See [server-settings.md](server-settings.md) for the full list.
 

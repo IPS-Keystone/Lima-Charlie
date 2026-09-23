@@ -1,12 +1,11 @@
 //------------------------------------------------------------------------------------------------
 //! What the server tells every client about this session's setup. LC_Settings is the source of truth;
-//! $profile:LimaCharlie/server.json is still read when it leaves the TeamSpeak channel empty, so servers set up
-//! before the settings config existed keep working.
+//! $profile:LimaCharlie/server.json is still read when the channel is left empty, which now means a server
+//! has deliberately blanked it, since the shipped default is "LimaCharlie".
 class LC_ServerSettings
 {
 	protected static const string PATH = "$profile:LimaCharlie/server.json";
 
-	string m_sTeamSpeakServer;
 	string m_sTeamSpeakChannel;
 	string m_sTeamSpeakChannelPassword;
 	//! Share of a radio's range that is heard perfectly before garbling starts
@@ -51,7 +50,6 @@ class LC_ServerSettings
 		LC_Settings configured = LC_Settings.Get();
 		if (configured)
 		{
-			settings.m_sTeamSpeakServer = configured.m_sTeamSpeakServer;
 			settings.m_sTeamSpeakChannel = configured.m_sTeamSpeakChannel;
 			settings.m_sTeamSpeakChannelPassword = configured.m_sTeamSpeakChannelPassword;
 			settings.m_fCleanFraction = configured.GetCleanFraction();
@@ -85,17 +83,14 @@ class LC_ServerSettings
 			return;
 		}
 
-		string teamSpeakServer;
 		string teamSpeakChannel;
 		string teamSpeakChannelPassword;
-		load.ReadValue("teamspeakServer", teamSpeakServer);
 		load.ReadValue("teamspeakChannel", teamSpeakChannel);
 		load.ReadValue("teamspeakChannelPassword", teamSpeakChannelPassword);
 
 		if (teamSpeakChannel.IsEmpty())
 			return;
 
-		m_sTeamSpeakServer = teamSpeakServer;
 		m_sTeamSpeakChannel = teamSpeakChannel;
 		m_sTeamSpeakChannelPassword = teamSpeakChannelPassword;
 		Print("[LC] TeamSpeak channel taken from " + PATH + "; set it in Configs/LC/Settings.conf instead", LogLevel.WARNING);

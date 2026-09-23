@@ -23,7 +23,7 @@ modded class SCR_PlayerController
 		LC_Session session = LC_Session.GetServerSession();
 		LC_ServerSettings settings = session.GetSettings();
 		Rpc(RpcDo_LC_ReceiveSettings, settings.m_fCleanFraction, settings.m_fBeepFraction, settings.m_fTerrainFactor, settings.m_bAIHearing, settings.m_bGameMasterUnlimitedRange, settings.GetDiagnosticFlags(), settings.m_sChannelLabels, settings.m_eChannelNaming);
-		Rpc(RpcDo_LC_ReceiveSession, session.GetToken(), settings.m_sTeamSpeakServer, settings.m_sTeamSpeakChannel, settings.m_sTeamSpeakChannelPassword);
+		Rpc(RpcDo_LC_ReceiveSession, session.GetToken(), settings.m_sTeamSpeakChannel, settings.m_sTeamSpeakChannelPassword);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -58,10 +58,10 @@ modded class SCR_PlayerController
 
 	//------------------------------------------------------------------------------------------------
 	[RplRpc(RplChannel.Reliable, RplRcver.Owner)]
-	protected void RpcDo_LC_ReceiveSession(string token, string teamSpeakServer, string teamSpeakChannel, string teamSpeakChannelPassword)
+	protected void RpcDo_LC_ReceiveSession(string token, string teamSpeakChannel, string teamSpeakChannelPassword)
 	{
 		LC_Client client = LC_Client.Get();
 		if (client)
-			client.OnSessionReceived(token, teamSpeakServer, teamSpeakChannel, teamSpeakChannelPassword);
+			client.OnSessionReceived(token, teamSpeakChannel, teamSpeakChannelPassword);
 	}
 }

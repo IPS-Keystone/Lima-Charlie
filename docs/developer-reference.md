@@ -74,7 +74,7 @@ Protocol 6.
 {
   "v": 6, "seq": 42, "inGame": true,
   "session": { "token": "...", "playerId": 1, "playerName": "Name",
-               "tsServer": "", "tsChannel": "Squad 1", "tsChannelPassword": "",
+               "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
   "self": { "alive": true, "pos": [x,y,z], "dir": [x,y,z], "tx": 2,
             "txFrequency": 45000, "txRadio": "123:1", "voiceRange": 20,
@@ -115,8 +115,8 @@ Written atomically at 4 Hz or faster.
 
 ### `server.json` — legacy
 
-`{"teamspeakServer":"","teamspeakChannel":"","teamspeakChannelPassword":""}`. Read only when the configured
-channel is empty. Not created if missing.
+`{"teamspeakChannel":"","teamspeakChannelPassword":""}`. Read only when the configured channel is empty,
+which now takes a deliberate blanking, since the shipped default is `LimaCharlie`. Not created if missing.
 
 ## Plugin commands
 

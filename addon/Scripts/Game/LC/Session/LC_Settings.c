@@ -36,10 +36,7 @@ class LC_Settings
 	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client logs one line a second about the engine's room model: which room it thinks each nearby player is in, how open the doorways of the building you are in are, how much of the mapping of that building type is done, and whether each player's muffling came from the rooms or from a trace. Far less noisy than the setting above.")]
 	bool m_bRoomDiagnosticLog;
 
-	[Attribute(defvalue: "", desc: "TeamSpeak server players are moved to. Leave empty to leave everyone on the server they are already connected to.")]
-	string m_sTeamSpeakServer;
-
-	[Attribute(defvalue: "", desc: "TeamSpeak channel every player is moved into while in game. Leave empty to disable automatic channel moves.")]
+	[Attribute(defvalue: "LimaCharlie", desc: "TeamSpeak channel every player is moved into while in game, on whichever TeamSpeak server they are already connected to. Leave empty to disable automatic channel moves and let everyone sort out their own channel.")]
 	string m_sTeamSpeakChannel;
 
 	[Attribute(defvalue: "", desc: "Password of that channel, if it has one.")]
@@ -88,6 +85,7 @@ class LC_Settings
 		settings.m_fTerrainEffectPercent = 100;
 		settings.m_bGameMasterUnlimitedRange = true;
 		settings.m_bAIHearing = true;
+		settings.m_sTeamSpeakChannel = "LimaCharlie";
 		return settings;
 	}
 

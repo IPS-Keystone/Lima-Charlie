@@ -38,8 +38,7 @@ LC_Settings {
 | `m_bDiagnosticLog` | off | — | Every client logs its side of the bridge once a second. Troubleshooting only. |
 | `m_bRoomDiagnosticLog` | off | — | Every client logs what the engine's room model says about its neighbours, once a second. Troubleshooting only, and far quieter than the line above. |
 | `m_bAIHearing` | on | — | Enemy AI turn towards players speaking out loud. |
-| `m_sTeamSpeakServer` | empty | — | Server players are moved to. Empty leaves everyone where they are. |
-| `m_sTeamSpeakChannel` | empty | — | Channel players are moved into. Empty disables channel moves. |
+| `m_sTeamSpeakChannel` | `LimaCharlie` | — | Channel players are moved into, on whatever TeamSpeak server they are already on. Empty disables channel moves. |
 | `m_sTeamSpeakChannelPassword` | empty | — | Password for that channel, if it has one. |
 
 ## Clean range, in practice
