@@ -526,6 +526,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                 continue;
             target->client = peers[i].client;
             target->muffle = player->muffle;
+            target->roomShare = player->room;
             ++count;
         }
 

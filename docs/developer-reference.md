@@ -68,11 +68,11 @@ Written at 20 Hz while anyone is talking, 10 Hz idle, and immediately on any cha
 voice range, terrain links or the sound queue. Radio state is rebuilt on the write itself rather than
 compared every frame, so a radio setting reaches the plugin at the next scheduled write — at most 100 ms,
 and in practice sooner, since the settings that change it all queue a sound, which forces a write.
-Protocol 7.
+Protocol 8.
 
 ```json
 {
-  "v": 7, "seq": 42, "inGame": true,
+  "v": 8, "seq": 42, "inGame": true,
   "session": { "token": "...", "playerId": 1, "playerName": "Name",
                "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
@@ -84,7 +84,7 @@ Protocol 7.
                           "rx": true, "ear": 1, "volume": 0.8, "beep": "tfar_sw",
                           "halfDuplex": 0 } ],
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
-  "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6 } ],
+  "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6, "room": 0.35 } ],
   "links":   [ { "id": 2, "clearance": 35 } ]
 }
 ```
@@ -95,19 +95,21 @@ Protocol 7.
 - `tx` mirrors `EVONTransmitType`: 0 none, 1 direct, 2 channel, 3 long range.
 - `radios[].id` is `<radio RplId>:<transceiver number>`, unique among the player's own radios.
 - `radios[].range` is the announced range, which is 1000000 for a Game Master with the editor open.
-- `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed.
+- `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed. `room` is how
+  much of the listener's room that voice fills, which scales the reverb send only: 1 in the same room,
+  0.35 elsewhere in the building, 0.1 from outdoors. New in protocol 8.
 - `links[]` answers the plugin's `radioRx` requests with terrain clearance in metres, already scaled by the
   server's terrain setting.
 - `sounds[]` is a queue with increasing `seq`; the plugin plays each once.
 - `roomVolume` is the volume in m³ of the room the listener is standing in, 0 outdoors. It sizes the
-  plugin's room reverb. New in protocol 7.
+  plugin's room reverb. New in protocol 8.
 
 ### `plugin_state.json` — plugin to game
 
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 7, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.4", "inGame": false,
+{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.5", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "talking": "", "radioRx": "", "radioHeard": "" }
 ```

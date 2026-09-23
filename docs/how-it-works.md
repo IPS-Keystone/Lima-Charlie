@@ -65,6 +65,11 @@ bedroom do not.
 | About 150 m³ | 0.10 | short |
 | 4000 m³ and up | 0.26 | long |
 
+Each voice's contribution to that tail is scaled by how much of the room it actually fills: all of it from
+inside the same room, 0.35 from elsewhere in the building, and 0.1 from outdoors, where the voice arrives
+through a doorway rather than ringing the room. Without that, someone shouting from the street sounded as
+though they were stood in the room with you.
+
 A room's tail belongs to the room rather than to one voice, so every direct voice adds into one shared
 send as it is processed and the tail is rendered once over the mixed playback buffer. It is a Schroeder
 reverb: four parallel combs, two allpasses, damping in the feedback so the tail loses its top end first,
@@ -91,6 +96,10 @@ A path adds up what each doorway on it costs: 0.2 wide open, 0.6 shut, and the s
 window, which is not a path at all until it breaks. So an open door two rooms away is worth hearing
 through and a closed one is worth about as much as the wall beside it. Nothing has to be in line of sight
 for this, which is the part traces cannot do: shouting round a corner through an open door now carries.
+
+**Closer than 5 m, geometry decides instead**, unless the two are in the same room. Two people standing in
+a doorway are in different areas, and the graph can only charge them for the doorway even though they can
+see each other; a trace gets that right, and at that range the direct path dominates anyway.
 
 Each person's room is looked up again after they move 0.5 m or after half a second, and the building they
 were last in is asked first, so anyone who has not left a building costs a single call.

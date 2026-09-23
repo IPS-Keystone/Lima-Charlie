@@ -20,7 +20,7 @@ class LC_GameStateWriter
 {
 	protected static const string DIRECTORY = "$profile:LimaCharlie";
 	protected static const string PATH = "$profile:LimaCharlie/game_state.json";
-	protected static const int PROTOCOL_VERSION = 7;
+	protected static const int PROTOCOL_VERSION = 8;
 	//! 20 Hz while anyone's voice is live; transmit, radio and terrain changes are written immediately
 	protected static const int INTERVAL_MS = 50;
 	//! 10 Hz when nobody is talking and we are not transmitting: positions still move, but nothing is audible
@@ -252,7 +252,7 @@ class LC_GameStateWriter
 			if (distanceSq > maxDistanceSq)
 				continue;
 
-			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now);
+			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now, distanceSq);
 			if (client.GetRoomDiagnostics())
 				AppendRoomDiagnostic(playerId, muffle);
 
@@ -263,7 +263,8 @@ class LC_GameStateWriter
 			json += "{\"id\":" + playerId.ToString();
 			json += ",\"alive\":" + LC_Json.Bool(IsAlive(entity));
 			json += ",\"pos\":" + LC_Json.Position(position);
-			json += ",\"muffle\":" + muffle.ToString(-1, 2) + "}";
+			json += ",\"muffle\":" + muffle.ToString(-1, 2);
+			json += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2) + "}";
 		}
 
 		json += "],\"links\":" + client.GetRadioLinks().BuildJson() + "}";
@@ -275,7 +276,7 @@ class LC_GameStateWriter
 	//! How muffled a nearby player is. The engine's room model is asked first, since it answers outright for
 	//! anyone in the same building as the listener and costs no traces at all. Only when it cannot answer
 	//! does this fall back to the cached traces.
-	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
+	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now, float distanceSq)
 	{
 		LC_MuffleSample sample = m_mMuffle.Get(playerId);
 		if (!sample)
@@ -290,7 +291,7 @@ class LC_GameStateWriter
 
 		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
 		float roomMuffle;
-		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, roomMuffle))
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, roomMuffle))
 		{
 			sample.m_bFromRooms = true;
 			sample.m_fMuffle = roomMuffle;
@@ -322,6 +323,17 @@ class LC_GameStateWriter
 		sample.m_vSpeaker = speakerPosition;
 		sample.m_iTracedTick = now;
 		return sample.m_fMuffle;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! How much of our room this player's voice fills, for the plugin's reverb send
+	protected float GetRoomShare(int playerId, float muffle)
+	{
+		LC_MuffleSample sample = m_mMuffle.Get(playerId);
+		if (!sample)
+			return 0;
+
+		return m_Rooms.GetRoomShare(m_ListenerRoom, sample.m_Room, muffle, !sample.m_bFromRooms);
 	}
 
 	//------------------------------------------------------------------------------------------------

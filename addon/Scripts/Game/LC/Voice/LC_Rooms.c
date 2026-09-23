@@ -231,6 +231,16 @@ class LC_Rooms
 	protected static const float CLOSED_MUFFLE = 0.6;
 	//! Muffle for a wide open doorway
 	protected static const float OPEN_MUFFLE = 0.2;
+	//! Closer than this, geometry decides rather than the room graph. Two people a metre apart in a doorway
+	//! are in different areas and the graph can only charge them for the doorway, when in truth they can see
+	//! each other; a trace gets that right, and at this range the direct path dominates anyway.
+	protected static const float CLOSE_M = 5;
+	//! How much of the listener's room a voice excites: all of it from inside the same room, a little from
+	//! elsewhere in the building, and next to none from outdoors, where the voice arrives through an opening
+	//! rather than filling the room
+	protected static const float SHARE_SAME_ROOM = 1;
+	protected static const float SHARE_SAME_BUILDING = 0.35;
+	protected static const float SHARE_OUTSIDE = 0.1;
 	//! A location is rechecked after this long, or once its owner has moved this far
 	protected static const int RECHECK_MS = 500;
 	protected static const float RECHECK_MOVE_M = 0.5;
@@ -386,14 +396,21 @@ class LC_Rooms
 
 	//------------------------------------------------------------------------------------------------
 	//! How muffled the speaker is for this listener, from the room model alone.
+	//! \param distanceSq how far apart they are, squared
 	//! \param muffle 0 clear to 1 fully obstructed, only meaningful when this returns true
 	//! \return false when the room model cannot answer, so tracing is needed instead
-	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, out float muffle)
+	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, out float muffle)
 	{
 		muffle = 0;
 
 		// Both outdoors tells us nothing: a building can still stand between them
 		if (!listener.IsIndoors() && !speaker.IsIndoors())
+			return false;
+
+		// Same room is clear whatever the range. Anything else at close quarters goes to a trace, so a
+		// doorway the two of them are standing in does not charge them for the door.
+		bool sameRoom = listener.IsIndoors() && speaker.IsIndoors() && listener.m_Building == speaker.m_Building && listener.m_iArea == speaker.m_iArea;
+		if (!sameRoom && distanceSq < CLOSE_M * CLOSE_M)
 			return false;
 
 		// Whoever is indoors owns the room model both are placed in. With two buildings involved there is
@@ -439,6 +456,36 @@ class LC_Rooms
 
 		muffle = Math.Min(distance, 1);
 		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! How much of the listener's room this speaker's voice fills, which is what the plugin scales its
+	//! reverb send by. A voice from outdoors reaches the room through a doorway or a window: it is heard in
+	//! the room, but it does not ring the room the way a voice inside it does.
+	//! \param traced set when the room model could not answer and a trace decided the muffle instead
+	float GetRoomShare(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float muffle, bool traced)
+	{
+		// No room to ring
+		if (!listener.IsIndoors())
+			return 0;
+
+		if (traced)
+		{
+			// Without a room model the best guess is how much of the voice arrives at all
+			float share = 1 - muffle;
+			if (share < 0)
+				return 0;
+
+			return share;
+		}
+
+		if (!speaker.IsIndoors() || listener.m_Building != speaker.m_Building)
+			return SHARE_OUTSIDE;
+
+		if (listener.m_iArea == speaker.m_iArea)
+			return SHARE_SAME_ROOM;
+
+		return SHARE_SAME_BUILDING;
 	}
 
 	//------------------------------------------------------------------------------------------------

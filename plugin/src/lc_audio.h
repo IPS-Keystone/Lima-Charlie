@@ -15,6 +15,7 @@ typedef struct {
     float gainLeft;
     float gainRight;
     float muffle; /* 0 clear .. 1 fully muffled */
+    float roomShare; /* 0 .. 1 how much of the listener's room this voice fills, scaling the reverb send */
     float radioLeft;
     float radioRight;
     float radioQuality; /* 1 clean .. near 0 barely readable; garbles the radio path, not its volume */

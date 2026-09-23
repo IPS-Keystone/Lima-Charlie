@@ -156,6 +156,8 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
             p->alive            = get_bool(player, "alive");
             get_vec3(player, "pos", p->pos);
             p->muffle = get_float(player, "muffle", 0.0f);
+            /* How much of the listener's room this voice fills, for the reverb send */
+            p->room = get_float(player, "room", 1.0f);
         }
 
         const cJSON* links = cJSON_GetObjectItemCaseSensitive(root, "links");

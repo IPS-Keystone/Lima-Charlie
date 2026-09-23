@@ -305,7 +305,8 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     const float step            = 1.0f / (float)sampleCount;
     /* This voice's direct part on its own, for the room's shared reverb send. Muffling has already shaped
        it, so a voice from the next room reverberates as dully as it arrives. Radio never goes to the room. */
-    const int sendFrames = useDirect && sampleCount <= LC_AUDIO_MAX_SEND ? sampleCount : 0;
+    const float roomShare = target ? target->roomShare : 0.0f;
+    const int sendFrames = useDirect && roomShare > 0.0f && sampleCount <= LC_AUDIO_MAX_SEND ? sampleCount : 0;
     for (int i = 0; i < sampleCount; ++i) {
         const int base = i * channels;
         float     x    = channels > 1 ? 0.5f * ((float)samples[base + left] + (float)samples[base + right]) : (float)samples[base];
@@ -325,7 +326,7 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
         const float outLeft  = directLeft + radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t);
         const float outRight = directRight + radio * (startRadioRight + (targetRadioRight - startRadioRight) * t);
         if (i < sendFrames)
-            g_send[i] = 0.5f * (directLeft + directRight);
+            g_send[i] = roomShare * 0.5f * (directLeft + directRight);
 
         for (int c = 0; c < channels; ++c)
             samples[base + c] = 0;

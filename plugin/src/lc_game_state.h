@@ -1,8 +1,8 @@
 #pragma once
 
-/* Parsed form of game_state.json, written by the game about 20 times a second (protocol 6):
+/* Parsed form of game_state.json, written by the game about 20 times a second (protocol 8):
 {
-  "v": 6, "seq": 42, "inGame": true,
+  "v": 8, "seq": 42, "inGame": true,
   "session": { "token": "1789377566-123-456-789", "playerId": 1, "playerName": "Name",
                "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
@@ -11,7 +11,7 @@
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US", "rx": true, "ear": 1, "volume": 0.8,
                           "beep": "tfar_sw", "halfDuplex": 0 } ],
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
-  "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6 } ],
+  "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6, "room": 0.35 } ],
   "links": [ { "id": 2, "clearance": 35 } ]
 }
 self.pos/dir are the listener (camera); players carry no facing, as only the listener's matters.
@@ -63,6 +63,9 @@ typedef struct {
     int   alive;
     float pos[3];
     float muffle;
+    /* 0 .. 1, how much of the listener's room this voice fills: all of it from inside the same room, a
+       little from elsewhere in the building, next to none from outdoors. Scales the reverb send only. */
+    float room;
 } lc_player_state;
 
 typedef struct {
