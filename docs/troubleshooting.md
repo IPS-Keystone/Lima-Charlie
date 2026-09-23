@@ -31,6 +31,29 @@ Set `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs b
 once a second. That includes a Game Master in the editor, who used to get the sending half regardless;
 it now needs the setting like everyone else.
 
+## Room diagnostics
+
+`m_bRoomDiagnosticLog 1` logs one line a second per client about the engine's room model, which is what
+decides muffling for anyone in a building:
+
+```
+[LC] rooms listener Barn_01 room 2, 96 m3 | layout 4 areas, 5 portals, 5 usable, 0 unfound, 3712 cells, done | portals 0:0 1:100 2:0B 3:0 | rooms 3 traced 1 | 4 Barn_01 room 2, 96 m3 R 0.00, 7 outdoors T 0.60
+```
+
+- **listener** — the room you are in, and its volume.
+- **layout** — how much of that building type has been mapped. `unfound` portals are doorways the engine
+  reports but probing never located; the layout still works without them.
+- **portals** — how open each doorway is, as a percentage, with `B` for one that blocks sound (an intact
+  window), `S` for one that passes sound anyway (broken glass), `X` for disabled. **Open a door and watch
+  the number change** — that confirms the engine keeps this up to date.
+- **rooms N traced M** — how many nearby players the room model answered for, and how many still needed
+  traces.
+- Then per player: their room, `R` if the room model decided their muffle or `T` if a trace did, and the
+  muffle itself.
+
+If `traced` stays high while everyone is indoors together, the building has no room model and traces are
+doing the work, which is the intended fallback.
+
 **Sending half** — the whole game state as written:
 
 ```

@@ -36,6 +36,7 @@ LC_Settings {
 | `m_eChannelNaming` | `HYBRID` | — | Where channel names come from: `LC_ONLY`, `HYBRID`, `VANILLA_ONLY`. |
 | `m_bGameMasterUnlimitedRange` | on | — | Game Masters transmit and receive without range or terrain limits while the editor is open. |
 | `m_bDiagnosticLog` | off | — | Every client logs its side of the bridge once a second. Troubleshooting only. |
+| `m_bRoomDiagnosticLog` | off | — | Every client logs what the engine's room model says about its neighbours, once a second. Troubleshooting only, and far quieter than the line above. |
 | `m_bAIHearing` | on | — | Enemy AI turn towards players speaking out loud. |
 | `m_sTeamSpeakServer` | empty | — | Server players are moved to. Empty leaves everyone where they are. |
 | `m_sTeamSpeakChannel` | empty | — | Channel players are moved into. Empty disables channel moves. |

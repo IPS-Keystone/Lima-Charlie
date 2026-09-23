@@ -20,10 +20,27 @@ class LC_ServerSettings
 	bool m_bAIHearing = true;
 	//! Troubleshooting: every client logs what it sends the plugin and what it hears back
 	bool m_bDiagnosticLog;
+	//! Troubleshooting: every client logs what the engine's room model says about its neighbours
+	bool m_bRoomDiagnosticLog;
 	//! Named frequencies, packed as "frequencyKHz,colour,name;" for the session RPC
 	string m_sChannelLabels;
 	//! Where channel names come from: the list above, the game's own, or both
 	LC_EChannelNaming m_eChannelNaming = LC_EChannelNaming.HYBRID;
+
+	//------------------------------------------------------------------------------------------------
+	//! Both diagnostic switches in one value, because the settings RPC is at the vanilla limit of eight
+	//! arguments. Bit 0 is the bridge log, bit 1 the room model log.
+	int GetDiagnosticFlags()
+	{
+		int flags;
+		if (m_bDiagnosticLog)
+			flags |= 1;
+
+		if (m_bRoomDiagnosticLog)
+			flags |= 2;
+
+		return flags;
+	}
 
 	//------------------------------------------------------------------------------------------------
 	//! Server only
@@ -43,6 +60,7 @@ class LC_ServerSettings
 			settings.m_bGameMasterUnlimitedRange = configured.m_bGameMasterUnlimitedRange;
 			settings.m_bAIHearing = configured.m_bAIHearing;
 			settings.m_bDiagnosticLog = configured.m_bDiagnosticLog;
+			settings.m_bRoomDiagnosticLog = configured.m_bRoomDiagnosticLog;
 			settings.m_sChannelLabels = configured.GetPackedChannelLabels();
 			settings.m_eChannelNaming = configured.m_eChannelNaming;
 		}

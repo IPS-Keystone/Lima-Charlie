@@ -53,8 +53,36 @@ covers first person and any third-person boom but not a free camera.
 
 ### Occlusion
 
-Traced at 10 Hz, only for players within 60 m. Two traces, one from each end: if each end hits a different
-first obstacle, there are at least two things in the way.
+Every nearby player is asked about twice: first the engine's room model, and only if that cannot answer,
+traces.
+
+**Rooms first.** A building with interior audio carries the engine's own room model, in which area 0 is
+the outside world and the areas above it are that building's rooms, separated by doorways and windows.
+Where that model covers both people, it decides the muffle outright and no traces are needed:
+
+| Situation | Muffle |
+| --- | --- |
+| Same room | 0 |
+| Different rooms of one building | cheapest path between them across the doorways |
+| One inside a building, the other outside it | cheapest path from that room to the outside |
+
+A path adds up what each doorway on it costs: 0.2 wide open, 0.6 shut, and the same 0.6 for an intact
+window, which is not a path at all until it breaks. So an open door two rooms away is worth hearing
+through and a closed one is worth about as much as the wall beside it. Nothing has to be in line of sight
+for this, which is the part traces cannot do: shouting round a corner through an open door now carries.
+
+Each person's room is looked up again after they move 0.5 m or after half a second, and the building they
+were last in is asked first, so anyone who has not left a building costs a single call.
+
+The layout of doorways is not something the engine will hand over, so it is worked out once per building
+type, by probing the building with small boxes to find its doorways and then asking what lies either side
+of each one. That runs 128 probes per write while a player stands in a building type nobody has mapped
+yet, and stops as soon as every doorway the engine reports has been found. The result is shared by every
+copy of that building on the map.
+
+**Traces otherwise** — both outdoors, two different buildings, or a building with no room model. Two
+traces, one from each end: if each end hits a different first obstacle, there are at least two things in
+the way.
 
 | Situation | Muffle |
 | --- | --- |
@@ -63,6 +91,10 @@ first obstacle, there are at least two things in the way.
 | Two or more | 0.9 |
 | Either party in a vehicle | 0.5, or more if traces find walls too |
 | Both in the same vehicle | 0 |
+
+Traces are cached per player and repeated only as often as they can matter: every 100 ms while that person
+is talking, 500 ms while silent, and only when one of you has moved more than 25 cm — otherwise every 2 s,
+to catch doors and vehicles moving around a still pair. At most eight players are re-traced per write.
 
 ## Radio reception
 

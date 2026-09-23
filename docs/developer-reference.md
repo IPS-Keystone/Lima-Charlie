@@ -180,7 +180,7 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 | Session and settings | `LC_Session.c`, `LC_Settings.c`, `LC_ServerSettings.c`, `LC_MissionHeader.c`, `LC_PlayerController.c`, `LC_BaseGameMode.c` |
 | Radios | `LC_Radio.c`, `LC_RadioSettings.c`, `LC_RadioMode.c`, `LC_RadioLinks.c`, `LC_Terrain.c`, `LC_VONEntryRadio.c`, `LC_FrequencyInput.c` |
 | Channel names | `LC_ChannelLabel.c`, `LC_ChannelLabels.c` |
-| Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c` |
+| Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c`, `LC_Rooms.c` |
 | AI | `LC_AIHearing.c`, `LC_AIConfigComponent.c`, `LC_VoiceDangerEvent.c` |
 | UI | `LC_Hud.c`, `LC_VonDisplay.c`, `LC_VonDisplayFeed.c`, `LC_VONMenu.c`, `LC_VONEntryComponent.c` |
 

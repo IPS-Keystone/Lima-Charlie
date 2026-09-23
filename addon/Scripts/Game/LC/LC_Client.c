@@ -70,6 +70,8 @@ class LC_Client
 	protected bool m_bGameMasterUnlimitedRange = true;
 	//! Server setting: log what we send the plugin and what it reports hearing, for troubleshooting
 	protected bool m_bDiagnosticLog;
+	//! Server setting: log what the engine's room model says about the people nearby
+	protected bool m_bRoomDiagnosticLog;
 
 	//------------------------------------------------------------------------------------------------
 	static LC_Client Get()
@@ -485,7 +487,7 @@ class LC_Client
 
 	//------------------------------------------------------------------------------------------------
 	//! Gameplay settings the server owns, from LC_Settings
-	void OnSettingsReceived(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, bool diagnosticLog, string channelLabels, int channelNaming)
+	void OnSettingsReceived(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, int diagnosticFlags, string channelLabels, int channelNaming)
 	{
 		LC_ChannelLabels.Unpack(channelLabels);
 		LC_ChannelLabels.SetNaming(channelNaming);
@@ -494,12 +496,13 @@ class LC_Client
 		m_fTerrainFactor = terrainFactor;
 		m_bAIHearing = aiHearing;
 		m_bGameMasterUnlimitedRange = gameMasterUnlimitedRange;
-		m_bDiagnosticLog = diagnosticLog;
+		m_bDiagnosticLog = (diagnosticFlags & 1) != 0;
+		m_bRoomDiagnosticLog = (diagnosticFlags & 2) != 0;
 
 		int cleanPercent = Math.Round(cleanFraction * 100);
 		int beepPercent = Math.Round(beepFraction * 100);
 		int terrainPercent = Math.Round(terrainFactor * 100);
-		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", diagnostic log " + diagnosticLog.ToString(), LogLevel.NORMAL);
+		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", diagnostic log " + m_bDiagnosticLog.ToString() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString(), LogLevel.NORMAL);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -521,6 +524,13 @@ class LC_Client
 	bool GetGameMasterUnlimitedRange()
 	{
 		return m_bGameMasterUnlimitedRange;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether the server asked every client to log what the engine's room model says
+	bool GetRoomDiagnostics()
+	{
+		return m_bRoomDiagnosticLog;
 	}
 
 	//------------------------------------------------------------------------------------------------

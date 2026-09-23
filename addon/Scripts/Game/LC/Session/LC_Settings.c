@@ -33,6 +33,9 @@ class LC_Settings
 	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client writes a line a second to its console log: what the game told the plugin, and what the plugin reports hearing back. Leave off for normal play: with a full server it is several kilobytes a second of log on every client.")]
 	bool m_bDiagnosticLog;
 
+	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client logs one line a second about the engine's room model: which room it thinks each nearby player is in, how open the doorways of the building you are in are, how much of the mapping of that building type is done, and whether each player's muffling came from the rooms or from a trace. Far less noisy than the setting above.")]
+	bool m_bRoomDiagnosticLog;
+
 	[Attribute(defvalue: "", desc: "TeamSpeak server players are moved to. Leave empty to leave everyone on the server they are already connected to.")]
 	string m_sTeamSpeakServer;
 

@@ -7,6 +7,10 @@ class LC_MuffleSample
 	vector m_vSpeaker;
 	int m_iTracedTick;
 	int m_iSeenTick;
+	//! Where this player was standing in the engine's room model when last checked
+	ref LC_RoomLocation m_Room = new LC_RoomLocation();
+	//! Whether the room model answered for this player, rather than a trace, for the diagnostic line
+	bool m_bFromRooms;
 }
 
 //------------------------------------------------------------------------------------------------
@@ -40,6 +44,8 @@ class LC_GameStateWriter
 	protected static const float FREE_CAMERA_RANGE_M = 20;
 	//! How often the whole state goes to the log while the server's diagnostic setting is on
 	protected static const int DIAGNOSTIC_INTERVAL_MS = 1000;
+	//! Nearby players listed in one room diagnostic line
+	protected static const int DIAGNOSTIC_MAX_PLAYERS = 6;
 
 	protected int m_iSeq;
 	protected int m_iNextWriteTick;
@@ -54,6 +60,13 @@ class LC_GameStateWriter
 	protected ref array<int> m_aForget = {};
 	protected int m_iTraceBudget;
 	protected ref LC_Occlusion m_Occlusion = new LC_Occlusion();
+	protected ref LC_Rooms m_Rooms = new LC_Rooms();
+	//! Where the listener is in the room model; the room checks are all relative to this
+	protected ref LC_RoomLocation m_ListenerRoom = new LC_RoomLocation();
+	protected int m_iNextRoomDiagnosticTick;
+	protected int m_iRoomsResolved;
+	protected int m_iRoomsTraced;
+	protected string m_sRoomDiagnostic;
 
 	//------------------------------------------------------------------------------------------------
 	void LC_GameStateWriter()
@@ -103,9 +116,11 @@ class LC_GameStateWriter
 		m_iLastSoundSeq = soundSeq;
 		m_iNextWriteTick = now + GetWriteInterval(client, transmitType);
 
+		m_sRoomDiagnostic = string.Empty;
 		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, radios, now, unlimitedRange);
 		WriteFile(json);
 		LogDiagnostic(now, json, client.GetDiagnosticLog());
+		LogRoomDiagnostic(now, client.GetRoomDiagnostics());
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -207,6 +222,12 @@ class LC_GameStateWriter
 		float maxDistanceSq = NEARBY_RANGE_M * NEARBY_RANGE_M;
 		m_iTraceBudget = OCCLUSION_BUDGET;
 		bool first = true;
+
+		// Which room the listener is in, and a slice of the work of mapping that building's type
+		m_Rooms.Locate(m_ListenerRoom, occlusionOrigin, now);
+		m_Rooms.Update(m_ListenerRoom);
+		m_iRoomsResolved = 0;
+		m_iRoomsTraced = 0;
 		foreach (int playerId : m_aPlayerIds)
 		{
 			if (playerId == localPlayerId)
@@ -223,6 +244,8 @@ class LC_GameStateWriter
 				continue;
 
 			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now);
+			if (client.GetRoomDiagnostics())
+				AppendRoomDiagnostic(playerId, muffle);
 
 			if (!first)
 				json += ",";
@@ -240,8 +263,9 @@ class LC_GameStateWriter
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! How muffled a nearby player is, from the cache unless their result is due and there is budget left in
-	//! this write. Due means their interval has passed and either end has moved, or it has gone stale.
+	//! How muffled a nearby player is. The engine's room model is asked first, since it answers outright for
+	//! anyone in the same building as the listener and costs no traces at all. Only when it cannot answer
+	//! does this fall back to the cached traces.
 	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
 	{
 		LC_MuffleSample sample = m_mMuffle.Get(playerId);
@@ -254,6 +278,21 @@ class LC_GameStateWriter
 		}
 
 		sample.m_iSeenTick = now;
+
+		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
+		float roomMuffle;
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, roomMuffle))
+		{
+			sample.m_bFromRooms = true;
+			sample.m_fMuffle = roomMuffle;
+			// Any trace result is now stale: a later fallback has to trace again rather than reuse it
+			sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
+			m_iRoomsResolved++;
+			return roomMuffle;
+		}
+
+		sample.m_bFromRooms = false;
+		m_iRoomsTraced++;
 
 		int interval = OCCLUSION_SILENT_MS;
 		if (talking)
@@ -274,6 +313,58 @@ class LC_GameStateWriter
 		sample.m_vSpeaker = speakerPosition;
 		sample.m_iTracedTick = now;
 		return sample.m_fMuffle;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! One nearby player's room and where their muffle came from: R for the room model, T for a trace
+	protected void AppendRoomDiagnostic(int playerId, float muffle)
+	{
+		LC_MuffleSample sample = m_mMuffle.Get(playerId);
+		if (!sample || m_iRoomsResolved + m_iRoomsTraced > DIAGNOSTIC_MAX_PLAYERS)
+			return;
+
+		string source = "T";
+		if (sample.m_bFromRooms)
+			source = "R";
+
+		if (!m_sRoomDiagnostic.IsEmpty())
+			m_sRoomDiagnostic += ", ";
+
+		m_sRoomDiagnostic += playerId.ToString() + " " + m_Rooms.Describe(sample.m_Room) + " " + source + " " + muffle.ToString(-1, 2);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Where the listener is, what is known about that building, how open its doorways are, and how each
+	//! nearby player's muffle was decided. One line a second while the server's room diagnostic is on.
+	protected void LogRoomDiagnostic(int now, bool enabled)
+	{
+		if (!enabled)
+		{
+			m_iNextRoomDiagnosticTick = 0;
+			return;
+		}
+
+		if (now < m_iNextRoomDiagnosticTick)
+			return;
+
+		m_iNextRoomDiagnosticTick = now + DIAGNOSTIC_INTERVAL_MS;
+
+		string line = "[LC] rooms listener " + m_Rooms.Describe(m_ListenerRoom);
+		line += " | layout " + m_Rooms.DescribeLayout(m_ListenerRoom);
+
+		int probes = m_Rooms.GetBuildSpent();
+		if (probes > 0)
+			line += " | probes " + probes.ToString();
+
+		string portals = m_Rooms.DescribePortals(m_ListenerRoom);
+		if (!portals.IsEmpty())
+			line += " | portals " + portals;
+
+		line += " | rooms " + m_iRoomsResolved.ToString() + " traced " + m_iRoomsTraced.ToString();
+		if (!m_sRoomDiagnostic.IsEmpty())
+			line += " | " + m_sRoomDiagnostic;
+
+		Print(line, LogLevel.NORMAL);
 	}
 
 	//------------------------------------------------------------------------------------------------
