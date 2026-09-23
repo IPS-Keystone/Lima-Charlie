@@ -33,13 +33,13 @@ class LC_GameStateWriter
 	//! Occlusion traces are the expensive part, so each nearby player is re-traced only as often as it can
 	//! matter: often while they talk, less often while silent (so the result is ready when they start), and
 	//! rarely when neither end has moved, which is most of a briefing or a building clear
-	protected static const int OCCLUSION_TALKING_MS = 100;
-	protected static const int OCCLUSION_SILENT_MS = 500;
-	protected static const int OCCLUSION_STILL_MS = 2000;
-	protected static const float OCCLUSION_MOVE_M = 0.25;
+	protected static const int OCCLUSION_TALKING_MS = 50;
+	protected static const int OCCLUSION_SILENT_MS = 250;
+	protected static const int OCCLUSION_STILL_MS = 1000;
+	protected static const float OCCLUSION_MOVE_M = 0.15;
 	//! At most this many players are re-traced in one write, so a crowd arriving at once is spread over
 	//! several frames instead of landing in one
-	protected static const int OCCLUSION_BUDGET = 8;
+	protected static const int OCCLUSION_BUDGET = 12;
 	//! A player not seen nearby for this long has their cached result dropped
 	protected static const int OCCLUSION_FORGET_MS = 5000;
 	//! A camera further than this from the body it belongs to is a free camera: Game Master, spectator or photo
@@ -252,7 +252,7 @@ class LC_GameStateWriter
 			if (distanceSq > maxDistanceSq)
 				continue;
 
-			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now, distanceSq);
+			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now);
 			if (client.GetRoomDiagnostics())
 				AppendRoomDiagnostic(playerId, muffle);
 
@@ -273,10 +273,11 @@ class LC_GameStateWriter
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! How muffled a nearby player is. The engine's room model is asked first, since it answers outright for
-	//! anyone in the same building as the listener and costs no traces at all. Only when it cannot answer
-	//! does this fall back to the cached traces.
-	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now, float distanceSq)
+	//! How muffled a nearby player is. Both the engine's room model and a trace get a say, and the clearer
+	//! of the two wins: a path through the rooms cannot tell whether the two can see each other, and a trace
+	//! cannot tell that an open door two rooms away carries a voice. Only the same room needs neither, being
+	//! clear already.
+	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
 	{
 		LC_MuffleSample sample = m_mMuffle.Get(playerId);
 		if (!sample)
@@ -291,19 +292,21 @@ class LC_GameStateWriter
 
 		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
 		float roomMuffle;
-		bool verify;
-		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, roomMuffle, verify))
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, roomMuffle))
 		{
 			sample.m_bFromRooms = true;
 			m_iRoomsResolved++;
-			if (!verify)
+
+			// Same room: nothing a trace finds can improve on clear, and a pillar or a crate between them
+			// must not make it worse
+			if (roomMuffle <= 0)
 			{
 				// Any trace result is now stale: a later fallback has to trace again rather than reuse it
 				sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
-				return roomMuffle;
+				return 0;
 			}
 
-			// The path is open, so they may be able to see each other: take whichever is clearer
+			// Otherwise the path is only an upper bound: a trace may find they can see each other
 			return Math.Min(roomMuffle, TraceMuffle(sample, speaker, speakerPosition, listener, listenerPosition, talking, now));
 		}
 

@@ -103,12 +103,11 @@ window, which is not a path at all until it breaks. So an open door two rooms aw
 through and a closed one is worth about as much as the wall beside it. Nothing has to be in line of sight
 for this, which is the part traces cannot do: shouting round a corner through an open door now carries.
 
-**An open path is checked against a trace.** When the cheapest path costs little — through open doorways —
-the two may simply be able to see each other, as through an open hangar door, and the path cost would be
-wrong. A trace settles it and whichever is clearer wins. With the door shut the trace agrees with the graph
-anyway, so nothing is lost.
-
-**Closer than 5 m, geometry decides instead**, unless the two are in the same room. Two people standing in
+**Both have a say, and the clearer wins.** A path through the rooms cannot tell whether the two can simply
+see each other, through an open hangar door or across a room the engine has split in two; a trace cannot
+tell that an open door two rooms away carries a voice. So anything other than same-room is traced as well
+and the lower muffle is used. Same room needs neither — it is clear already, and a pillar or a crate between
+them must not make it worse. Two people standing in
 a doorway are in different areas, and the graph can only charge them for the doorway even though they can
 see each other; a trace gets that right, and at that range the direct path dominates anyway.
 
@@ -132,13 +131,20 @@ the way.
 | Two or more | 0.9 |
 | Both in the same vehicle | 0 |
 
+**Narrow things are not cover.** A lamp post, a bollard, a sign, a tree trunk or somebody standing in the
+way used to block the trace and read as a whole wall, which made open ground sound like a building.
+Anything under 0.6 m across in plan is stepped past and the trace carries on behind it, up to twice — so a
+thicket still muffles, while a post does not. Measured on the wider of its two horizontal sides, so a fence
+panel or a wall section still counts.
+
 Vehicles are not a special case. A hull that is really between two people blocks the trace like any other
 wall; an open mount does not. Sitting in one used to add a flat muffle, which was wrong for everything you
 sit *on* rather than *in* — a mortar, a technical's bed, an open jeep, a hatch you are turned out of.
 
-Traces are cached per player and repeated only as often as they can matter: every 100 ms while that person
-is talking, 500 ms while silent, and only when one of you has moved more than 25 cm — otherwise every 2 s,
-to catch doors and vehicles moving around a still pair. At most eight players are re-traced per write.
+Traces are cached per player and repeated only as often as they can matter: every 50 ms while that person
+is talking, 250 ms while silent, and only when one of you has moved more than 15 cm — otherwise every
+second, to catch doors and vehicles moving around a still pair. At most twelve players are re-traced per
+write.
 
 ## Radio reception
 

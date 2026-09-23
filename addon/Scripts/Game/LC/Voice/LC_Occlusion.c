@@ -7,6 +7,12 @@ class LC_Occlusion
 	protected static const float SINGLE_OBSTACLE_MUFFLE = 0.6;
 	//! At least two separate obstacles, e.g. rooms apart, or two hulls
 	protected static const float MULTIPLE_OBSTACLE_MUFFLE = 0.9;
+	//! Anything narrower than this across is a prop rather than cover: posts, bollards, signs, trunks, and
+	//! people standing in the way
+	protected static const float NARROW_M = 0.6;
+	//! How many of those a single trace steps past before giving up and calling it cover
+	protected static const int MAX_SKIPS = 2;
+	protected static const float SKIP_STEP_M = 0.25;
 
 	protected ref TraceParam m_Trace = new TraceParam();
 	protected ref array<IEntity> m_aExclude = {};
@@ -58,23 +64,71 @@ class LC_Occlusion
 		m_Trace.LayerMask = EPhysicsLayerDefs.Projectile;
 		m_Trace.ExcludeArray = exclude;
 
-		m_Trace.Start = from;
-		m_Trace.End = to;
-		m_Trace.TraceEnt = null;
-		if (world.TraceMove(m_Trace, null) >= 1)
+		IEntity nearListener = FirstCover(world, from, to);
+		if (!nearListener)
 			return 0;
 
-		IEntity nearListener = m_Trace.TraceEnt;
-
-		m_Trace.Start = to;
-		m_Trace.End = from;
-		m_Trace.TraceEnt = null;
-		if (world.TraceMove(m_Trace, null) >= 1)
+		IEntity nearSpeaker = FirstCover(world, to, from);
+		if (!nearSpeaker)
 			return 1;
 
-		if (m_Trace.TraceEnt != nearListener)
+		if (nearSpeaker != nearListener)
 			return 2;
 
 		return 1;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The first thing between these two points that counts as cover, or null if nothing does.
+	//!
+	//! A lamp post, a bollard, a sign, a tree trunk or a person standing in the way blocked the trace and
+	//! read as a whole wall, which made open ground sound like a building. Anything narrow in plan is
+	//! stepped past and the trace carries on behind it. Only a couple of skips, so a thicket does still
+	//! muffle, and the cost is one trace in the common case of nothing in the way at all.
+	protected IEntity FirstCover(notnull BaseWorld world, vector from, vector to)
+	{
+		vector start = from;
+		for (int skip = 0; skip <= MAX_SKIPS; skip++)
+		{
+			m_Trace.Start = start;
+			m_Trace.End = to;
+			m_Trace.TraceEnt = null;
+			float fraction = world.TraceMove(m_Trace, null);
+			if (fraction >= 1)
+				return null;
+
+			IEntity hit = m_Trace.TraceEnt;
+			if (!IsNarrow(hit))
+				return hit;
+
+			// Resume just past it, along the remaining path
+			vector remaining = to - start;
+			vector at = start + remaining * fraction;
+			float length = remaining.Length();
+			if (length <= SKIP_STEP_M)
+				return null;
+
+			start = at + remaining * (SKIP_STEP_M / length);
+			if (vector.DistanceSq(start, to) <= SKIP_STEP_M * SKIP_STEP_M)
+				return null;
+		}
+
+		// Too many narrow things in a row to be open ground
+		return m_Trace.TraceEnt;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether this is too slight in plan to be cover. Measured on the wider of its two horizontal sides,
+	//! so a fence panel or a wall section still counts while a post does not.
+	protected bool IsNarrow(IEntity entity)
+	{
+		if (!entity)
+			return false;
+
+		vector mins;
+		vector maxs;
+		entity.GetWorldBounds(mins, maxs);
+		float width = Math.Max(maxs[0] - mins[0], maxs[2] - mins[2]);
+		return width < NARROW_M;
 	}
 }
