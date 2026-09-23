@@ -2,7 +2,14 @@
 
 ## First checks
 
-Both files live in `$profile/LimaCharlie/`, which for the published game is
+**Read the status notice.** It appears a few seconds after joining and names whichever part of the chain is
+missing. Most reports of "the mod does not work" are the plugin not running or TeamSpeak not being
+connected, and the notice says which. It is repeated in `console.log` as `[LC] Status: ...`, so it is
+there even for a player who has hints and notifications turned off.
+
+### The bridge files
+
+Both live in `$profile/LimaCharlie/`, which for the published game is
 `Documents/My Games/ArmaReforger/profile/LimaCharlie/`.
 
 ```bash
@@ -20,20 +27,20 @@ cat "$USERPROFILE/Documents/My Games/ArmaReforger/profile/LimaCharlie/plugin_sta
 The game log also prints a status line whenever any of it changes:
 
 ```
-[LC] Plugin 0.9.0: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
+[LC] Plugin 1.0.3: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
 ```
 
 Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.log`.
 
 ## Diagnostic logging
 
-Set `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs both sides of the bridge
+Set `diagnosticLog` in `server.json`, or `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs both sides of the bridge
 once a second. That includes a Game Master in the editor, who used to get the sending half regardless;
 it now needs the setting like everyone else.
 
 ## Room diagnostics
 
-`m_bRoomDiagnosticLog 1` logs one line a second per client about the engine's room model, which is what
+`roomDiagnosticLog` in `server.json`, or `m_bRoomDiagnosticLog 1` in the mod's config, logs one line a second per client about the engine's room model, which is what
 decides muffling for anyone in a building:
 
 ```
@@ -57,7 +64,7 @@ doing the work, which is the intended fallback.
 **Sending half** — the whole game state as written:
 
 ```
-[LC] game_state {"v":6,"seq":362,...,"tx":2,"txRadio":"-2147482979:1",...}
+[LC] game_state {"v":7,"seq":362,...,"tx":2,"txRadio":"-2147482979:1",...}
 ```
 
 **Receiving half** — what the plugin reports back:

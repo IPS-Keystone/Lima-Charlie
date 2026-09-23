@@ -204,6 +204,34 @@ class LC_PluginStateReader
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Version the plugin last reported, empty until it has been heard from
+	string GetPluginVersion()
+	{
+		return m_sPluginVersion;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether TeamSpeak itself is connected to a server. Meaningless unless IsPluginRunning.
+	bool IsTeamSpeakConnected()
+	{
+		return m_bTeamSpeakConnected;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether the plugin has us in the channel the server asked for
+	bool IsInGameChannel()
+	{
+		return m_bInGameChannel;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Other Lima Charlie players the plugin has paired with in this channel
+	int GetPeers()
+	{
+		return m_iPeers;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! True while the plugin hears this player talking in TeamSpeak
 	bool IsPlayerTalking(int playerId)
 	{

@@ -18,6 +18,30 @@ before you can use a radio at all. Everything else has a default you can change 
 
 `Ctrl` + scroll and `Ctrl` + `Tab` are hidden from the keybind menu; the rest are listed.
 
+## The status notice
+
+Shortly after you join, a panel tells you whether the whole chain is working, because none of these
+failures make a sound on their own:
+
+```
+Lima Charlie
+Mod loaded: 1.0.3
+TeamSpeak plugin: 1.0.3
+TeamSpeak: connected
+Channel: LimaCharlie
+Others with the plugin here: 3
+```
+
+If something is missing it says so instead, with what to do about it — the plugin not running, TeamSpeak
+not connected to a server, or the channel move not having happened. It appears again if any of that changes
+later, so starting TeamSpeak after the game tells you when it has been picked up.
+
+`Others with the plugin here` counting 0 is normal if you are the first one in.
+
+The notice is silent when everything is in place and makes a sound when it is not. It uses the game's hint
+panel, falling back to a popup if you have hints turned off; with both turned off it only reaches
+`console.log`.
+
 ## Voice levels
 
 Direct speech carries as far as your voice level says, and nothing else changes with it:

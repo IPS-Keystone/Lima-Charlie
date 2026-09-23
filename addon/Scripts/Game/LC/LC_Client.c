@@ -4,7 +4,6 @@
 class LC_Client
 {
 	protected static const int SESSION_RETRY_MS = 2000;
-	protected static const int PLUGIN_WARNING_DELAY_MS = 10000;
 	//! LC_RadioPTT1 to LC_RadioPTT4: transmit keys, each sending on the channel assigned in LC_RadioSettings
 	protected static const string ACTION_RADIO_PTT = "LC_RadioPTT";
 	protected static const string ACTION_RADIO_KEY_ASSIGN = "LC_RadioKeyAssign";
@@ -29,6 +28,7 @@ class LC_Client
 	protected ref LC_PluginStateReader m_Reader = new LC_PluginStateReader();
 	protected ref LC_Hud m_Hud = new LC_Hud();
 	protected ref LC_VonDisplayFeed m_VonDisplay = new LC_VonDisplayFeed();
+	protected ref LC_StatusNotice m_StatusNotice = new LC_StatusNotice();
 	protected ref LC_RadioSettings m_RadioSettings = new LC_RadioSettings();
 	protected ref LC_RadioLinks m_RadioLinks = new LC_RadioLinks();
 	protected ref LC_SoundQueue m_SoundQueue = new LC_SoundQueue();
@@ -42,7 +42,6 @@ class LC_Client
 	protected int m_iNextSessionRequestTick;
 	protected int m_iStartTick;
 	protected int m_iLastTick;
-	protected bool m_bPluginWarningShown;
 
 	//! Held Lima Charlie transmit key index, or -1
 	protected int m_iRadioPTTKey = -1;
@@ -198,12 +197,7 @@ class LC_Client
 		m_Writer.Update(now, this);
 		m_Hud.Update(elapsedMs / 1000);
 		m_VonDisplay.Update(this, now);
-
-		if (!m_bPluginWarningShown && now - m_iStartTick > PLUGIN_WARNING_DELAY_MS && !m_Reader.IsPluginRunning(now))
-		{
-			m_bPluginWarningShown = true;
-			Print("[LC] TeamSpeak plugin not detected. Is TeamSpeak 3 running with the Lima Charlie plugin enabled?", LogLevel.WARNING);
-		}
+		m_StatusNotice.Update(now, this);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -668,6 +662,13 @@ class LC_Client
 	string GetSessionToken()
 	{
 		return m_sSessionToken;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether the server has answered with this session's token and settings yet
+	bool HasSession()
+	{
+		return m_bHasSession;
 	}
 
 	//------------------------------------------------------------------------------------------------
