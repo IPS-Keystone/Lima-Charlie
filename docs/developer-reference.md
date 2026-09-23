@@ -107,7 +107,7 @@ Protocol 7.
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 7, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.4", "inGame": false,
+{ "v": 7, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.3", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "talking": "", "radioRx": "", "radioHeard": "" }
 ```

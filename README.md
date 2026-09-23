@@ -30,6 +30,7 @@ Everything lives in [docs/](docs):
 | Page | For |
 | --- | --- |
 | [installation.md](docs/installation.md) | Getting the plugin installed and TeamSpeak configured |
+| [server-setup.md](docs/server-setup.md) | Standing up a server: TeamSpeak channel, mod, settings |
 | [player-guide.md](docs/player-guide.md) | Controls, radios, what you hear and why |
 | [server-settings.md](docs/server-settings.md) | Every server setting and how to set it |
 | [how-it-works.md](docs/how-it-works.md) | The audio model, terrain, AI hearing, Game Master |

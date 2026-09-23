@@ -70,7 +70,8 @@ untouched. Three places to change it, each overriding the one before:
 
 Setting the channel to empty disables channel moves and leaves everyone where they are.
 
-See [server-settings.md](server-settings.md) for the full list.
+See [server-setup.md](server-setup.md) for standing a server up end to end, and
+[server-settings.md](server-settings.md) for what each setting does.
 
 ## Updating
 

@@ -3,6 +3,9 @@
 All settings are server-side. They are read on the server and pushed to each client with the session, so
 nothing here can be changed by a player.
 
+This page is the reference for each setting. For standing a server up from nothing, see
+[server-setup.md](server-setup.md).
+
 ## Where to put them
 
 Resolved once per session, in layers, each overriding the one before it:

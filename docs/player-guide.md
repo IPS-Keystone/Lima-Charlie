@@ -32,8 +32,35 @@ The icon in the bottom right shows the current level and fades after six seconds
 Cupcake's Stance Indicator draws, and works with or without that mod.
 
 Your voice falls off to −30 dB at the edge of its range, pans left and right with where the listener is
-facing, and is attenuated when you are behind them. Walls and vehicles muffle it — see
-[how-it-works.md](how-it-works.md).
+facing, and is attenuated when you are behind them. Walls, hulls and closed doors muffle it — see
+**Indoors** below and [how-it-works.md](how-it-works.md).
+
+## Indoors
+
+Buildings are understood room by room rather than as one lump.
+
+- **Same room** — you hear each other clearly, whatever furniture is in the way.
+- **Next room** — muffled by whatever is between you. An **open door** carries voices far better than a
+  closed one, and it does not need line of sight: shouting round a corner through an open doorway works.
+  A closed door is worth about as much as the wall beside it.
+- **Broken windows** let sound through. Intact ones do not.
+- **Inside to outside** — the same rules, through whichever doors and windows are open.
+
+Speech heard indoors also picks up the room's **reverb**, sized by the room: a small office barely rings,
+a warehouse or hangar clearly does. Outdoors there is none, and radio never reverberates — only speech in
+the air does.
+
+## Vehicles
+
+Sitting in a vehicle is not treated specially any more. What matters is whether something is actually
+between the two of you:
+
+- **Same vehicle** — clear, always.
+- **Enclosed hull between you** — muffled, like a wall.
+- **Open mount, open bed, open-top vehicle, turned out of a hatch** — not muffled at all. Aiming a mortar
+  no longer muffles your voice, which it used to.
+
+A car with its windows up will muffle, because the glass really is in the way.
 
 ## Radios
 

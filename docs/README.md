@@ -12,7 +12,7 @@ Two halves that must be installed and updated together:
 
 They talk through two JSON files in the Reforger profile directory. Neither one works alone.
 
-**Current versions:** mod protocol 7, plugin 1.0.4. A version mismatch is rejected outright, so everyone in
+**Current versions:** mod protocol 7, plugin 1.0.3. A version mismatch is rejected outright, so everyone in
 a session needs the same pair.
 
 ## Documentation
@@ -20,6 +20,7 @@ a session needs the same pair.
 | Page | For |
 | --- | --- |
 | [installation.md](installation.md) | Getting the plugin installed and TeamSpeak configured |
+| [server-setup.md](server-setup.md) | Standing up a server: TeamSpeak channel, mod, settings |
 | [player-guide.md](player-guide.md) | Controls, radios, what you hear and why |
 | [server-settings.md](server-settings.md) | Every server setting and how to set it |
 | [how-it-works.md](how-it-works.md) | The audio model, terrain, AI hearing, Game Master |
