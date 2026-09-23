@@ -40,8 +40,10 @@ modded class SCR_PlayerController
 		if (!LC_Session.GetServerSession().GetSettings().m_bAIHearing)
 			return;
 
+		// Client-trusted like everything else audible, except that this one moves AI, so the state the
+		// server can see for itself is checked: a client cannot claim to shout while unconscious or dead.
 		IEntity character = GetControlledEntity();
-		if (character)
+		if (character && LC_Life.CanSpeak(character))
 			LC_AIHearing.Broadcast(character, radius);
 	}
 

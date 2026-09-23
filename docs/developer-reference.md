@@ -112,7 +112,7 @@ Protocol 8.
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.8", "inGame": false,
+{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.9", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
 ```

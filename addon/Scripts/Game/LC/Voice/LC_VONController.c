@@ -27,7 +27,7 @@ modded class SCR_VONController
 			if (m_sLocalEncryptionKey != string.Empty)
 			{
 				SCR_VONEntryRadio radioEntry = SCR_VONEntryRadio.Cast(entry);
-				if (radioEntry)
+				if (radioEntry && radioEntry.GetTransceiver())
 				{
 					BaseRadioComponent radio = radioEntry.GetTransceiver().GetRadio();
 					if (radio && radio.GetEncryptionKey() != m_sLocalEncryptionKey)

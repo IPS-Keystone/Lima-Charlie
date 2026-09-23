@@ -27,7 +27,7 @@ cat "$USERPROFILE/Documents/My Games/ArmaReforger/profile/LimaCharlie/plugin_sta
 The game log also prints a status line whenever any of it changes:
 
 ```
-[LC] Plugin 1.0.8: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
+[LC] Plugin 1.0.9: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
 ```
 
 Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.log`.

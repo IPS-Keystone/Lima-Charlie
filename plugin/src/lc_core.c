@@ -118,7 +118,7 @@ static char               g_lastStateBody[LC_STATE_BODY_CAP];
    toggle, or a muted speaker, which implies the microphone too. A build before 1.0.7 gated the microphone
    to follow the game's transmit keys, and one that stopped while it was shut could leave it that way, with
    nothing on screen to say so. */
-static int is_mic_muted(uint64 sch)
+static int read_mic_muted(uint64 sch)
 {
     int value = 0;
     if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, &value) == ERROR_ok && value != INPUT_ACTIVE)
@@ -131,6 +131,20 @@ static int is_mic_muted(uint64 sch)
         return 1;
 
     return 0;
+}
+
+/* Three TeamSpeak calls, each taking its locks, are not worth making two hundred times a second for
+   something only a person can change. Re-read no faster than the state file is written. */
+static int is_mic_muted(uint64 sch, unsigned long long nowMs)
+{
+    static int                cached;
+    static unsigned long long nextReadMs;
+    if (nowMs >= nextReadMs) {
+        nextReadMs = nowMs + LC_STATE_HEARTBEAT_MS;
+        cached     = read_mic_muted(sch);
+    }
+
+    return cached;
 }
 
 static int is_connected(uint64 sch)
@@ -716,7 +730,7 @@ static DWORD WINAPI core_main(LPVOID param)
         lc_peers_expire(nowMs, LC_PEER_MAX_AGE_MS);
         lc_transmissions_expire(nowMs, LC_TRANSMISSION_MAX_AGE_MS);
         publish_voice(connected, inGame, nowMs);
-        write_plugin_state(connected, inGame, haveChannel, connected && is_mic_muted(sch), me, channel, nowMs);
+        write_plugin_state(connected, inGame, haveChannel, connected && is_mic_muted(sch, nowMs), me, channel, nowMs);
 
         /* A 1 ms system timer is what makes the 5 ms poll actually sleep 5 ms, but it is process-wide and
            costs power everywhere, so it is only held while a game is running. */

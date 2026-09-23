@@ -40,7 +40,6 @@ class LC_Client
 	protected string m_sTeamSpeakChannel;
 	protected string m_sTeamSpeakChannelPassword;
 	protected int m_iNextSessionRequestTick;
-	protected int m_iStartTick;
 	protected int m_iLastTick;
 
 	//! Held Lima Charlie transmit key index, or -1
@@ -88,8 +87,7 @@ class LC_Client
 
 		s_Instance = new LC_Client();
 		s_Instance.m_PlayerController = playerController;
-		s_Instance.m_iStartTick = System.GetTickCount();
-		s_Instance.m_iLastTick = s_Instance.m_iStartTick;
+		s_Instance.m_iLastTick = System.GetTickCount();
 		GetGame().GetCallqueue().CallLater(s_Instance.Tick, 0, true);
 
 		InputManager inputManager = GetGame().GetInputManager();

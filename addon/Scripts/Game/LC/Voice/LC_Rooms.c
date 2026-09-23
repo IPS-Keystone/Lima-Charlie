@@ -437,7 +437,7 @@ class LC_Rooms
 		if (!EnsureDistances(subscene, layout, listenerArea))
 			return false;
 
-		if (speakerArea < 0 || speakerArea >= m_aDistance.Count())
+		if (speakerArea < 0 || speakerArea >= layout.m_iAreaCount)
 			return false;
 
 		float distance = m_aDistance[speakerArea];
