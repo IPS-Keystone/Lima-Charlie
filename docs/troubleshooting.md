@@ -55,8 +55,24 @@ decides muffling for anyone in a building:
   the number change** — that confirms the engine keeps this up to date.
 - **rooms N traced M** — how many nearby players the room model answered for, and how many still needed
   traces.
-- Then per player: their room, `R` if the room model decided their muffle or `T` if a trace did, and the
-  muffle itself.
+- Then per player: their room, `R` if the room model decided their muffle or `T` if a trace did, the muffle
+  itself, and in brackets what the last trace for them hit.
+
+That bracket is how to chase down something muffling when it should not:
+
+```
+7 outdoors T 0.60 [Lamppost_01 0.3m skip2]
+7 outdoors T 0.60 [Wall_Concrete_01 4.0m]
+7 outdoors T 0.60 [world]
+```
+
+- A **name and a width** is the thing that blocked. Under 0.8 m across should have been ignored, so seeing
+  one there means the filter did not reject it.
+- **`skipN`** counts props the trace ignored on the way. A narrow thing named as cover *without* a `skip`
+  count means the engine never consulted our filter at all, which is a different problem from the
+  threshold being wrong.
+- **`world`** is terrain or other geometry with no entity behind it, which always counts as cover.
+- **`clear`** means that trace found nothing, so the muffle came from the other direction or from the rooms.
 
 If `traced` stays high while everyone is indoors together, the building has no room model and traces are
 doing the work, which is the intended fallback.

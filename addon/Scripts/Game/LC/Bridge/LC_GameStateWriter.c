@@ -11,6 +11,8 @@ class LC_MuffleSample
 	ref LC_RoomLocation m_Room = new LC_RoomLocation();
 	//! Whether the room model answered for this player, rather than a trace, for the diagnostic line
 	bool m_bFromRooms;
+	//! What the last trace for this player hit, for the diagnostic line
+	string m_sCover;
 }
 
 //------------------------------------------------------------------------------------------------
@@ -335,6 +337,7 @@ class LC_GameStateWriter
 
 		m_iTraceBudget--;
 		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
+		sample.m_sCover = m_Occlusion.DescribeCover();
 		sample.m_vListener = listenerPosition;
 		sample.m_vSpeaker = speakerPosition;
 		sample.m_iTracedTick = now;
@@ -368,6 +371,8 @@ class LC_GameStateWriter
 			m_sRoomDiagnostic += ", ";
 
 		m_sRoomDiagnostic += playerId.ToString() + " " + m_Rooms.Describe(sample.m_Room) + " " + source + " " + muffle.ToString(-1, 2);
+		if (!sample.m_sCover.IsEmpty())
+			m_sRoomDiagnostic += " [" + sample.m_sCover + "]";
 	}
 
 	//------------------------------------------------------------------------------------------------

@@ -7,15 +7,17 @@ class LC_Occlusion
 	protected static const float SINGLE_OBSTACLE_MUFFLE = 0.6;
 	//! At least two separate obstacles, e.g. rooms apart, or two hulls
 	protected static const float MULTIPLE_OBSTACLE_MUFFLE = 0.9;
-	//! Anything narrower than this across is a prop rather than cover: posts, bollards, signs, trunks, and
-	//! people standing in the way
-	protected static const float NARROW_M = 0.6;
-	//! How many of those a single trace steps past before giving up and calling it cover
-	protected static const int MAX_SKIPS = 2;
-	protected static const float SKIP_STEP_M = 0.25;
+	//! Anything narrower than this across is a prop rather than cover: posts, bollards, signs, bins, trunks
+	protected static const float NARROW_M = 0.8;
 
 	protected ref TraceParam m_Trace = new TraceParam();
 	protected ref array<IEntity> m_aExclude = {};
+
+	//! What last blocked a trace, for the diagnostic line: null means terrain or other world geometry
+	protected IEntity m_CoverEntity;
+	protected bool m_bCoverIsWorld;
+	protected float m_fCoverWidth;
+	protected int m_iSkipped;
 
 	//------------------------------------------------------------------------------------------------
 	//! A null listener is a free camera with no body of its own: what is in the way still muffles, but there
@@ -64,12 +66,17 @@ class LC_Occlusion
 		m_Trace.LayerMask = EPhysicsLayerDefs.Projectile;
 		m_Trace.ExcludeArray = exclude;
 
-		IEntity nearListener = FirstCover(world, from, to);
-		if (!nearListener)
+		m_CoverEntity = null;
+		m_bCoverIsWorld = false;
+		m_fCoverWidth = 0;
+		m_iSkipped = 0;
+
+		IEntity nearListener;
+		if (!TraceCover(world, from, to, nearListener))
 			return 0;
 
-		IEntity nearSpeaker = FirstCover(world, to, from);
-		if (!nearSpeaker)
+		IEntity nearSpeaker;
+		if (!TraceCover(world, to, from, nearSpeaker))
 			return 1;
 
 		if (nearSpeaker != nearListener)
@@ -79,56 +86,98 @@ class LC_Occlusion
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! The first thing between these two points that counts as cover, or null if nothing does.
+	//! Whether anything between these two points counts as cover, and what it was.
 	//!
-	//! A lamp post, a bollard, a sign, a tree trunk or a person standing in the way blocked the trace and
-	//! read as a whole wall, which made open ground sound like a building. Anything narrow in plan is
-	//! stepped past and the trace carries on behind it. Only a couple of skips, so a thicket does still
-	//! muffle, and the cost is one trace in the common case of nothing in the way at all.
-	protected IEntity FirstCover(notnull BaseWorld world, vector from, vector to)
+	//! One trace, with the engine's own filter callback deciding what is worth stopping at, so a path with
+	//! any number of props along it still costs a single trace. A lamp post, a bollard, a sign, a bin or a
+	//! person standing in the way used to block and read as a whole wall, which made open ground sound like
+	//! a building.
+	protected bool TraceCover(notnull BaseWorld world, vector from, vector to, out IEntity cover)
 	{
-		vector start = from;
-		for (int skip = 0; skip <= MAX_SKIPS; skip++)
+		cover = null;
+		m_Trace.Start = from;
+		m_Trace.End = to;
+		m_Trace.TraceEnt = null;
+		if (world.TraceMove(m_Trace, FilterCover) >= 1)
+			return false;
+
+		cover = m_Trace.TraceEnt;
+		if (cover)
 		{
-			m_Trace.Start = start;
-			m_Trace.End = to;
-			m_Trace.TraceEnt = null;
-			float fraction = world.TraceMove(m_Trace, null);
-			if (fraction >= 1)
-				return null;
-
-			IEntity hit = m_Trace.TraceEnt;
-			if (!IsNarrow(hit))
-				return hit;
-
-			// Resume just past it, along the remaining path
-			vector remaining = to - start;
-			vector at = start + remaining * fraction;
-			float length = remaining.Length();
-			if (length <= SKIP_STEP_M)
-				return null;
-
-			start = at + remaining * (SKIP_STEP_M / length);
-			if (vector.DistanceSq(start, to) <= SKIP_STEP_M * SKIP_STEP_M)
-				return null;
+			m_CoverEntity = cover;
+			m_fCoverWidth = Width(cover);
+		}
+		else
+		{
+			// Terrain and other unowned world geometry come back without an entity, and always count
+			m_bCoverIsWorld = true;
 		}
 
-		// Too many narrow things in a row to be open ground
-		return m_Trace.TraceEnt;
+		return true;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Whether this is too slight in plan to be cover. Measured on the wider of its two horizontal sides,
-	//! so a fence panel or a wall section still counts while a post does not.
-	protected bool IsNarrow(IEntity entity)
+	//! The engine calls this for each entity the trace meets; false ignores that one and the trace carries
+	//! on behind it. Measured on the wider of its two horizontal sides, so a fence panel or a wall section
+	//! still counts while a post does not.
+	protected bool FilterCover(notnull IEntity entity, vector start = "0 0 0", vector dir = "0 0 0")
 	{
-		if (!entity)
+		// Nobody is cover, whatever their bounding box says
+		if (ChimeraCharacter.Cast(entity))
+		{
+			m_iSkipped++;
 			return false;
+		}
 
+		if (Width(entity) >= NARROW_M)
+			return true;
+
+		m_iSkipped++;
+		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Widest of the two horizontal sides of this entity's bounding box
+	protected float Width(notnull IEntity entity)
+	{
 		vector mins;
 		vector maxs;
 		entity.GetWorldBounds(mins, maxs);
-		float width = Math.Max(maxs[0] - mins[0], maxs[2] - mins[2]);
-		return width < NARROW_M;
+		return Math.Max(maxs[0] - mins[0], maxs[2] - mins[2]);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! What blocked the last trace and how many props it ignored on the way, for the diagnostic line
+	string DescribeCover()
+	{
+		string text;
+		if (m_CoverEntity)
+		{
+			string prefab = SCR_ResourceNameUtils.GetPrefabName(m_CoverEntity);
+			int lastSlash = prefab.LastIndexOf("/");
+			if (lastSlash >= 0)
+				prefab = prefab.Substring(lastSlash + 1, prefab.Length() - lastSlash - 1);
+
+			if (prefab.IsEmpty())
+				prefab = m_CoverEntity.GetName();
+
+			if (prefab.IsEmpty())
+				prefab = "unnamed";
+
+			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m";
+		}
+		else if (m_bCoverIsWorld)
+		{
+			text = "world";
+		}
+		else
+		{
+			text = "clear";
+		}
+
+		if (m_iSkipped > 0)
+			text += " skip" + m_iSkipped.ToString();
+
+		return text;
 	}
 }
