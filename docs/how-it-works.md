@@ -131,11 +131,21 @@ the way.
 | Two or more | 0.9 |
 | Both in the same vehicle | 0 |
 
-**Narrow things are not cover.** A lamp post, a bollard, a sign, a tree trunk or somebody standing in the
-way used to block the trace and read as a whole wall, which made open ground sound like a building.
-Anything under 0.6 m across in plan is stepped past and the trace carries on behind it, up to twice — so a
-thicket still muffles, while a post does not. Measured on the wider of its two horizontal sides, so a fence
-panel or a wall section still counts.
+**Trees and people are never cover**, and nor is anything narrow. A lamp post, a bollard, a sign or
+somebody standing in the way used to block the trace and read as a whole wall, which made open ground sound
+like a building; a wood between two people sounded like a wall between them.
+
+The engine's trace filter is given the verdict for each entity along the path, so one trace handles a path
+with any number of them on it:
+
+- **Vegetation** — anything deriving from `BaseTree`, which covers trees, the destructible ones and the
+  parts a felled one breaks into, plus plain `TreeEntity` static trees. A class check, not a size one: a
+  tree's bounding box is its whole canopy, so no width test could ever rule one out.
+- **Characters** — whatever their bounding box says.
+- **Anything under 0.8 m across in plan**, measured on the wider of its two horizontal sides, so a fence
+  panel or a wall section still counts while a post does not.
+
+Terrain and other geometry with no entity behind it always counts as cover.
 
 Vehicles are not a special case. A hull that is really between two people blocks the trace like any other
 wall; an open mount does not. Sitting in one used to add a flat muffle, which was wrong for everything you

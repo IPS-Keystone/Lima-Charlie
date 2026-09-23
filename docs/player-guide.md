@@ -67,8 +67,8 @@ Buildings are understood room by room rather than as one lump.
 - **Within a few metres** — what you can see decides it, so standing in a doorway together is clear.
 - **If you can see each other, you are not muffled** — through an open door, a hangar opening, or across
   a room the game happens to treat as two.
-- **Small things are not cover.** Lamp posts, bollards, signs, tree trunks and other players no longer
-  muffle you; walls, fences and vehicles still do.
+- **Trees never muffle you**, however thick the wood. Neither do other players, lamp posts, bollards or
+  signs. Walls, fences, vehicles and terrain still do.
 - **Next room** — muffled by whatever is between you. An **open door** carries voices far better than a
   closed one, and it does not need line of sight: shouting round a corner through an open doorway works.
   A closed door is worth about as much as the wall beside it.

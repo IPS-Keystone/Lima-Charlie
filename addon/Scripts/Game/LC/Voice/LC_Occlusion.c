@@ -122,8 +122,10 @@ class LC_Occlusion
 	//! still counts while a post does not.
 	protected bool FilterCover(notnull IEntity entity, vector start = "0 0 0", vector dir = "0 0 0")
 	{
-		// Nobody is cover, whatever their bounding box says
-		if (ChimeraCharacter.Cast(entity))
+		// Neither trees nor people are cover, whatever their bounding boxes say. A tree's box is its whole
+		// canopy, several metres across, so the width test below could never rule one out - and a wood
+		// between two people should not sound like a wall between them.
+		if (IsVegetation(entity) || ChimeraCharacter.Cast(entity))
 		{
 			m_iSkipped++;
 			return false;
@@ -134,6 +136,19 @@ class LC_Occlusion
 
 		m_iSkipped++;
 		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Trees, saplings, bushes that use the tree classes, and the parts a felled tree breaks into.
+	//! Vanilla's own vegetation checks cast to Tree the same way.
+	protected bool IsVegetation(notnull IEntity entity)
+	{
+		// Tree derives from BaseTree, as do the destructible trees and their fallen parts
+		if (BaseTree.Cast(entity))
+			return true;
+
+		// Plain static trees, placed without any destruction of their own
+		return TreeEntity.Cast(entity) != null;
 	}
 
 	//------------------------------------------------------------------------------------------------
