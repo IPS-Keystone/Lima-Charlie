@@ -7,6 +7,7 @@
 #include "lc_peers.h"
 #include "lc_profile_files.h"
 #include "lc_radio.h"
+#include "lc_reverb.h"
 #include "lc_sounds.h"
 #include "lc_transmissions.h"
 #include "lc_version.h"
@@ -504,6 +505,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     g_radioHeard[0] = '\0';
     if (!inGame || !connected) {
         update_receptions(NULL, 0, 0);
+        lc_reverb_set_room(0.0f);
         lc_audio_publish(0, NULL, 0);
         return;
     }
@@ -610,6 +612,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     }
 
     update_receptions(receptions, receptionCount, 1);
+    lc_reverb_set_room(g_game.roomVolume);
     lc_audio_publish(1, targets, count);
 }
 

@@ -46,10 +46,31 @@ speaker from its own copy of the positions:
 - **Equal-power pan** from the listener's facing, width 0.85.
 - **Behind attenuation** of 0.25, so someone at your back is quieter than someone in front.
 - **Muffle** from occlusion: up to −9 dB plus a low-pass sliding from 8 kHz down to 700 Hz.
+- **Room reverb** when the listener is indoors, sized by the room (see below).
 
 Positions come from the listener's camera, not their body, so a Game Master or spectator hears from where
 they are looking. The character's head is used only when the camera is close to it — within 20 m, which
 covers first person and any third-person boom but not a free camera.
+
+### Room reverb
+
+Speech heard indoors gets the room's tail. The game sends the volume of the room the **listener** is
+standing in, and the plugin sizes the reverb from it: nothing outdoors or in a space under 25 m³, then
+growing with the logarithm of the volume, so a garage and a hangar differ clearly while a cupboard and a
+bedroom do not.
+
+| Room | Wet | Tail |
+| --- | --- | --- |
+| Outdoors, or under 25 m³ | none | — |
+| About 150 m³ | 0.10 | short |
+| 4000 m³ and up | 0.26 | long |
+
+A room's tail belongs to the room rather than to one voice, so every direct voice adds into one shared
+send as it is processed and the tail is rendered once over the mixed playback buffer. It is a Schroeder
+reverb: four parallel combs, two allpasses, damping in the feedback so the tail loses its top end first,
+and slightly longer delays in the right ear so it is not identical in both. Muffling has already shaped
+each voice before it reaches the send, so someone in the next room reverberates as dully as they arrive.
+Radio never goes to the room, and stepping outdoors drops the tail rather than letting it ring on.
 
 ### Occlusion
 
@@ -89,8 +110,11 @@ the way.
 | Clear line | 0 |
 | One obstacle | 0.6 |
 | Two or more | 0.9 |
-| Either party in a vehicle | 0.5, or more if traces find walls too |
 | Both in the same vehicle | 0 |
+
+Vehicles are not a special case. A hull that is really between two people blocks the trace like any other
+wall; an open mount does not. Sitting in one used to add a flat muffle, which was wrong for everything you
+sit *on* rather than *in* — a mortar, a technical's bed, an open jeep, a hatch you are turned out of.
 
 Traces are cached per player and repeated only as often as they can matter: every 100 ms while that person
 is talking, 500 ms while silent, and only when one of you has moved more than 25 cm — otherwise every 2 s,

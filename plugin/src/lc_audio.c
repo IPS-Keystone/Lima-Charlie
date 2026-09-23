@@ -1,5 +1,7 @@
 #include "lc_audio.h"
 
+#include "lc_reverb.h"
+
 #include <windows.h>
 
 #include <math.h>
@@ -81,6 +83,9 @@ static lc_voice_state g_states[LC_AUDIO_MAX_STATES];
 static int             g_stateCount;
 static volatile LONG   g_resetRequested;
 static LONG            g_resetSeen;
+
+/* One voice's direct part, handed to the room reverb after the buffer is processed. Audio thread only. */
+static float g_send[LC_AUDIO_MAX_SEND];
 
 void lc_audio_reset(void)
 {
@@ -298,6 +303,9 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     const float startRadioLeft  = state->radioLeft;
     const float startRadioRight = state->radioRight;
     const float step            = 1.0f / (float)sampleCount;
+    /* This voice's direct part on its own, for the room's shared reverb send. Muffling has already shaped
+       it, so a voice from the next room reverberates as dully as it arrives. Radio never goes to the room. */
+    const int sendFrames = useDirect && sampleCount <= LC_AUDIO_MAX_SEND ? sampleCount : 0;
     for (int i = 0; i < sampleCount; ++i) {
         const int base = i * channels;
         float     x    = channels > 1 ? 0.5f * ((float)samples[base + left] + (float)samples[base + right]) : (float)samples[base];
@@ -311,9 +319,14 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
         }
         const float radio = useRadio ? radio_tick(state, x, &garble) : 0.0f;
 
-        const float t        = (float)(i + 1) * step;
-        const float outLeft  = direct * (startLeft + (targetLeft - startLeft) * t) + radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t);
-        const float outRight = direct * (startRight + (targetRight - startRight) * t) + radio * (startRadioRight + (targetRadioRight - startRadioRight) * t);
+        const float t          = (float)(i + 1) * step;
+        const float directLeft = direct * (startLeft + (targetLeft - startLeft) * t);
+        const float directRight = direct * (startRight + (targetRight - startRight) * t);
+        const float outLeft  = directLeft + radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t);
+        const float outRight = directRight + radio * (startRadioRight + (targetRadioRight - startRadioRight) * t);
+        if (i < sendFrames)
+            g_send[i] = 0.5f * (directLeft + directRight);
+
         for (int c = 0; c < channels; ++c)
             samples[base + c] = 0;
         if (channels == 1) {
@@ -323,6 +336,9 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
             samples[base + right] = to_sample(outRight);
         }
     }
+
+    if (sendFrames > 0)
+        lc_reverb_send(g_send, sendFrames);
 
     if (channels > 1 && channels <= 32 && channelFillMask)
         *channelFillMask = (1u << left) | (1u << right);

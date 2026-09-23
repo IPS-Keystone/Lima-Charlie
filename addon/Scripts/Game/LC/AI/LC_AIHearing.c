@@ -77,21 +77,13 @@ class LC_AIHearing
 		s_aExclude.Clear();
 		s_aExclude.Insert(listener);
 		s_aExclude.Insert(speaker);
-		if (listenerVehicle)
-			s_aExclude.Insert(listenerVehicle);
-
-		if (speakerVehicle)
-			s_aExclude.Insert(speakerVehicle);
 
 		if (!s_Occlusion)
 			s_Occlusion = new LC_Occlusion();
 
+		// A hull that is really in the way blocks this trace like any other wall, and an open mount such as a
+		// mortar does not block it at all, so vehicles need no extra obstacle of their own
 		int obstacles = s_Occlusion.CountObstacles(listenerPosition, speakerPosition, s_aExclude);
-
-		// Sitting in a vehicle is a wall of its own, on top of anything the trace found
-		if (listenerVehicle || speakerVehicle)
-			obstacles++;
-
 		if (obstacles <= 0)
 			return true;
 

@@ -3,18 +3,22 @@
 //! The plugin turns it into a low-pass filter and some attenuation.
 class LC_Occlusion
 {
-	//! One wall, or the listener or speaker inside a different vehicle
+	//! One wall, or one vehicle hull
 	protected static const float SINGLE_OBSTACLE_MUFFLE = 0.6;
-	//! At least two separate obstacles, e.g. rooms apart
+	//! At least two separate obstacles, e.g. rooms apart, or two hulls
 	protected static const float MULTIPLE_OBSTACLE_MUFFLE = 0.9;
-	protected static const float VEHICLE_MUFFLE = 0.5;
 
 	protected ref TraceParam m_Trace = new TraceParam();
 	protected ref array<IEntity> m_aExclude = {};
 
 	//------------------------------------------------------------------------------------------------
-	//! A null listener is a free camera with no body of its own: what is in the way still muffles, but there is
-	//! no vehicle around it and nothing of its own to leave out of the trace.
+	//! A null listener is a free camera with no body of its own: what is in the way still muffles, but there
+	//! is nothing of its own to leave out of the trace.
+	//!
+	//! Vehicles are not treated as a special case and are not left out of the trace. Sitting in one used to
+	//! carry a flat muffle, which was wrong for everything you sit on rather than in: a mortar, a technical's
+	//! bed, an open jeep, a hatch you are turned out of. A hull that is really between two people blocks the
+	//! trace like any other wall, and an open mount does not block it at all.
 	float Compute(IEntity listener, vector listenerPosition, notnull IEntity speaker, vector speakerPosition)
 	{
 		IEntity listenerVehicle;
@@ -25,29 +29,20 @@ class LC_Occlusion
 		if (listenerVehicle && listenerVehicle == speakerVehicle)
 			return 0;
 
-		float muffle = 0;
-		if (listenerVehicle || speakerVehicle)
-			muffle = VEHICLE_MUFFLE;
-
 		m_aExclude.Clear();
 		if (listener)
 			m_aExclude.Insert(listener);
 
 		m_aExclude.Insert(speaker);
-		if (listenerVehicle)
-			m_aExclude.Insert(listenerVehicle);
-
-		if (speakerVehicle)
-			m_aExclude.Insert(speakerVehicle);
 
 		int obstacles = CountObstacles(listenerPosition, speakerPosition, m_aExclude);
 		if (obstacles >= 2)
-			return Math.Max(muffle, MULTIPLE_OBSTACLE_MUFFLE);
+			return MULTIPLE_OBSTACLE_MUFFLE;
 
 		if (obstacles == 1)
-			return Math.Max(muffle, SINGLE_OBSTACLE_MUFFLE);
+			return SINGLE_OBSTACLE_MUFFLE;
 
-		return muffle;
+		return 0;
 	}
 
 	//------------------------------------------------------------------------------------------------

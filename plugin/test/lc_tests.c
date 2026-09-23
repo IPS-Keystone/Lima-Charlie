@@ -5,6 +5,7 @@
 #include "lc_game_state.h"
 #include "lc_peers.h"
 #include "lc_radio.h"
+#include "lc_reverb.h"
 #include "lc_transmissions.h"
 
 #include <math.h>
@@ -234,9 +235,9 @@ static void test_transmissions(void)
 static void test_game_state(void)
 {
     static const char json[] =
-        "{\"v\":6,\"seq\":12,\"inGame\":true,"
+        "{\"v\":7,\"seq\":12,\"inGame\":true,"
         "\"session\":{\"token\":\"abc\",\"playerId\":3,\"playerName\":\"A \\\"quoted\\\" name\",\"tsServer\":\"\",\"tsChannel\":\"Squad 1\",\"tsChannelPassword\":\"pw\"},"
-        "\"self\":{\"alive\":true,\"pos\":[1.5,2,3],\"dir\":[0,0,1],\"tx\":2,\"txFrequency\":45000,\"txRadio\":\"77:1\",\"voiceRange\":5,\"cleanFraction\":0.6,\"beepFraction\":0.8,\"unlimitedRx\":true,"
+        "\"self\":{\"alive\":true,\"pos\":[1.5,2,3],\"dir\":[0,0,1],\"tx\":2,\"txFrequency\":45000,\"txRadio\":\"77:1\",\"voiceRange\":5,\"cleanFraction\":0.6,\"beepFraction\":0.8,\"unlimitedRx\":true,\"roomVolume\":96,"
         "\"radios\":[{\"id\":\"77:1\",\"freq\":45000,\"range\":1500,\"key\":\"US\",\"rx\":true,\"ear\":1,\"volume\":0.4,\"beep\":\"tfar_sw\",\"halfDuplex\":1},"
         "{\"id\":\"78:1\",\"freq\":60000,\"range\":16000,\"key\":\"US\",\"rx\":false,\"ear\":9,\"volume\":7,\"beep\":\"acre\"}],"
         "\"sounds\":[{\"seq\":4,\"set\":\"acre\",\"name\":\"local_start\",\"ear\":2,\"volume\":0.5},{\"seq\":5,\"set\":\"ui\",\"name\":\"deny\"}]},"
@@ -253,6 +254,7 @@ static void test_game_state(void)
     CHECK(fabs(state.beepFraction - 0.8f) < 0.01f);
     /* Set only while a Game Master has the editor open; absent means the normal range rules apply. */
     CHECK(state.unlimitedRx);
+    CHECK(fabs(state.roomVolume - 96.0f) < 0.01f);
     CHECK(strcmp(state.txRadio, "77:1") == 0 && state.txFrequency == 45000);
     CHECK(fabs(state.pos[0] - 1.5f) < 0.01f);
     CHECK(state.playerCount == 2);
@@ -275,13 +277,76 @@ static void test_game_state(void)
     CHECK(state.linkCount == 1 && state.links[0].playerId == 4 && fabs(state.links[0].clearance - 35.0f) < 0.01f);
 
     /* Half-written files and other protocol versions are rejected. */
-    CHECK(!lc_game_state_parse("{\"v\":6,\"seq\":12,\"inGa", &state));
+    CHECK(!lc_game_state_parse("{\"v\":7,\"seq\":12,\"inGa", &state));
     CHECK(!lc_game_state_parse("{\"v\":1,\"seq\":1}", &state));
-    CHECK(!lc_game_state_parse("{\"v\":7,\"seq\":1}", &state));
-    CHECK(lc_game_state_parse("{\"v\":6,\"seq\":13,\"inGame\":false}", &state) && !state.inGame && state.radioCount == 0);
+    CHECK(!lc_game_state_parse("{\"v\":6,\"seq\":1}", &state));
+    CHECK(!lc_game_state_parse("{\"v\":8,\"seq\":1}", &state));
+    CHECK(lc_game_state_parse("{\"v\":7,\"seq\":13,\"inGame\":false}", &state) && !state.inGame && state.radioCount == 0);
     /* An omitted beep range falls back to the default rather than silencing every beep. */
     CHECK(fabs(state.beepFraction - LC_RADIO_BEEP_FRACTION) < 0.01f);
     CHECK(!state.unlimitedRx);
+    /* Outdoors, and older states that never carried it, read as no room at all. */
+    CHECK(state.roomVolume == 0.0f);
+}
+
+static void test_reverb(void)
+{
+    float wet, decay;
+
+    /* Outdoors, and spaces too small to ring, have no tail at all. */
+    lc_reverb_room_params(0.0f, &wet, &decay);
+    CHECK(wet == 0.0f);
+    lc_reverb_room_params(10.0f, &wet, &decay);
+    CHECK(wet == 0.0f);
+
+    /* A room the size of a shed is wet but short; a hangar is wetter and longer. */
+    float smallWet, smallDecay, mediumWet, mediumDecay, largeWet, largeDecay;
+    lc_reverb_room_params(100.0f, &smallWet, &smallDecay);
+    lc_reverb_room_params(800.0f, &mediumWet, &mediumDecay);
+    lc_reverb_room_params(20000.0f, &largeWet, &largeDecay);
+    CHECK(smallWet > 0.0f && smallWet < mediumWet && mediumWet < largeWet);
+    CHECK(smallDecay < mediumDecay && mediumDecay < largeDecay);
+    /* However large the room, the tail must stay below unity or it would never die away. */
+    CHECK(largeDecay < 1.0f && largeWet < 0.5f);
+
+    /* An impulse into a room decays towards silence and never turns into a NaN or a rising howl. */
+    lc_reverb_set_room(800.0f);
+    short  frames[960 * 2];
+    float  impulse[960];
+    double first = 0, last = 0;
+    for (int i = 0; i < 960; ++i)
+        impulse[i] = 0.0f;
+
+    impulse[0] = 0.8f;
+    for (int period = 0; period < 40; ++period) {
+        memset(frames, 0, sizeof(frames));
+        lc_reverb_send(impulse, 960);
+        lc_reverb_mix(frames, 960, 2, NULL, NULL);
+
+        double energy = 0;
+        for (int i = 0; i < 960 * 2; ++i) {
+            CHECK(frames[i] == frames[i]); /* NaN would fail its own equality */
+            energy += (double)frames[i] * (double)frames[i];
+        }
+
+        if (period == 1)
+            first = energy;
+        if (period == 39)
+            last = energy;
+
+        /* Only the first period carries the impulse; the rest is tail. */
+        impulse[0] = 0.0f;
+    }
+
+    CHECK(first > 0);
+    CHECK(last < first);
+
+    /* Stepping outdoors drops the tail rather than leaving it ringing. */
+    lc_reverb_set_room(0.0f);
+    memset(frames, 0, sizeof(frames));
+    lc_reverb_mix(frames, 960, 2, NULL, NULL);
+    for (int i = 0; i < 960 * 2; ++i)
+        CHECK(frames[i] == 0);
 }
 
 int main(void)
@@ -292,6 +357,7 @@ int main(void)
     test_radio_quality();
     test_transmissions();
     test_game_state();
+    test_reverb();
     printf(g_failures ? "%d check(s) failed\n" : "All checks passed\n", g_failures);
     return g_failures;
 }

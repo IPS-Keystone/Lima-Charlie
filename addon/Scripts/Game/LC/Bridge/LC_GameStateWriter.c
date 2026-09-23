@@ -20,7 +20,7 @@ class LC_GameStateWriter
 {
 	protected static const string DIRECTORY = "$profile:LimaCharlie";
 	protected static const string PATH = "$profile:LimaCharlie/game_state.json";
-	protected static const int PROTOCOL_VERSION = 6;
+	protected static const int PROTOCOL_VERSION = 7;
 	//! 20 Hz while anyone's voice is live; transmit, radio and terrain changes are written immediately
 	protected static const int INTERVAL_MS = 50;
 	//! 10 Hz when nobody is talking and we are not transmitting: positions still move, but nothing is audible
@@ -185,20 +185,6 @@ class LC_GameStateWriter
 		json += ",\"tsChannelPassword\":" + LC_Json.String(client.GetTeamSpeakChannelPassword());
 		json += ",\"modVersion\":" + LC_Json.String(LC_Version.VERSION) + "}";
 
-		int transmit = transmitType;
-		json += ",\"self\":{\"alive\":" + LC_Json.Bool(IsListening(localEntity));
-		json += ",\"pos\":" + LC_Json.Position(listenerPosition);
-		json += ",\"dir\":" + LC_Json.Direction(listenerDirection);
-		json += ",\"tx\":" + transmit.ToString();
-		json += ",\"txFrequency\":" + transmitFrequency.ToString();
-		json += ",\"txRadio\":" + LC_Json.String(transmitRadio);
-		json += ",\"voiceRange\":" + voiceRange.ToString(-1, 1);
-		json += ",\"cleanFraction\":" + client.GetCleanFraction().ToString(-1, 2);
-		json += ",\"beepFraction\":" + client.GetBeepFraction().ToString(-1, 2);
-		json += ",\"unlimitedRx\":" + LC_Json.Bool(unlimitedRange);
-		json += ",\"radios\":" + radios;
-		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson() + "}";
-
 		// Occlusion is traced from the listener's head, not the camera, so third person does not hear around walls.
 		// A free camera is nowhere near the body it belongs to, and that camera is where the player really listens
 		// from, so it is traced from instead and the body is ignored entirely.
@@ -214,6 +200,26 @@ class LC_GameStateWriter
 			}
 		}
 
+		// Which room the listener is in, and a slice of the work of mapping that building's type
+		m_Rooms.Locate(m_ListenerRoom, occlusionOrigin, now);
+		m_Rooms.Update(m_ListenerRoom);
+
+		int transmit = transmitType;
+		json += ",\"self\":{\"alive\":" + LC_Json.Bool(IsListening(localEntity));
+		json += ",\"pos\":" + LC_Json.Position(listenerPosition);
+		json += ",\"dir\":" + LC_Json.Direction(listenerDirection);
+		json += ",\"tx\":" + transmit.ToString();
+		json += ",\"txFrequency\":" + transmitFrequency.ToString();
+		json += ",\"txRadio\":" + LC_Json.String(transmitRadio);
+		json += ",\"voiceRange\":" + voiceRange.ToString(-1, 1);
+		json += ",\"cleanFraction\":" + client.GetCleanFraction().ToString(-1, 2);
+		json += ",\"beepFraction\":" + client.GetBeepFraction().ToString(-1, 2);
+		json += ",\"unlimitedRx\":" + LC_Json.Bool(unlimitedRange);
+		json += ",\"radios\":" + radios;
+		// Volume of the room the listener is in, 0 outdoors: the plugin sizes its reverb from it
+		json += ",\"roomVolume\":" + m_ListenerRoom.m_fVolume.ToString(-1, 0);
+		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson() + "}";
+
 		json += ",\"players\":[";
 		m_aPlayerIds.Clear();
 		playerManager.GetPlayers(m_aPlayerIds);
@@ -221,10 +227,6 @@ class LC_GameStateWriter
 		float maxDistanceSq = NEARBY_RANGE_M * NEARBY_RANGE_M;
 		m_iTraceBudget = OCCLUSION_BUDGET;
 		bool first = true;
-
-		// Which room the listener is in, and a slice of the work of mapping that building's type
-		m_Rooms.Locate(m_ListenerRoom, occlusionOrigin, now);
-		m_Rooms.Update(m_ListenerRoom);
 		m_iRoomsResolved = 0;
 		m_iRoomsTraced = 0;
 		foreach (int playerId : m_aPlayerIds)
@@ -363,7 +365,8 @@ class LC_GameStateWriter
 		if (!m_sRoomDiagnostic.IsEmpty())
 			line += " | " + m_sRoomDiagnostic;
 
-		Print(line, LogLevel.NORMAL);
+		// PrintFormat, because Print of a bare variable logs it as "string line = '...'"
+		PrintFormat("%1", line);
 	}
 
 	//------------------------------------------------------------------------------------------------

@@ -22,8 +22,8 @@ if not exist build\tests mkdir build\tests
 set COMMON=/nologo /O2 /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN
 set OURS=%COMMON% /W4 /std:c11 /Isrc /Ithird_party\ts3sdk /Ithird_party\cjson
 set LIBS=shell32.lib ole32.lib uuid.lib winmm.lib
-set SOURCES=src\lc_core.c src\lc_peers.c src\lc_game_state.c src\lc_profile_files.c src\lc_log.c src\lc_audio.c src\lc_direct_voice.c src\lc_radio.c src\lc_transmissions.c src\lc_sounds.c
-set TEST_SOURCES=src\lc_direct_voice.c src\lc_peers.c src\lc_game_state.c src\lc_log.c src\lc_radio.c src\lc_transmissions.c
+set SOURCES=src\lc_core.c src\lc_peers.c src\lc_game_state.c src\lc_profile_files.c src\lc_log.c src\lc_audio.c src\lc_direct_voice.c src\lc_radio.c src\lc_transmissions.c src\lc_sounds.c src\lc_reverb.c
+set TEST_SOURCES=src\lc_direct_voice.c src\lc_peers.c src\lc_game_state.c src\lc_log.c src\lc_radio.c src\lc_transmissions.c src\lc_reverb.c src\lc_audio.c
 
 rem Third-party code at a lower warning level so our own warnings stay visible
 cl %COMMON% /W1 /c third_party\cjson\cJSON.c /Fobuild\cJSON.obj

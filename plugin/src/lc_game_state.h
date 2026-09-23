@@ -7,7 +7,7 @@
                "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
   "self": { "alive": true, "pos": [x, y, z], "dir": [x, y, z], "tx": 2, "txFrequency": 45000, "txRadio": "123:1",
-            "voiceRange": 20, "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false,
+            "voiceRange": 20, "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false, "roomVolume": 96,
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US", "rx": true, "ear": 1, "volume": 0.8,
                           "beep": "tfar_sw", "halfDuplex": 0 } ],
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
@@ -111,6 +111,8 @@ typedef struct {
     float cleanFraction;
     float beepFraction;
     int   unlimitedRx;
+    /* Volume in cubic metres of the room the listener is standing in, 0 outdoors: sizes the room reverb */
+    float roomVolume;
 
     int             radioCount;
     lc_radio_state radios[LC_GAME_STATE_MAX_RADIOS];

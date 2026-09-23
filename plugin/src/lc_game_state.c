@@ -139,6 +139,7 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
         out->cleanFraction = get_float(self, "cleanFraction", LC_RADIO_CLEAN_FRACTION);
         out->beepFraction  = get_float(self, "beepFraction", LC_RADIO_BEEP_FRACTION);
         out->unlimitedRx   = get_bool(self, "unlimitedRx");
+        out->roomVolume    = get_float(self, "roomVolume", 0.0f);
         parse_radios(self, out);
         parse_sounds(self, out);
 

@@ -7,6 +7,8 @@
 #include "lc_ts.h"
 
 #define LC_AUDIO_MAX_TARGETS 256
+/* Frames of one voice buffer that can go to the room reverb; a TeamSpeak period is far shorter */
+#define LC_AUDIO_MAX_SEND 8192
 
 typedef struct {
     anyID client;
