@@ -68,6 +68,10 @@ That bracket is how to chase down something muffling when it should not:
 
 - A **name and a width** is the thing that blocked. Under 0.8 m across should have been ignored, so seeing
   one there means the filter did not reject it.
+- **`sN`** after the width is how much of that thing's bounding box its colliders fill: `s0.95` is a solid
+  wall, `s0.10` something you could see straight through. Diagnostic only for now — if it separates the
+  two cleanly across enough props, it can replace both the name list and the width test with one
+  measurement.
 - **`skipN`** counts props the trace ignored on the way. A narrow thing named as cover *without* a `skip`
   count means the engine never consulted our filter at all, which is a different problem from the
   threshold being wrong.

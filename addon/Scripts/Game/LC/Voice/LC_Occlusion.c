@@ -10,6 +10,29 @@ class LC_Occlusion
 	//! Anything narrower than this across is a prop rather than cover: posts, bollards, signs, bins, trunks
 	protected static const float NARROW_M = 0.8;
 
+	//! Prefab name fragments for fences and railings you can see straight through. They are flat, so their
+	//! bounding box is no wider than a solid fence's and the width test cannot tell them apart, and their
+	//! collider is a plane filling that box, so measuring how solid they are cannot either. The vanilla
+	//! families: NetFence is chain link, MetalFence covers the decorative and Soviet bar fences, PoleFence
+	//! and GraveFence are post and rail, GameProofFence is wire mesh, and the barbed families are
+	//! obstacles rather than walls. Plank fences (WoodenFence) and BridgeRailingConcrete are solid and are
+	//! deliberately absent.
+	protected static ref array<string> s_aSeeThrough = {
+		"NetFence",
+		"MetalFence",
+		"PoleFence",
+		"GraveFence",
+		"GameProofFence",
+		"PipeRailing",
+		"RailingMetal",
+		"BarbedTape",
+		"BarbedCoil",
+		"BarbedWire"
+	};
+
+	//! One decision per prefab, since the answer never changes for a given one
+	protected static ref map<string, bool> s_mSeeThrough = new map<string, bool>();
+
 	protected ref TraceParam m_Trace = new TraceParam();
 	protected ref array<IEntity> m_aExclude = {};
 
@@ -162,7 +185,55 @@ class LC_Occlusion
 			return true;
 
 		// Nobody is cover, whatever their bounding box says
-		return ChimeraCharacter.Cast(entity) != null;
+		if (ChimeraCharacter.Cast(entity))
+			return true;
+
+		return IsSeeThrough(entity);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether this is one of the fences or railings you can see straight through, by prefab name. Names
+	//! are a poor handle, but a flat see-through fence is indistinguishable from a solid one by shape, and
+	//! nothing in the entity's class or its material says which it is.
+	protected bool IsSeeThrough(notnull IEntity entity)
+	{
+		string prefab = SCR_ResourceNameUtils.GetPrefabName(entity);
+		if (prefab.IsEmpty())
+			return false;
+
+		bool cached;
+		if (s_mSeeThrough.Find(prefab, cached))
+			return cached;
+
+		bool seeThrough;
+		foreach (string fragment : s_aSeeThrough)
+		{
+			if (prefab.Contains(fragment))
+			{
+				seeThrough = true;
+				break;
+			}
+		}
+
+		s_mSeeThrough.Set(prefab, seeThrough);
+		return seeThrough;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! How much of this thing's bounding box its colliders actually fill, as "s0.42". Diagnostic only, to
+	//! find out whether it separates a railing or a playground slide from a wall well enough to replace the
+	//! name list and the width test with one measurement.
+	protected string DescribeSolidity(notnull IEntity entity)
+	{
+		vector mins;
+		vector maxs;
+		entity.GetWorldBounds(mins, maxs);
+		float box = (maxs[0] - mins[0]) * (maxs[1] - mins[1]) * (maxs[2] - mins[2]);
+		if (box <= 0)
+			return "s?";
+
+		float colliders = MeshObjectVolumeCalculator.GetVolumeFromColliders(entity, EPhysicsLayerDefs.Projectile);
+		return "s" + (colliders / box).ToString(-1, 2);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -193,7 +264,7 @@ class LC_Occlusion
 			if (prefab.IsEmpty())
 				prefab = "unnamed";
 
-			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m";
+			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m " + DescribeSolidity(m_CoverEntity);
 		}
 		else if (m_bCoverIsWorld)
 		{

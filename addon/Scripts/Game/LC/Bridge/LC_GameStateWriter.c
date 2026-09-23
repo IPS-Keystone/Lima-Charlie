@@ -69,6 +69,7 @@ class LC_GameStateWriter
 	//! Where the listener is in the room model; the room checks are all relative to this
 	protected ref LC_RoomLocation m_ListenerRoom = new LC_RoomLocation();
 	protected int m_iNextRoomDiagnosticTick;
+	protected bool m_bRoomDiagnostics;
 	protected int m_iRoomsResolved;
 	protected int m_iRoomsTraced;
 	protected string m_sRoomDiagnostic;
@@ -122,6 +123,7 @@ class LC_GameStateWriter
 		m_iNextWriteTick = now + GetWriteInterval(client, transmitType);
 
 		m_sRoomDiagnostic = string.Empty;
+		m_bRoomDiagnostics = client.GetRoomDiagnostics();
 		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, radios, now, unlimitedRange);
 		WriteFile(json);
 		LogDiagnostic(now, json, client.GetDiagnosticLog());
@@ -255,7 +257,7 @@ class LC_GameStateWriter
 				continue;
 
 			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now);
-			if (client.GetRoomDiagnostics())
+			if (m_bRoomDiagnostics)
 				AppendRoomDiagnostic(playerId, muffle);
 
 			if (!first)
@@ -337,7 +339,8 @@ class LC_GameStateWriter
 
 		m_iTraceBudget--;
 		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
-		sample.m_sCover = m_Occlusion.DescribeCover();
+		if (m_bRoomDiagnostics)
+			sample.m_sCover = m_Occlusion.DescribeCover();
 		sample.m_vListener = listenerPosition;
 		sample.m_vSpeaker = speakerPosition;
 		sample.m_iTracedTick = now;

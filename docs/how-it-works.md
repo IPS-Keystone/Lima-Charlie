@@ -145,6 +145,11 @@ with any number of them on it:
   test.
 - **Small debris** — `SCR_BaseDebrisSmallEntity`: rubble, splinters and what a felled tree leaves behind.
 - **Characters** — whatever their bounding box says.
+- **See-through fences and railings**, by prefab name: `NetFence`, `MetalFence`, `PoleFence`, `GraveFence`,
+  `GameProofFence`, `PipeRailing`, `RailingMetal`, `BarbedTape`, `BarbedCoil`, `BarbedWire`. Names are a
+  poor handle, but a flat chain-link fence has the same shape as a solid one and nothing in its class or
+  its material distinguishes them. Plank fences and concrete bridge railings are deliberately absent, being
+  solid. One decision per prefab, cached.
 - **Anything under 0.8 m across in plan**, measured on the wider of its two horizontal sides, so a fence
   panel or a wall section still counts while a post does not.
 
