@@ -44,12 +44,21 @@ class LC_VonDisplayFeed
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! What we are transmitting on. Direct speech is left to vanilla, which still owns that path.
+	//! What we are transmitting on, radio or direct. Neither reaches the display on its own any more:
+	//! vanilla only raises direct speech while its own key is held, and that key is no longer what opens
+	//! the microphone.
 	protected void ShowTransmitting(notnull SCR_VonDisplay display, notnull LC_Client client)
 	{
 		EVONTransmitType transmitType = client.GetTransmitType();
 		if (transmitType != EVONTransmitType.CHANNEL && transmitType != EVONTransmitType.LONG_RANGE)
+		{
+			// Direct speech follows TeamSpeak now, not a game key, so vanilla never raises it for us. A null
+			// transceiver is how the display is told a transmission is direct.
+			if (client.GetPluginState().IsSelfTalking() && LC_Life.CanSpeak(client.GetControlledEntity()))
+				display.OnCapture(null);
+
 			return;
+		}
 
 		SCR_VONEntryRadio entry = client.GetTransmitRadioEntry();
 		if (!entry)

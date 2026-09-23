@@ -27,7 +27,7 @@ cat "$USERPROFILE/Documents/My Games/ArmaReforger/profile/LimaCharlie/plugin_sta
 The game log also prints a status line whenever any of it changes:
 
 ```
-[LC] Plugin 1.0.6: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
+[LC] Plugin 1.0.7: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
 ```
 
 Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.log`.
@@ -129,9 +129,12 @@ Reception working proves the protocol versions match, since a version mismatch r
 
 ## "My microphone never opens"
 
-TeamSpeak's own push-to-talk fights the plugin. Set TeamSpeak to Continuous Transmission or Voice
-Activation Detection. The plugin controls the mic through `CLIENT_INPUT_DEACTIVATED` and expects to be the
-only thing gating it.
+Nothing in Lima Charlie touches your microphone any more, so this is TeamSpeak's own setup: check its
+capture device and mode as you would for any other channel. If TeamSpeak shows you as talking and nobody
+hears you, the problem is elsewhere — read the status notice and `peers`.
+
+Older versions gated the microphone on the game's keys and fought TeamSpeak's push-to-talk. If you are on
+one of those, the symptom is transmitting nothing at all; update both halves.
 
 ## Keybinds show as unbound but work
 

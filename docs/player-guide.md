@@ -16,6 +16,10 @@
 **The four transmit keys ship unbound on purpose.** Bind them in Options → Keybinds → Lima Charlie
 before you can use a radio at all. Everything else has a default you can change there too.
 
+**You need no key to talk to the people around you.** TeamSpeak decides when your microphone is open, by
+whatever you have it set to, and the people near you hear you positioned and muffled by where you both
+are. The transmit keys are only for radios.
+
 `Ctrl` + scroll and `Ctrl` + `Tab` are hidden from the keybind menu; the rest are listed.
 
 ## The status notice
@@ -25,8 +29,8 @@ failures make a sound on their own:
 
 ```
 Lima Charlie
-Mod loaded: 1.0.6
-TeamSpeak plugin: 1.0.6
+Mod loaded: 1.0.7
+TeamSpeak plugin: 1.0.7
 TeamSpeak: connected
 Channel: LimaCharlie
 Others with the plugin here: 3
@@ -157,7 +161,12 @@ Enemy AI turn to look at players speaking out loud nearby. Radio traffic is neve
 friendly AI ignore you either way. Walls shorten how far your voice carries for this — a shout still
 reaches the street outside a building, a normal voice does not. The server can turn this off.
 
-## What you hear when dead or unconscious
+## Dead and unconscious
 
-Unconscious, you still hear everything. Dead, you hear nothing. A Game Master with no character of their
-own hears through the camera.
+Unconscious, you still hear everything, but **nobody hears you** — the microphone stays open as far as
+TeamSpeak is concerned, and the mod stops your voice reaching anyone. Nearby AI ignore you too. Radios are
+unavailable, as before.
+
+Dead, you hear nothing.
+
+A Game Master with no character of their own hears through the camera.

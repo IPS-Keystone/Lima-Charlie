@@ -5,7 +5,6 @@
 1. **TeamSpeak 3** — not TeamSpeak 5/6. The plugin is built against the TS3 plugin SDK.
 2. **The Lima Charlie plugin**, installed into TeamSpeak.
 3. **The mod**, subscribed from the Workshop.
-4. **A microphone mode that is not TeamSpeak push-to-talk** (see below).
 
 Windows only. The plugin is a 64-bit DLL; there is no Linux or Mac build, and console crossplay is out of
 scope.
@@ -31,14 +30,19 @@ To confirm the version actually loaded, check the TeamSpeak client log for
 `Lima Charlie <version> started`, or look at the `pluginVersion` field in
 `plugin_state.json` (see [troubleshooting.md](troubleshooting.md)).
 
-## TeamSpeak voice activation
+## Your microphone
 
-**Do not use TeamSpeak's own push-to-talk.** The plugin opens and closes your microphone itself, following
-the game's transmit keys, by toggling `CLIENT_INPUT_DEACTIVATED`. If TeamSpeak is also gating your mic on a
-key, the two fight and you transmit nothing.
+**Whatever you already use works.** Voice activation, continuous transmission, or TeamSpeak's own
+push-to-talk: the plugin no longer touches your microphone. TeamSpeak decides when you are talking; the mod
+only decides where that voice goes — to the people around you, and to a radio while you hold one of its
+keys.
 
-Set TeamSpeak to **Continuous Transmission**, or to **Voice Activation Detection** if you would rather have
-a noise gate. Either works; the plugin still decides when the mic is live.
+That means **you do not need an in-game key to speak to the people next to you**. Talk as you would on any
+TeamSpeak channel and the people near you hear it, positioned and muffled by where you both are. The
+in-game transmit keys are only for radios.
+
+Earlier versions gated the microphone on the game's keys, which is why they demanded continuous or voice
+activation. That restriction is gone.
 
 ## Channel handling
 

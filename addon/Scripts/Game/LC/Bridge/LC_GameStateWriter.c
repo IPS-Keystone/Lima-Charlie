@@ -265,7 +265,7 @@ class LC_GameStateWriter
 
 			first = false;
 			json += "{\"id\":" + playerId.ToString();
-			json += ",\"alive\":" + LC_Json.Bool(IsAlive(entity));
+			json += ",\"alive\":" + LC_Json.Bool(LC_Life.CanSpeak(entity));
 			json += ",\"pos\":" + LC_Json.Position(position);
 			json += ",\"muffle\":" + muffle.ToString(-1, 2);
 			json += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2) + "}";
@@ -445,7 +445,7 @@ class LC_GameStateWriter
 	//! A Game Master has no body to be alive or dead, so they listen through the camera instead.
 	protected static bool IsListening(IEntity localEntity)
 	{
-		if (IsAlive(localEntity))
+		if (LC_Life.CanHear(localEntity))
 			return true;
 
 		// A character that is not alive is dead, whatever the camera is doing
@@ -464,20 +464,6 @@ class LC_GameStateWriter
 			return false;
 
 		return editorManager.IsOpened();
-	}
-
-	//------------------------------------------------------------------------------------------------
-	protected static bool IsAlive(IEntity entity)
-	{
-		ChimeraCharacter character = ChimeraCharacter.Cast(entity);
-		if (!character)
-			return false;
-
-		SCR_CharacterControllerComponent controller = SCR_CharacterControllerComponent.Cast(character.GetCharacterController());
-		if (!controller)
-			return false;
-
-		return controller.GetLifeState() != ECharacterLifeState.DEAD;
 	}
 
 	//------------------------------------------------------------------------------------------------

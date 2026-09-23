@@ -207,6 +207,10 @@ class LC_Client
 		if (!m_bAIHearing || now < m_iNextAIHearingTick || !m_Reader.IsSelfTalking())
 			return;
 
+		// TeamSpeak decides when the microphone is open, and it stays open while unconscious
+		if (!LC_Life.CanSpeak(GetControlledEntity()))
+			return;
+
 		m_iNextAIHearingTick = now + AI_HEARING_INTERVAL_MS;
 		m_PlayerController.LC_ReportVoice(LC_VoiceLevel.GetRange());
 	}

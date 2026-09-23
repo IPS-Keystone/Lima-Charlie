@@ -31,8 +31,9 @@ Recommendations for that channel:
 - **Let it hold everyone.** Every player in the session sits in this one channel, and the plugin decides
   who is audible. A channel limit smaller than your player count will silently leave people out of the
   voice session.
-- **Tell players to use continuous transmission or voice activation**, not TeamSpeak's own push-to-talk.
-  The plugin holds the microphone open and shut to follow the game, and TeamSpeak's push-to-talk fights it.
+- **No microphone rules to impose.** Whatever each player uses — voice activation, continuous, or
+  TeamSpeak's push-to-talk — works, because the plugin does not touch the microphone. They speak to the
+  people around them without any in-game key; the game's transmit keys are only for radios.
 
 ## 2. The mod
 
@@ -121,7 +122,7 @@ At session start the server logs its resolved settings:
 On a client, the plugin reports itself once it pairs up:
 
 ```
-[LC] Plugin 1.0.6: TeamSpeak connected=1, client id=7, in game channel=1, peers=3
+[LC] Plugin 1.0.7: TeamSpeak connected=1, client id=7, in game channel=1, peers=3
 ```
 
 `in game channel=1` means the move into your channel worked. `peers` is how many other Lima Charlie players

@@ -91,7 +91,10 @@ Protocol 8.
 
 - `self.pos`/`dir` are the **listener** (camera). `players[].pos` is the speaker's head.
 - `self.alive` means "can hear anything", not literally alive — it is true for an unconscious player and
-  for a bodiless Game Master.
+  for a bodiless Game Master. `players[].alive` is the other question, "can be heard", which an unconscious
+  player cannot be. `LC_Life` owns both.
+- Nothing touches `CLIENT_INPUT_DEACTIVATED`. TeamSpeak decides when a client is talking, by whatever the
+  player has it set to, and the game only decides where that voice goes.
 - `tx` mirrors `EVONTransmitType`: 0 none, 1 direct, 2 channel, 3 long range.
 - `radios[].id` is `<radio RplId>:<transceiver number>`, unique among the player's own radios.
 - `radios[].range` is the announced range, which is 1000000 for a Game Master with the editor open.
@@ -109,7 +112,7 @@ Protocol 8.
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.6", "inGame": false,
+{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.7", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "talking": "", "radioRx": "", "radioHeard": "" }
 ```

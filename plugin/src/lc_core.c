@@ -67,11 +67,6 @@ static int                g_gameDir = -1;
 static int                g_wasInGame;
 static uint64             g_sch;
 
-static int    g_micManaged;
-static uint64 g_micSch;
-static int    g_savedInputDeactivated;
-static int    g_appliedInputDeactivated = -1;
-
 static uint64             g_previousChannel;
 static uint64             g_gameChannel;
 static unsigned long long g_nextChannelCheckMs;
@@ -194,12 +189,6 @@ static void clear_talkers(void)
     LeaveCriticalSection(&g_talkersLock);
 }
 
-static void set_input_deactivated(uint64 sch, int value)
-{
-    if (g_ts3.setClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, value) == ERROR_ok)
-        g_ts3.flushClientSelfUpdates(sch, NULL);
-}
-
 static void poll_game_state(char* buf, lc_game_state* parsed)
 {
     size_t             len   = 0;
@@ -243,21 +232,8 @@ void lc_core_status(lc_status* out)
     strncpy(out->token, g_game.token, sizeof(out->token) - 1);
 }
 
-/* Restores the user's own microphone state when the game stops controlling it. */
-static void release_mic(void)
-{
-    if (!g_micManaged)
-        return;
-    if (is_connected(g_micSch))
-        set_input_deactivated(g_micSch, g_savedInputDeactivated);
-    g_micManaged              = 0;
-    g_appliedInputDeactivated = -1;
-    lc_logf(LC_LOG_INFO, "Microphone control released");
-}
-
 static void on_connection_switched(uint64 sch)
 {
-    release_mic();
     lc_peers_reset();
     lc_transmissions_reset();
     lc_audio_reset();
@@ -272,31 +248,6 @@ static void on_connection_switched(uint64 sch)
     g_txStopPending      = 0;
     g_receptionCount     = 0;
     g_sch                = sch;
-}
-
-static void update_mic(uint64 sch, int connected, int inGame)
-{
-    if (!inGame || !connected) {
-        release_mic();
-        return;
-    }
-
-    if (!g_micManaged) {
-        int current = INPUT_ACTIVE;
-        if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, &current) != ERROR_ok)
-            return;
-        g_savedInputDeactivated   = current;
-        g_micManaged              = 1;
-        g_micSch                  = sch;
-        g_appliedInputDeactivated = -1;
-        lc_logf(LC_LOG_INFO, "Microphone now controlled by the game");
-    }
-
-    const int want = g_game.tx != LC_TX_NONE ? INPUT_ACTIVE : INPUT_DEACTIVATED;
-    if (want != g_appliedInputDeactivated) {
-        set_input_deactivated(sch, want);
-        g_appliedInputDeactivated = want;
-    }
 }
 
 static void update_channel(uint64 sch, int connected, int inGame, unsigned long long nowMs)
@@ -732,7 +683,6 @@ static DWORD WINAPI core_main(LPVOID param)
             on_left_game(sch, connected);
         g_wasInGame = inGame;
 
-        update_mic(sch, connected, inGame);
         update_channel(sch, connected, inGame, nowMs);
 
         /* Looked up once for the whole loop: each lookup takes TeamSpeak's own locks, and this runs 200 times a
@@ -766,7 +716,6 @@ static DWORD WINAPI core_main(LPVOID param)
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
     lc_audio_publish(0, NULL, 0);
-    release_mic();
     free(buf);
     free(parsed);
     return 0;
