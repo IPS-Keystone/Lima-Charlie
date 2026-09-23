@@ -1,9 +1,19 @@
 //------------------------------------------------------------------------------------------------
-//! What the server tells every client about this session's setup. LC_Settings is the source of truth;
-//! $profile:LimaCharlie/server.json is still read when the channel is left empty, which now means a server
-//! has deliberately blanked it, since the shipped default is "LimaCharlie".
+//! What the server tells every client about this session's setup, resolved on the server in layers, each
+//! overriding the one before it:
+//!
+//!   1. the defaults below
+//!   2. Configs/LC/Settings.conf, shipped with the mod
+//!   3. the scenario's mission header, if it carries Lima Charlie settings
+//!   4. $profile:LimaCharlie/server.json
+//!
+//! server.json has the last word because it is the only one of them a server operator can edit without
+//! rebuilding and republishing the mod. Only the keys actually present in it override anything, so a file
+//! holding one key changes one setting. It is written out in full the first time a session runs without
+//! one, so there is always a complete file to edit.
 class LC_ServerSettings
 {
+	protected static const string DIRECTORY = "$profile:LimaCharlie";
 	protected static const string PATH = "$profile:LimaCharlie/server.json";
 
 	string m_sTeamSpeakChannel;
@@ -46,53 +56,218 @@ class LC_ServerSettings
 	static LC_ServerSettings Resolve()
 	{
 		LC_ServerSettings settings = new LC_ServerSettings();
-
-		LC_Settings configured = LC_Settings.Get();
-		if (configured)
-		{
-			settings.m_sTeamSpeakChannel = configured.m_sTeamSpeakChannel;
-			settings.m_sTeamSpeakChannelPassword = configured.m_sTeamSpeakChannelPassword;
-			settings.m_fCleanFraction = configured.GetCleanFraction();
-			settings.m_fTerrainFactor = configured.GetTerrainFactor();
-			settings.m_fBeepFraction = configured.GetBeepFraction();
-			settings.m_bGameMasterUnlimitedRange = configured.m_bGameMasterUnlimitedRange;
-			settings.m_bAIHearing = configured.m_bAIHearing;
-			settings.m_bDiagnosticLog = configured.m_bDiagnosticLog;
-			settings.m_bRoomDiagnosticLog = configured.m_bRoomDiagnosticLog;
-			settings.m_sChannelLabels = configured.GetPackedChannelLabels();
-			settings.m_eChannelNaming = configured.m_eChannelNaming;
-		}
-
-		if (settings.m_sTeamSpeakChannel.IsEmpty())
-			settings.ReadLegacyFile();
-
+		settings.ApplyConfig(LC_Settings.Get());
+		settings.ApplyFile();
 		return settings;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! The old server.json, kept as a fallback. Missing is the normal case now, so it is not created.
-	protected void ReadLegacyFile()
+	//! Layers 2 and 3: LC_Settings.Get() has already picked the mission header over the shipped config
+	protected void ApplyConfig(LC_Settings configured)
+	{
+		if (!configured)
+			return;
+
+		m_sTeamSpeakChannel = configured.m_sTeamSpeakChannel;
+		m_sTeamSpeakChannelPassword = configured.m_sTeamSpeakChannelPassword;
+		m_fCleanFraction = configured.GetCleanFraction();
+		m_fTerrainFactor = configured.GetTerrainFactor();
+		m_fBeepFraction = configured.GetBeepFraction();
+		m_bGameMasterUnlimitedRange = configured.m_bGameMasterUnlimitedRange;
+		m_bAIHearing = configured.m_bAIHearing;
+		m_bDiagnosticLog = configured.m_bDiagnosticLog;
+		m_bRoomDiagnosticLog = configured.m_bRoomDiagnosticLog;
+		m_sChannelLabels = configured.GetPackedChannelLabels();
+		m_eChannelNaming = configured.m_eChannelNaming;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Layer 4. Every key is optional; the ones present win, and which ones did is logged so a setting
+	//! that is not doing what the mod's config says is traceable to this file.
+	protected void ApplyFile()
 	{
 		if (!FileIO.FileExists(PATH))
+		{
+			WriteTemplate();
 			return;
+		}
 
 		JsonLoadContext load = new JsonLoadContext();
 		if (!load.LoadFromFile(PATH))
 		{
-			Print("[LC] Could not parse " + PATH, LogLevel.ERROR);
+			Print("[LC] Could not parse " + PATH + "; its settings are ignored this session", LogLevel.ERROR);
 			return;
 		}
 
-		string teamSpeakChannel;
-		string teamSpeakChannelPassword;
-		load.ReadValue("teamspeakChannel", teamSpeakChannel);
-		load.ReadValue("teamspeakChannelPassword", teamSpeakChannelPassword);
+		string overridden;
+		if (ReadString(load, "teamspeakChannel", m_sTeamSpeakChannel))
+			overridden += " teamspeakChannel";
 
-		if (teamSpeakChannel.IsEmpty())
+		if (ReadString(load, "teamspeakChannelPassword", m_sTeamSpeakChannelPassword))
+			overridden += " teamspeakChannelPassword";
+
+		if (ReadPercent(load, "cleanRangePercent", 0, 95, m_fCleanFraction))
+			overridden += " cleanRangePercent";
+
+		if (ReadPercent(load, "beepRangePercent", 0, 100, m_fBeepFraction))
+			overridden += " beepRangePercent";
+
+		if (ReadPercent(load, "terrainEffectPercent", 0, 300, m_fTerrainFactor))
+			overridden += " terrainEffectPercent";
+
+		if (ReadBool(load, "gameMasterUnlimitedRange", m_bGameMasterUnlimitedRange))
+			overridden += " gameMasterUnlimitedRange";
+
+		if (ReadBool(load, "aiHearing", m_bAIHearing))
+			overridden += " aiHearing";
+
+		if (ReadBool(load, "diagnosticLog", m_bDiagnosticLog))
+			overridden += " diagnosticLog";
+
+		if (ReadBool(load, "roomDiagnosticLog", m_bRoomDiagnosticLog))
+			overridden += " roomDiagnosticLog";
+
+		if (ReadNaming(load, "channelNaming"))
+			overridden += " channelNaming";
+
+		if (ReadChannelLabels(load, "channelLabels"))
+			overridden += " channelLabels";
+
+		if (overridden.IsEmpty())
 			return;
 
-		m_sTeamSpeakChannel = teamSpeakChannel;
-		m_sTeamSpeakChannelPassword = teamSpeakChannelPassword;
-		Print("[LC] TeamSpeak channel taken from " + PATH + "; set it in Configs/LC/Settings.conf instead", LogLevel.WARNING);
+		Print("[LC] server.json overrides:" + overridden, LogLevel.NORMAL);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected static bool ReadString(notnull JsonLoadContext load, string key, out string value)
+	{
+		if (!load.DoesKeyExist(key))
+			return false;
+
+		string read;
+		if (!load.ReadValue(key, read))
+			return false;
+
+		value = read;
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected static bool ReadBool(notnull JsonLoadContext load, string key, out bool value)
+	{
+		if (!load.DoesKeyExist(key))
+			return false;
+
+		bool read;
+		if (!load.ReadValue(key, read))
+			return false;
+
+		value = read;
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The file holds percentages, matching the mod's config; everything downstream wants a fraction
+	protected static bool ReadPercent(notnull JsonLoadContext load, string key, float minimum, float maximum, out float fraction)
+	{
+		if (!load.DoesKeyExist(key))
+			return false;
+
+		float percent;
+		if (!load.ReadValue(key, percent))
+			return false;
+
+		fraction = Math.Clamp(percent, minimum, maximum) / 100;
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! "LC_ONLY", "HYBRID" or "VANILLA_ONLY", or the number of one of them
+	protected bool ReadNaming(notnull JsonLoadContext load, string key)
+	{
+		if (!load.DoesKeyExist(key))
+			return false;
+
+		string read;
+		if (!load.ReadValue(key, read))
+			return false;
+
+		read.TrimInPlace();
+		if (read.Compare("LC_ONLY", false) == 0 || read == "0")
+		{
+			m_eChannelNaming = LC_EChannelNaming.LC_ONLY;
+			return true;
+		}
+
+		if (read.Compare("HYBRID", false) == 0 || read == "1")
+		{
+			m_eChannelNaming = LC_EChannelNaming.HYBRID;
+			return true;
+		}
+
+		if (read.Compare("VANILLA_ONLY", false) == 0 || read == "2")
+		{
+			m_eChannelNaming = LC_EChannelNaming.VANILLA_ONLY;
+			return true;
+		}
+
+		Print("[LC] server.json channelNaming '" + read + "' is not LC_ONLY, HYBRID or VANILLA_ONLY; ignored", LogLevel.WARNING);
+		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! "45.5,RED,COMMAND;38,GREEN,MEDEVAC" - megahertz, colour name, channel name. An empty string is a
+	//! deliberate "no named channels", which is why it counts as an override like any other value.
+	protected bool ReadChannelLabels(notnull JsonLoadContext load, string key)
+	{
+		if (!load.DoesKeyExist(key))
+			return false;
+
+		string read;
+		if (!load.ReadValue(key, read))
+			return false;
+
+		m_sChannelLabels = LC_ChannelLabels.PackFromText(read);
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Writes the settings this session resolved, so an operator has every key in front of them rather
+	//! than having to look them up. Written once: from then on the file is the last word, so a later
+	//! change to the mod's own config will not move a setting this file already pins.
+	protected void WriteTemplate()
+	{
+		FileIO.MakeDirectory(DIRECTORY);
+
+		JsonSaveContext save = new JsonSaveContext();
+		save.WriteValue("teamspeakChannel", m_sTeamSpeakChannel);
+		save.WriteValue("teamspeakChannelPassword", m_sTeamSpeakChannelPassword);
+		save.WriteValue("cleanRangePercent", Math.Round(m_fCleanFraction * 100));
+		save.WriteValue("beepRangePercent", Math.Round(m_fBeepFraction * 100));
+		save.WriteValue("terrainEffectPercent", Math.Round(m_fTerrainFactor * 100));
+		save.WriteValue("gameMasterUnlimitedRange", m_bGameMasterUnlimitedRange);
+		save.WriteValue("aiHearing", m_bAIHearing);
+		save.WriteValue("diagnosticLog", m_bDiagnosticLog);
+		save.WriteValue("roomDiagnosticLog", m_bRoomDiagnosticLog);
+		save.WriteValue("channelNaming", NamingName(m_eChannelNaming));
+		save.WriteValue("channelLabels", LC_ChannelLabels.UnpackToText(m_sChannelLabels));
+
+		if (save.SaveToFile(PATH))
+			Print("[LC] Wrote " + PATH + " with this session's settings; edit it to override the mod's config", LogLevel.NORMAL);
+		else
+			Print("[LC] Could not write " + PATH, LogLevel.WARNING);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected static string NamingName(LC_EChannelNaming naming)
+	{
+		if (naming == LC_EChannelNaming.LC_ONLY)
+			return "LC_ONLY";
+
+		if (naming == LC_EChannelNaming.VANILLA_ONLY)
+			return "VANILLA_ONLY";
+
+		return "HYBRID";
 	}
 }

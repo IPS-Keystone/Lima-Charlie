@@ -116,10 +116,16 @@ Written atomically at 4 Hz or faster.
 - `radioRx` — `playerId,x,y,z;` requests for terrain clearance the game should answer.
 - `radioHeard` — `playerId,radioId,frequency,quality;` for every transmission actually being heard.
 
-### `server.json` — legacy
+### `server.json` — server overrides
 
-`{"teamspeakChannel":"","teamspeakChannelPassword":""}`. Read only when the configured channel is empty,
-which now takes a deliberate blanking, since the shipped default is `LimaCharlie`. Not created if missing.
+Holds every server setting under a plain name: `teamspeakChannel`, `teamspeakChannelPassword`,
+`cleanRangePercent`, `beepRangePercent`, `terrainEffectPercent`, `gameMasterUnlimitedRange`, `aiHearing`,
+`diagnosticLog`, `roomDiagnosticLog`, `channelNaming`, `channelLabels`.
+
+Read last, after the defaults, `Settings.conf` and the mission header, and it wins over all of them because
+it is the only layer an operator can change without republishing. Applied key by key through
+`DoesKeyExist`, so a file with one key overrides one setting. Written out in full by `WriteTemplate()` the
+first session it is missing. See [server-settings.md](server-settings.md) for the key formats.
 
 ## Plugin commands
 

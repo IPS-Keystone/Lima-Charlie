@@ -43,9 +43,10 @@ class LC_Settings
 	string m_sTeamSpeakChannelPassword;
 
 	//------------------------------------------------------------------------------------------------
-	//! Server only. The mission header wins, then the config shipped with the mod, then the attribute
-	//! defaults. Resolved once per session rather than cached for the launch, so a scenario change is
-	//! picked up without restarting.
+	//! Server only. The mission header wins over the config shipped with the mod, which wins over the
+	//! attribute defaults. $profile:LimaCharlie/server.json then overrides whatever comes out of here, key
+	//! by key, in LC_ServerSettings. Resolved once per session rather than cached for the launch, so a
+	//! scenario change is picked up without restarting.
 	static LC_Settings Get()
 	{
 		LC_Settings settings = GetFromMissionHeader();

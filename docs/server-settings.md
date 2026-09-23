@@ -5,25 +5,63 @@ nothing here can be changed by a player.
 
 ## Where to put them
 
-Resolved once per session, in this order — the first that exists wins as a whole object, not field by field:
+Resolved once per session, in layers, each overriding the one before it:
 
-1. **The scenario's mission header.** `SCR_MissionHeader` carries an `LC_Settings` block, so one scenario
-   can override the defaults for itself. Logs `Settings taken from the mission header`.
-2. **`Configs/LC/Settings.conf`** in the mod. The normal place.
-3. **Built-in defaults**, if the config fails to load. Logs a warning.
-
-Because it is whole-object, a mission header that sets one field takes the attribute defaults for every
-other field — it does not inherit from `Settings.conf`.
+1. **Built-in defaults.**
+2. **`Configs/LC/Settings.conf`** in the mod. Where the mod author sets things.
+3. **The scenario's mission header.** `SCR_MissionHeader` carries an `LC_Settings` block, so one scenario
+   can override the mod for itself. Logs `Settings taken from the mission header`. Whole-object: a header
+   that sets one field takes the attribute defaults for every other field, rather than inheriting from
+   `Settings.conf`.
+4. **`$profile/LimaCharlie/server.json`** — the last word, and the only one a server operator can change
+   without rebuilding and republishing the mod. Key by key: the keys present override, everything else
+   falls through to the layers above. Logs `server.json overrides: ...` naming each key that took effect.
 
 An empty `LC_Settings { }` means every setting is at its default. That is the shipped state.
 
-To change one, add just that line:
+To change one in the mod, add just that line:
 
 ```
 LC_Settings {
  m_fCleanRangePercent 50
 }
 ```
+
+## server.json
+
+Every setting above also lives here, under a plain name. The file is **written out in full the first time
+a session runs without one**, holding whatever that session resolved, so there is always a complete file to
+edit:
+
+```json
+{
+ "teamspeakChannel": "LimaCharlie",
+ "teamspeakChannelPassword": "",
+ "cleanRangePercent": 35,
+ "beepRangePercent": 90,
+ "terrainEffectPercent": 100,
+ "gameMasterUnlimitedRange": true,
+ "aiHearing": true,
+ "diagnosticLog": false,
+ "roomDiagnosticLog": false,
+ "channelNaming": "HYBRID",
+ "channelLabels": ""
+}
+```
+
+- Percentages, not fractions, matching the mod's config.
+- `channelNaming` takes `LC_ONLY`, `HYBRID` or `VANILLA_ONLY`.
+- `channelLabels` is one string, `megahertz,colour,name` per channel, separated by semicolons:
+  `"45.5,RED,COMMAND;38,GREEN,MEDEVAC"`. Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`,
+  `BLUE`, `PURPLE`. A malformed entry is skipped with a warning; the rest of the list still loads.
+- Delete a key to hand that setting back to the mod's config. Delete the file to hand all of them back —
+  it will be written again next session.
+
+**The generated file pins those values.** A setting the mod changes later will not move on a server whose
+`server.json` already names it. The `server.json overrides:` log line lists exactly which ones are pinned.
+
+Anything the file cannot be parsed as is ignored for the whole session, with an error in the log, rather
+than half-applied.
 
 ## The settings
 
