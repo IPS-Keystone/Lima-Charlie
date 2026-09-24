@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.0.9 — mod 1.0.9, plugin 1.0.9
+## 1.0.10 — mod 1.0.10, plugin 1.0.10
 
 Since the published mod 1.0.1 (plugin 1.0.0/1.0.1).
 
 **Update the plugin.** The bridge protocol went from 6 to 8, and the plugin ignores state it does not
 recognise, so an older plugin leaves radio and positional audio dead while TeamSpeak still looks connected.
-The new join notice prints both versions side by side; if the plugin line does not read 1.0.9, that is why.
+The new join notice prints both versions side by side; if the plugin line does not read 1.0.10, that is why.
 
 ### Muffling now understands rooms
 
