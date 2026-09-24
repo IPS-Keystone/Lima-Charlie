@@ -237,85 +237,35 @@ class LC_ServerSettings
 	//! than having to look them up. Written once: from then on the file is the last word, so a later
 	//! change to the mod's own config will not move a setting this file already pins.
 	//!
-	//! Written by hand rather than through JsonSaveContext, which puts the whole object on one line. This
-	//! file exists to be edited, so it gets one setting per line, in the order the settings are documented.
+	//! PrettyJsonSaveContext is JsonSaveContext with a line per key, which is what this file wants: it
+	//! exists to be edited by hand.
 	protected void WriteTemplate()
 	{
 		FileIO.MakeDirectory(DIRECTORY);
-
-		FileHandle file = FileIO.OpenFile(PATH, FileMode.WRITE);
-		if (!file)
-		{
-			Print("[LC] Could not write " + PATH, LogLevel.WARNING);
-			return;
-		}
 
 		// Whole percentages, so the file reads as something a person wrote
 		int cleanPercent = Math.Round(m_fCleanFraction * 100);
 		int beepPercent = Math.Round(m_fBeepFraction * 100);
 		int terrainPercent = Math.Round(m_fTerrainFactor * 100);
 
-		array<string> settings = {};
-		settings.Insert(TextSetting("teamspeakChannel", m_sTeamSpeakChannel));
-		settings.Insert(TextSetting("teamspeakChannelPassword", m_sTeamSpeakChannelPassword));
-		settings.Insert(NumberSetting("cleanRangePercent", cleanPercent));
-		settings.Insert(NumberSetting("beepRangePercent", beepPercent));
-		settings.Insert(NumberSetting("terrainEffectPercent", terrainPercent));
-		settings.Insert(FlagSetting("gameMasterUnlimitedRange", m_bGameMasterUnlimitedRange));
-		settings.Insert(FlagSetting("aiHearing", m_bAIHearing));
-		settings.Insert(FlagSetting("diagnosticLog", m_bDiagnosticLog));
-		settings.Insert(FlagSetting("roomDiagnosticLog", m_bRoomDiagnosticLog));
-		settings.Insert(TextSetting("channelNaming", NamingName(m_eChannelNaming)));
-		settings.Insert(TextSetting("channelLabels", LC_ChannelLabels.UnpackToText(m_sChannelLabels)));
+		PrettyJsonSaveContext save = new PrettyJsonSaveContext();
+		save.SetIndent(" ", 4);
+		save.WriteValue("teamspeakChannel", m_sTeamSpeakChannel);
+		save.WriteValue("teamspeakChannelPassword", m_sTeamSpeakChannelPassword);
+		save.WriteValue("cleanRangePercent", cleanPercent);
+		save.WriteValue("beepRangePercent", beepPercent);
+		save.WriteValue("terrainEffectPercent", terrainPercent);
+		save.WriteValue("gameMasterUnlimitedRange", m_bGameMasterUnlimitedRange);
+		save.WriteValue("aiHearing", m_bAIHearing);
+		save.WriteValue("diagnosticLog", m_bDiagnosticLog);
+		save.WriteValue("roomDiagnosticLog", m_bRoomDiagnosticLog);
+		save.WriteValue("channelNaming", NamingName(m_eChannelNaming));
+		save.WriteValue("channelLabels", LC_ChannelLabels.UnpackToText(m_sChannelLabels));
 
-		file.WriteLine("{");
-		int last = settings.Count() - 1;
-		for (int i = 0; i <= last; i++)
-		{
-			// Every line but the last carries the separating comma, so the file stays valid JSON
-			string line = "    " + settings[i];
-			if (i < last)
-				line += ",";
-
-			file.WriteLine(line);
-		}
-
-		file.WriteLine("}");
-		file.Close();
-
-		Print("[LC] Wrote " + PATH + " with this session's settings; edit it to override the mod's config", LogLevel.NORMAL);
-	}
-
-	//------------------------------------------------------------------------------------------------
-	protected static string TextSetting(string key, string value)
-	{
-		return "\"" + key + "\": \"" + Escape(value) + "\"";
-	}
-
-	//------------------------------------------------------------------------------------------------
-	protected static string NumberSetting(string key, int value)
-	{
-		return "\"" + key + "\": " + value.ToString();
-	}
-
-	//------------------------------------------------------------------------------------------------
-	protected static string FlagSetting(string key, bool value)
-	{
-		string text = "false";
-		if (value)
-			text = "true";
-
-		return "\"" + key + "\": " + text;
-	}
-
-	//------------------------------------------------------------------------------------------------
-	//! A channel name or label can hold anything a person typed into the mod's config
-	protected static string Escape(string value)
-	{
-		string escaped = value;
-		escaped.Replace("\\", "\\\\");
-		escaped.Replace("\"", "\\\"");
-		return escaped;
+		if (save.SaveToFile(PATH))
+			Print("[LC] Wrote " + PATH + " with this session's settings; edit it to override the mod's config", LogLevel.NORMAL);
+		else
+			Print("[LC] Could not write " + PATH, LogLevel.WARNING);
 	}
 
 	//------------------------------------------------------------------------------------------------
