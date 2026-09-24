@@ -38,17 +38,17 @@ edit:
 
 ```json
 {
- "teamspeakChannel": "LimaCharlie",
- "teamspeakChannelPassword": "",
- "cleanRangePercent": 35,
- "beepRangePercent": 90,
- "terrainEffectPercent": 100,
- "gameMasterUnlimitedRange": true,
- "aiHearing": true,
- "diagnosticLog": false,
- "roomDiagnosticLog": false,
- "channelNaming": "HYBRID",
- "channelLabels": ""
+    "teamspeakChannel": "LimaCharlie",
+    "teamspeakChannelPassword": "",
+    "cleanRangePercent": 35,
+    "beepRangePercent": 90,
+    "terrainEffectPercent": 100,
+    "gameMasterUnlimitedRange": true,
+    "aiHearing": true,
+    "diagnosticLog": false,
+    "roomDiagnosticLog": false,
+    "channelNaming": "HYBRID",
+    "channelLabels": ""
 }
 ```
 
