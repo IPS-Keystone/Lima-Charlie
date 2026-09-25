@@ -37,9 +37,16 @@ typedef struct {
     int             position;
 } lc_playing;
 
+/* A beep that stops mid-waveform clicks. Truncating at LC_MAX_SOUND_SECONDS guarantees that, and a
+   sound file can end abruptly on its own, so the tail of every clip is faded unless it already ends quiet. */
+#define LC_FADE_MS      3
+#define LC_FADE_FLOOR   256 /* of 32768: below this the end is inaudible and left alone */
+
 static lc_sound_set g_sets[LC_MAX_SOUND_SETS];
 static int           g_setCount;
 static volatile LONG g_ready;
+/* Non-zero while the audio thread is inside the mix, so unloading waits rather than freeing clips underneath it */
+static volatile LONG g_mixing;
 
 /* Sounds to start: single producer (worker), single consumer (audio thread). */
 static lc_playing   g_queue[LC_PLAY_QUEUE];
@@ -79,6 +86,29 @@ static unsigned char* read_whole_file(const wchar_t* path, size_t* size)
     }
     fclose(f);
     return data;
+}
+
+/* Linear fade over the last few milliseconds, so a clip that was cut mid-waveform does not click. */
+static void fade_tail(short* frames, int frameCount)
+{
+    int fade = LC_SOUND_RATE * LC_FADE_MS / 1000;
+    if (fade > frameCount)
+        fade = frameCount;
+    if (fade < 2)
+        return;
+
+    const short* last = frames + (size_t)(frameCount - 1) * 2;
+    const int    left = last[0] < 0 ? -last[0] : last[0];
+    const int    right = last[1] < 0 ? -last[1] : last[1];
+    if (left < LC_FADE_FLOOR && right < LC_FADE_FLOOR)
+        return;
+
+    for (int i = 0; i < fade; ++i) {
+        const float gain = 1.0f - (float)(i + 1) / (float)fade;
+        short*      frame = frames + (size_t)(frameCount - fade + i) * 2;
+        frame[0]          = (short)((float)frame[0] * gain);
+        frame[1]          = (short)((float)frame[1] * gain);
+    }
 }
 
 /* 16-bit PCM WAV, mono or stereo, at any sample rate (linearly resampled to 48 kHz). */
@@ -134,6 +164,7 @@ static int decode_wav(const unsigned char* data, size_t size, lc_clip* clip)
             clip->frames[i * 2 + (int)c] = (short)(a + (b - a) * frac);
         }
     }
+    fade_tail(clip->frames, frames);
     clip->frameCount = frames;
     return 1;
 }
@@ -214,8 +245,12 @@ int lc_sounds_load(const char* soundsDir)
 
 void lc_sounds_unload(void)
 {
-    if (InterlockedExchange(&g_ready, 0))
-        Sleep(50); /* let a mix in progress finish */
+    if (InterlockedExchange(&g_ready, 0)) {
+        /* A mix already past the ready check holds pointers into the clips about to be freed, so wait for it
+           to leave rather than guessing at a delay. Bounded, because this also runs on shutdown. */
+        for (int waited = 0; g_mixing != 0 && waited < 200; ++waited)
+            Sleep(1);
+    }
     for (int i = 0; i < g_setCount; ++i) {
         for (int s = 0; s < g_sets[i].clipCount; ++s)
             free(g_sets[i].clips[s].frames);
@@ -265,19 +300,30 @@ static void add_sample(short* sample, float value)
     *sample           = mixed > 32767.0f ? 32767 : (mixed < -32768.0f ? -32768 : (short)mixed);
 }
 
-void lc_sounds_mix(short* samples, int sampleCount, int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask)
+static void mix_playing(short* samples, int sampleCount, int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask)
 {
-    if (!g_ready || !samples || sampleCount <= 0 || channels <= 0)
-        return;
-
     while (g_queueTail != g_queueHead) {
         const LONG tail = g_queueTail;
-        int        slot = 0; /* all busy: replace the first */
+        int        slot = -1;
         for (int i = 0; i < LC_MAX_PLAYING; ++i) {
             if (!g_playing[i].clip) {
                 slot = i;
                 break;
             }
+        }
+        if (slot < 0) {
+            /* Eight beeps at once already: cutting the one nearest its end is the least audible way to make
+               room, where taking the first slot every time could chop a beep off at full amplitude. */
+            int nearest   = 0;
+            int fewestLeft = g_playing[0].clip->frameCount - g_playing[0].position;
+            for (int i = 1; i < LC_MAX_PLAYING; ++i) {
+                const int left = g_playing[i].clip->frameCount - g_playing[i].position;
+                if (left < fewestLeft) {
+                    fewestLeft = left;
+                    nearest    = i;
+                }
+            }
+            slot = nearest;
         }
         g_playing[slot] = g_queue[tail];
         InterlockedExchange(&g_queueTail, (tail + 1) % LC_PLAY_QUEUE);
@@ -318,4 +364,17 @@ void lc_sounds_mix(short* samples, int sampleCount, int channels, const unsigned
         if (playing->position >= playing->clip->frameCount)
             playing->clip = NULL;
     }
+}
+
+void lc_sounds_mix(short* samples, int sampleCount, int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask)
+{
+    if (!samples || sampleCount <= 0 || channels <= 0)
+        return;
+
+    /* Claimed before the ready check is read, so an unload that clears it cannot free clips while this runs. */
+    InterlockedIncrement(&g_mixing);
+    if (g_ready)
+        mix_playing(samples, sampleCount, channels, channelSpeakerArray, channelFillMask);
+
+    InterlockedDecrement(&g_mixing);
 }

@@ -12,6 +12,7 @@ class LC_Client
 	//! Radio setting actions below live in VONMenuContext, so they only work with the VON radial menu open
 	protected static const string ACTION_RADIO_VOLUME = "LC_RadioVolume";
 	protected static const string ACTION_RADIO_VOLUME_CYCLE = "LC_RadioVolumeCycle";
+	protected static const string ACTION_BEEP_VOLUME_CYCLE = "LC_BeepVolumeCycle";
 	protected static const string ACTION_RADIO_FREQUENCY = "LC_RadioFrequencyInput";
 	//! Key-up spam lockout: more radio key-ups than this inside the window refuses radio transmission for the
 	//! lockout, with a deny tone for each attempt. (Quick re-keys are also merged by the plugin.)
@@ -136,6 +137,7 @@ class LC_Client
 			inputManager.AddActionListener(ACTION_RADIO_EAR_CYCLE, EActionTrigger.DOWN, OnRadioEarCycle);
 			inputManager.AddActionListener(ACTION_RADIO_BEEP_CYCLE, EActionTrigger.DOWN, OnRadioBeepCycle);
 			inputManager.AddActionListener(ACTION_RADIO_VOLUME_CYCLE, EActionTrigger.DOWN, OnRadioVolumeCycle);
+			inputManager.AddActionListener(ACTION_BEEP_VOLUME_CYCLE, EActionTrigger.DOWN, OnBeepVolumeCycle);
 			inputManager.AddActionListener(ACTION_RADIO_FREQUENCY, EActionTrigger.DOWN, OnRadioFrequencyInput);
 			inputManager.AddActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.DOWN, OnRadioPTT1);
 			inputManager.AddActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.UP, OnRadioPTT1);
@@ -153,6 +155,7 @@ class LC_Client
 		inputManager.RemoveActionListener(ACTION_RADIO_EAR_CYCLE, EActionTrigger.DOWN, OnRadioEarCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_BEEP_CYCLE, EActionTrigger.DOWN, OnRadioBeepCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_VOLUME_CYCLE, EActionTrigger.DOWN, OnRadioVolumeCycle);
+		inputManager.RemoveActionListener(ACTION_BEEP_VOLUME_CYCLE, EActionTrigger.DOWN, OnBeepVolumeCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_FREQUENCY, EActionTrigger.DOWN, OnRadioFrequencyInput);
 		inputManager.RemoveActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.DOWN, OnRadioPTT1);
 		inputManager.RemoveActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.UP, OnRadioPTT1);
@@ -391,6 +394,24 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Steps the beep volume down 10%, wrapping from silent back to full. One volume for every channel,
+	//! so unlike the other radio menu keys this does not need a channel under the cursor; with one there
+	//! the new volume is demonstrated on that channel's beeps.
+	protected void OnBeepVolumeCycle(float value = 0.0, EActionTrigger reason = 0)
+	{
+		m_RadioSettings.CycleBeepVolume();
+		RefreshRadioMenu();
+
+		// Wound down to silent, or on a channel that is itself turned down, the sample would play nothing at
+		// all, so the keypress still gets the interface tone to acknowledge it
+		SCR_VONEntryRadio entry = GetHoveredRadioEntry();
+		if (entry && m_RadioSettings.GetBeepGain(entry) > 0)
+			PlaySampleBeep(entry);
+		else
+			PlayUiSound("cycle");
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Ctrl + scroll is an analogue action, read every frame as Enhanced Radio does (scroll up is louder)
 	protected void UpdateRadioVolumeInput()
 	{
@@ -452,7 +473,7 @@ class LC_Client
 	//------------------------------------------------------------------------------------------------
 	protected void PlaySampleBeep(notnull SCR_VONEntryRadio entry)
 	{
-		m_SoundQueue.Add(m_RadioSettings.GetBeepSet(entry), "local_start", m_RadioSettings.GetEar(entry), m_RadioSettings.GetVolume(entry));
+		m_SoundQueue.Add(m_RadioSettings.GetBeepSet(entry), m_RadioSettings.GetSampleName(entry), m_RadioSettings.GetEar(entry), m_RadioSettings.GetBeepGain(entry));
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -482,7 +503,7 @@ class LC_Client
 
 	//------------------------------------------------------------------------------------------------
 	//! Gameplay settings the server owns, from LC_Settings
-	void OnSettingsReceived(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, int diagnosticFlags, string channelLabels, int channelNaming)
+	void OnSettingsReceived(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, int flags, string channelLabels, int channelNaming)
 	{
 		LC_ChannelLabels.Unpack(channelLabels);
 		LC_ChannelLabels.SetNaming(channelNaming);
@@ -491,13 +512,14 @@ class LC_Client
 		m_fTerrainFactor = terrainFactor;
 		m_bAIHearing = aiHearing;
 		m_bGameMasterUnlimitedRange = gameMasterUnlimitedRange;
-		m_bDiagnosticLog = (diagnosticFlags & 1) != 0;
-		m_bRoomDiagnosticLog = (diagnosticFlags & 2) != 0;
+		m_bDiagnosticLog = (flags & 1) != 0;
+		m_bRoomDiagnosticLog = (flags & 2) != 0;
+		LC_Life.SetUnconsciousCanSpeak((flags & 4) != 0);
 
 		int cleanPercent = Math.Round(cleanFraction * 100);
 		int beepPercent = Math.Round(beepFraction * 100);
 		int terrainPercent = Math.Round(terrainFactor * 100);
-		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", diagnostic log " + m_bDiagnosticLog.ToString() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString(), LogLevel.NORMAL);
+		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", unconscious speech " + LC_Life.GetUnconsciousCanSpeak().ToString() + ", diagnostic log " + m_bDiagnosticLog.ToString() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString(), LogLevel.NORMAL);
 	}
 
 	//------------------------------------------------------------------------------------------------

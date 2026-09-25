@@ -22,7 +22,7 @@ class LC_GameStateWriter
 {
 	protected static const string DIRECTORY = "$profile:LimaCharlie";
 	protected static const string PATH = "$profile:LimaCharlie/game_state.json";
-	protected static const int PROTOCOL_VERSION = 8;
+	protected static const int PROTOCOL_VERSION = 9;
 	//! 20 Hz while anyone's voice is live; transmit, radio and terrain changes are written immediately
 	protected static const int INTERVAL_MS = 50;
 	//! 10 Hz when nobody is talking and we are not transmitting: positions still move, but nothing is audible
@@ -228,6 +228,8 @@ class LC_GameStateWriter
 		json += ",\"beepFraction\":" + client.GetBeepFraction().ToString(-1, 2);
 		json += ",\"unlimitedRx\":" + LC_Json.Bool(unlimitedRange);
 		json += ",\"radios\":" + radios;
+		// One beep volume for every channel, scaling each channel's own volume where the plugin plays beeps
+		json += ",\"beepVolume\":" + client.GetRadioSettings().GetBeepVolume().ToString(-1, 2);
 		// Volume of the room the listener is in, 0 outdoors: the plugin sizes its reverb from it
 		json += ",\"roomVolume\":" + m_ListenerRoom.m_fVolume.ToString(-1, 0);
 		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson() + "}";

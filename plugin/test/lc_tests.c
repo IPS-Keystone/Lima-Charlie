@@ -235,11 +235,11 @@ static void test_transmissions(void)
 static void test_game_state(void)
 {
     static const char json[] =
-        "{\"v\":8,\"seq\":12,\"inGame\":true,"
+        "{\"v\":9,\"seq\":12,\"inGame\":true,"
         "\"session\":{\"token\":\"abc\",\"playerId\":3,\"playerName\":\"A \\\"quoted\\\" name\",\"tsServer\":\"\",\"tsChannel\":\"Squad 1\",\"tsChannelPassword\":\"pw\"},"
         "\"self\":{\"alive\":true,\"pos\":[1.5,2,3],\"dir\":[0,0,1],\"tx\":2,\"txFrequency\":45000,\"txRadio\":\"77:1\",\"voiceRange\":5,\"cleanFraction\":0.6,\"beepFraction\":0.8,\"unlimitedRx\":true,\"roomVolume\":96,"
         "\"radios\":[{\"id\":\"77:1\",\"freq\":45000,\"range\":1500,\"key\":\"US\",\"rx\":true,\"ear\":1,\"volume\":0.4,\"beep\":\"tfar_sw\",\"halfDuplex\":1},"
-        "{\"id\":\"78:1\",\"freq\":60000,\"range\":16000,\"key\":\"US\",\"rx\":false,\"ear\":9,\"volume\":7,\"beep\":\"acre\"}],"
+        "{\"id\":\"78:1\",\"freq\":60000,\"range\":16000,\"key\":\"US\",\"rx\":false,\"ear\":9,\"volume\":7,\"beep\":\"acre\"}],\"beepVolume\":0.7,"
         "\"sounds\":[{\"seq\":4,\"set\":\"acre\",\"name\":\"local_start\",\"ear\":2,\"volume\":0.5},{\"seq\":5,\"set\":\"ui\",\"name\":\"deny\"}]},"
         "\"players\":[{\"id\":4,\"alive\":true,\"pos\":[4,5,6],\"dir\":[1,0,0],\"muffle\":0.6,\"room\":0.35},{\"id\":5,\"alive\":false,\"pos\":[0,0,0],\"dir\":[0,0,1]}],"
         "\"links\":[{\"id\":4,\"clearance\":35}]}";
@@ -255,6 +255,7 @@ static void test_game_state(void)
     /* Set only while a Game Master has the editor open; absent means the normal range rules apply. */
     CHECK(state.unlimitedRx);
     CHECK(fabs(state.roomVolume - 96.0f) < 0.01f);
+    CHECK(fabs(state.beepVolume - 0.7f) < 0.01f);
     CHECK(strcmp(state.txRadio, "77:1") == 0 && state.txFrequency == 45000);
     CHECK(fabs(state.pos[0] - 1.5f) < 0.01f);
     CHECK(state.playerCount == 2);
@@ -280,14 +281,15 @@ static void test_game_state(void)
     CHECK(state.linkCount == 1 && state.links[0].playerId == 4 && fabs(state.links[0].clearance - 35.0f) < 0.01f);
 
     /* Half-written files and other protocol versions are rejected. */
-    CHECK(!lc_game_state_parse("{\"v\":8,\"seq\":12,\"inGa", &state));
+    CHECK(!lc_game_state_parse("{\"v\":9,\"seq\":12,\"inGa", &state));
     CHECK(!lc_game_state_parse("{\"v\":1,\"seq\":1}", &state));
-    CHECK(!lc_game_state_parse("{\"v\":7,\"seq\":1}", &state));
-    CHECK(!lc_game_state_parse("{\"v\":9,\"seq\":1}", &state));
-    CHECK(lc_game_state_parse("{\"v\":8,\"seq\":13,\"inGame\":false}", &state) && !state.inGame && state.radioCount == 0);
+    CHECK(!lc_game_state_parse("{\"v\":8,\"seq\":1}", &state));
+    CHECK(!lc_game_state_parse("{\"v\":10,\"seq\":1}", &state));
+    CHECK(lc_game_state_parse("{\"v\":9,\"seq\":13,\"inGame\":false}", &state) && !state.inGame && state.radioCount == 0);
     /* An omitted beep range falls back to the default rather than silencing every beep. */
     CHECK(fabs(state.beepFraction - LC_RADIO_BEEP_FRACTION) < 0.01f);
     CHECK(!state.unlimitedRx);
+    CHECK(state.beepVolume == 1.0f);
     /* Outdoors, and older states that never carried it, read as no room at all. */
     CHECK(state.roomVolume == 0.0f);
 }

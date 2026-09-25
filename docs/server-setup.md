@@ -68,6 +68,7 @@ without one, so start the server once and then edit the file that appears:
     "terrainEffectPercent": 100,
     "gameMasterUnlimitedRange": true,
     "aiHearing": true,
+    "unconsciousCanSpeak": false,
     "diagnosticLog": false,
     "roomDiagnosticLog": false,
     "channelNaming": "HYBRID",
@@ -110,6 +111,7 @@ list entirely.
 | `terrainEffectPercent` | 0 ignores hills altogether; 200 makes a ridge twice as costly. Worth lowering on very hilly maps if your players cannot hold a net. |
 | `gameMasterUnlimitedRange` | On by default, so a Game Master can reach anyone. Turn off to hold them to the same ranges as everyone else. |
 | `aiHearing` | Enemy AI turning towards players who speak out loud. Off if you do not want voice to have tactical consequences. |
+| `unconsciousCanSpeak` | Off by default: a player bleeding out on the floor is silent. Turn on to let them keep talking while they wait for a medic. Radios stay out of reach while unconscious either way, and the dead are always silent. |
 
 ## 4. Checking it works
 
@@ -122,7 +124,7 @@ At session start the server logs its resolved settings:
 On a client, the plugin reports itself once it pairs up:
 
 ```
-[LC] Plugin 1.0.10: TeamSpeak connected=1, client id=7, in game channel=1, peers=3
+[LC] Plugin 1.0.11: TeamSpeak connected=1, client id=7, in game channel=1, peers=3
 ```
 
 `in game channel=1` means the move into your channel worked. `peers` is how many other Lima Charlie players

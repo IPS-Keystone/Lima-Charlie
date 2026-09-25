@@ -22,7 +22,7 @@ modded class SCR_PlayerController
 	{
 		LC_Session session = LC_Session.GetServerSession();
 		LC_ServerSettings settings = session.GetSettings();
-		Rpc(RpcDo_LC_ReceiveSettings, settings.m_fCleanFraction, settings.m_fBeepFraction, settings.m_fTerrainFactor, settings.m_bAIHearing, settings.m_bGameMasterUnlimitedRange, settings.GetDiagnosticFlags(), settings.m_sChannelLabels, settings.m_eChannelNaming);
+		Rpc(RpcDo_LC_ReceiveSettings, settings.m_fCleanFraction, settings.m_fBeepFraction, settings.m_fTerrainFactor, settings.m_bAIHearing, settings.m_bGameMasterUnlimitedRange, settings.GetFlags(), settings.m_sChannelLabels, settings.m_eChannelNaming);
 		Rpc(RpcDo_LC_ReceiveSession, session.GetToken(), settings.m_sTeamSpeakChannel, settings.m_sTeamSpeakChannelPassword);
 	}
 
@@ -51,11 +51,11 @@ modded class SCR_PlayerController
 	//! Gameplay settings the server owns, sent just before the session so they are in place when the
 	//! client starts writing radio state for the plugin
 	[RplRpc(RplChannel.Reliable, RplRcver.Owner)]
-	protected void RpcDo_LC_ReceiveSettings(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, int diagnosticFlags, string channelLabels, int channelNaming)
+	protected void RpcDo_LC_ReceiveSettings(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, int flags, string channelLabels, int channelNaming)
 	{
 		LC_Client client = LC_Client.Get();
 		if (client)
-			client.OnSettingsReceived(cleanFraction, beepFraction, terrainFactor, aiHearing, gameMasterUnlimitedRange, diagnosticFlags, channelLabels, channelNaming);
+			client.OnSettingsReceived(cleanFraction, beepFraction, terrainFactor, aiHearing, gameMasterUnlimitedRange, flags, channelLabels, channelNaming);
 	}
 
 	//------------------------------------------------------------------------------------------------

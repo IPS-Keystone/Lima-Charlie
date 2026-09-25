@@ -4,12 +4,35 @@
 //! do not join in.
 class LC_Life
 {
+	//! Server setting, delivered with the session: whether an unconscious character can still be heard.
+	//! Off by default, so bleeding out on the floor is silent.
+	protected static bool s_bUnconsciousCanSpeak;
+
 	//------------------------------------------------------------------------------------------------
-	//! Whether this character can be heard speaking out loud. Unconscious is not dead, but it is not
-	//! talking either.
+	//! Set on the server as the settings resolve, and on each client as the session arrives
+	static void SetUnconsciousCanSpeak(bool canSpeak)
+	{
+		s_bUnconsciousCanSpeak = canSpeak;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	static bool GetUnconsciousCanSpeak()
+	{
+		return s_bUnconsciousCanSpeak;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether this character can be heard speaking out loud. Unconscious is not dead, but by default it
+	//! is not talking either; the server can allow it.
 	static bool CanSpeak(IEntity entity)
 	{
-		return GetLifeState(entity) == ECharacterLifeState.ALIVE;
+		ECharacterLifeState state = GetLifeState(entity);
+		if (state == ECharacterLifeState.ALIVE)
+			return true;
+
+		// Radios stay out of reach either way: vanilla's own activation refuses anything but direct speech
+		// while incapacitated, and that rule is kept.
+		return s_bUnconsciousCanSpeak && state == ECharacterLifeState.INCAPACITATED;
 	}
 
 	//------------------------------------------------------------------------------------------------

@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.0.10 — mod 1.0.10, plugin 1.0.10
+## 1.0.11 — mod 1.0.11, plugin 1.0.11
 
 Since the published mod 1.0.1 (plugin 1.0.0/1.0.1).
 
 **Update the plugin.** The bridge protocol went from 6 to 8, and the plugin ignores state it does not
 recognise, so an older plugin leaves radio and positional audio dead while TeamSpeak still looks connected.
-The new join notice prints both versions side by side; if the plugin line does not read 1.0.10, that is why.
+The new join notice prints both versions side by side; if the plugin line does not read 1.0.11, that is why.
 
 ### Muffling now understands rooms
 
@@ -31,6 +31,23 @@ The new join notice prints both versions side by side; if the plugin line does n
 - A voice from outside heard through a door does not pick up the listener's room.
 - Overall strength cut by about 60% after the first round of testing.
 
+### Beeps
+
+- **The game's own roger beep is now a beep set**, alongside the TFAR and ACRE ones. It is what vanilla
+  plays at the end of a radio transmission, mixed the way the game mixes it, so it has no start beep —
+  vanilla has none.
+- **One beep volume for every channel**, on `;` by default, cycling down in the same ten steps as channel
+  volume and wrapping from silent back to full. It multiplies each channel's own volume rather than
+  replacing it, so a quiet channel stays quiet, and a channel turned off is silent either way. Below full
+  volume the figure shows beside the beep set on each radio's entry.
+- Changing either volume with a channel under the cursor plays that channel's beep at the new level.
+- Interface tones are not beeps and keep their own level.
+- Three things in the beep mixer that could tear the audio: a ninth simultaneous beep replaced whichever
+  sound happened to be in the first slot, which could cut one off at full amplitude (it now takes the one
+  nearest its end); clips were not faded at the tail, so anything truncated or ending abruptly clicked; and
+  unloading the sounds waited a fixed 50 ms for the audio thread rather than actually waiting for it, which
+  could free a clip out from under the mixer.
+
 ### TeamSpeak's microphone, not ours
 
 - The mod no longer touches your capture settings. TeamSpeak's own voice activation or push-to-talk governs
@@ -38,6 +55,9 @@ The new join notice prints both versions side by side; if the plugin line does n
 - A build before 1.0.7 could leave the microphone deactivated in TeamSpeak after a session. Unmute once and
   it will not come back.
 - Unconscious players cannot transmit or speak. Dead players cannot hear. The server checks this itself.
+- **`unconsciousCanSpeak`**, off by default, lets a server give unconscious players their voice back, so
+  someone bleeding out can still talk to the medic. Radios stay out of reach while unconscious either way,
+  which is vanilla's own rule, and the dead are always silent.
 
 ### It tells you when it is working
 

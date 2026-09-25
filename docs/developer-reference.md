@@ -68,18 +68,18 @@ Written at 20 Hz while anyone is talking, 10 Hz idle, and immediately on any cha
 voice range, terrain links or the sound queue. Radio state is rebuilt on the write itself rather than
 compared every frame, so a radio setting reaches the plugin at the next scheduled write — at most 100 ms,
 and in practice sooner, since the settings that change it all queue a sound, which forces a write.
-Protocol 8.
+Protocol 9.
 
 ```json
 {
-  "v": 8, "seq": 42, "inGame": true,
+  "v": 9, "seq": 42, "inGame": true,
   "session": { "token": "...", "playerId": 1, "playerName": "Name",
                "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
   "self": { "alive": true, "pos": [x,y,z], "dir": [x,y,z], "tx": 2,
             "txFrequency": 45000, "txRadio": "123:1", "voiceRange": 20,
             "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false,
-            "roomVolume": 96,
+            "roomVolume": 96, "beepVolume": 1,
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US",
                           "rx": true, "ear": 1, "volume": 0.8, "beep": "tfar_sw",
                           "halfDuplex": 0 } ],
@@ -106,13 +106,18 @@ Protocol 8.
 - `sounds[]` is a queue with increasing `seq`; the plugin plays each once.
 - `roomVolume` is the volume in m³ of the room the listener is standing in, 0 outdoors. It sizes the
   plugin's room reverb. New in protocol 8.
+- `beepVolume` is the player's one beep volume for every channel, 0..1, clamped on the way in. The plugin
+  multiplies it into `radios[].volume` wherever it plays a beep and nowhere else, so it never touches a
+  voice. New in protocol 9.
+- `players[].alive` follows the server's `unconsciousCanSpeak` setting: with it on, an unconscious player
+  is still audible. Radios are refused while unconscious either way, by vanilla's own activation.
 
 ### `plugin_state.json` — plugin to game
 
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 8, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.10", "inGame": false,
+{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.11", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
 ```

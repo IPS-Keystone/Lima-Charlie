@@ -1,0 +1,15 @@
+These two files are built from Arma Reforger's own roger beep, not written for Lima Charlie.
+
+Sounds/VON/von.acp wires SOUND_ROGER_BEEP to two sample banks, "Roger Beep A" at -23 dB and "Roger Beep B"
+at -25 dB delayed 150 ms, drawing from Sounds/RadioProtocol/Samples/RogerBeep/Radio_RogerBeep_{A,B}_{1,2,3}.wav.
+plugin/tools/make_vanilla_beeps.py reads those samples out of an installed copy of the game, mixes each
+pair at those levels, normalises the result and writes it here at 48 kHz.
+
+local_end.wav   Radio_RogerBeep_A_1 + Radio_RogerBeep_B_1
+remote_end.wav  Radio_RogerBeep_A_2 + Radio_RogerBeep_B_2
+
+There is no start beep because the game has none: it beeps at the end of a transmission only.
+
+The samples are Bohemia Interactive's. Unlike the TFAR and ACRE sets alongside this folder, they carry no
+licence that covers redistribution, so decide deliberately before shipping this folder inside a plugin
+package. Anyone can regenerate it from their own install with the script above.

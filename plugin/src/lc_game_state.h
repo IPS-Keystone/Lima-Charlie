@@ -1,8 +1,8 @@
 #pragma once
 
-/* Parsed form of game_state.json, written by the game about 20 times a second (protocol 8):
+/* Parsed form of game_state.json, written by the game about 20 times a second (protocol 9):
 {
-  "v": 8, "seq": 42, "inGame": true,
+  "v": 9, "seq": 42, "inGame": true,
   "session": { "token": "1789377566-123-456-789", "playerId": 1, "playerName": "Name",
                "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
@@ -10,6 +10,7 @@
             "voiceRange": 20, "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false, "roomVolume": 96,
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US", "rx": true, "ear": 1, "volume": 0.8,
                           "beep": "tfar_sw", "halfDuplex": 0 } ],
+            "beepVolume": 1,
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
   "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6, "room": 0.35 } ],
   "links": [ { "id": 2, "clearance": 35 } ]
@@ -26,6 +27,8 @@ unlimitedRx is set while a Game Master has the editor open and the server allows
 tuned to receives at unlimited range, so distance and terrain stop mattering for what they hear. Their own
 transmissions are made unlimited by the game announcing a limitless range on radios[] instead, which needs
 nothing from the plugin.
+beepVolume is one setting for every channel, 0..1, which scales each radio's own volume wherever a beep is
+played; it does not touch the voice itself.
 radios[] are the local player's transceivers: rx is false when switched off or muted, ear is 0 both, 1 left,
 2 right, volume is 0..1 and beep names a sound set folder. halfDuplex marks a radio that cannot listen while
 it transmits: it is deaf for as long as it is the radio being transmitted on. "sounds" holds the most recent sounds the game asked
@@ -116,6 +119,8 @@ typedef struct {
     int   unlimitedRx;
     /* Volume in cubic metres of the room the listener is standing in, 0 outdoors: sizes the room reverb */
     float roomVolume;
+    /* 0 .. 1, the player's beep volume for every channel, on top of each radio's own volume */
+    float beepVolume;
 
     int             radioCount;
     lc_radio_state radios[LC_GAME_STATE_MAX_RADIOS];

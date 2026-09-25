@@ -395,7 +395,7 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
         const int changed = started || strcmp(radio->id, g_txRadio.id) != 0 || radio->frequency != g_txRadio.frequency || fabs(radio->range - g_txRadio.range) > 0.5f || strcmp(radio->key, g_txRadio.key) != 0 || strcmp(g_game.token, g_txToken) != 0;
         const int moved   = distance3(g_game.pos, g_txPos) > LC_RADIO_MOVE_REFRESH_M;
         if (started || resumed)
-            lc_sounds_play(radio->beep, "local_start", radio->ear, radio->volume);
+            lc_sounds_play(radio->beep, "local_start", radio->ear, beep_gain(radio->volume));
 
         g_txActive = 1;
         g_txSch    = sch;
@@ -416,7 +416,7 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
         g_txStopPending = 1;
         g_txStopAtMs    = nowMs + LC_TX_STOP_DEBOUNCE_MS;
         /* Your own beep follows the key, not the debounce, so releasing sounds immediate. */
-        lc_sounds_play(g_txRadio.beep, "local_end", g_txRadio.ear, g_txRadio.volume);
+        lc_sounds_play(g_txRadio.beep, "local_end", g_txRadio.ear, beep_gain(g_txRadio.volume));
     }
     if (!inGame || !connected || nowMs >= g_txStopAtMs)
         finish_radio_tx();
@@ -449,17 +449,24 @@ static int find_reception(const lc_reception* list, int count, anyID client, con
     return -1;
 }
 
+/* A channel's beeps play at the channel's own volume scaled by the one beep volume the player sets for
+   every channel. The voice itself is untouched by it. */
+static float beep_gain(float radioVolume)
+{
+    return radioVolume * g_game.beepVolume;
+}
+
 /* Beeps for receptions that started or ended since the last update. */
 static void update_receptions(const lc_reception* current, int count, int playSounds)
 {
     if (playSounds) {
         for (int i = 0; i < count; ++i) {
             if (find_reception(g_receptions, g_receptionCount, current[i].client, current[i].radioId) < 0)
-                lc_sounds_play(current[i].beep, "remote_start", current[i].ear, current[i].volume);
+                lc_sounds_play(current[i].beep, "remote_start", current[i].ear, beep_gain(current[i].volume));
         }
         for (int i = 0; i < g_receptionCount; ++i) {
             if (find_reception(current, count, g_receptions[i].client, g_receptions[i].radioId) < 0)
-                lc_sounds_play(g_receptions[i].beep, "remote_end", g_receptions[i].ear, g_receptions[i].volume);
+                lc_sounds_play(g_receptions[i].beep, "remote_end", g_receptions[i].ear, beep_gain(g_receptions[i].volume));
         }
     }
     if (count > 0)

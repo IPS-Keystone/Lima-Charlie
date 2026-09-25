@@ -45,6 +45,7 @@ edit:
     "terrainEffectPercent": 100,
     "gameMasterUnlimitedRange": true,
     "aiHearing": true,
+    "unconsciousCanSpeak": false,
     "diagnosticLog": false,
     "roomDiagnosticLog": false,
     "channelNaming": "HYBRID",
@@ -79,6 +80,7 @@ than half-applied.
 | `m_bDiagnosticLog` | off | — | Every client logs its side of the bridge once a second. Troubleshooting only. |
 | `m_bRoomDiagnosticLog` | off | — | Every client logs what the engine's room model says about its neighbours, once a second. Troubleshooting only, and far quieter than the line above. |
 | `m_bAIHearing` | on | — | Enemy AI turn towards players speaking out loud. |
+| `m_bUnconsciousCanSpeak` | off | — | Unconscious players can still be heard speaking out loud. Off by default, so someone bleeding out is silent. Radios are refused while unconscious either way, and the dead are always silent. |
 | `m_sTeamSpeakChannel` | `LimaCharlie` | — | Channel players are moved into, on whatever TeamSpeak server they are already on. Empty disables channel moves. |
 | `m_sTeamSpeakChannelPassword` | empty | — | Password for that channel, if it has one. |
 
