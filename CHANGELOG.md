@@ -1,12 +1,56 @@
 # Changelog
 
-## 1.0.12 — mod 1.0.12, plugin 1.0.12
+## 1.0.11 — mod 1.0.11, plugin 1.0.11
+
+Since 1.0.10.
+
+**Update the plugin.** The bridge protocol went from 8 to 9, and the plugin ignores state it does not
+recognise, so an older plugin leaves radio and positional audio dead while TeamSpeak still looks connected.
+The join notice prints both versions side by side; if the plugin line does not read 1.0.11, that is why.
+
+### Beeps
+
+- **The game's own roger beep is now a beep set**, alongside the TFAR and ACRE ones. It is what vanilla
+  plays at the end of a radio transmission, mixed the way the game mixes it, so it has no start beep —
+  vanilla has none.
+- **One beep volume for every channel**, on `;` by default, cycling down in the same ten steps as channel
+  volume and wrapping from silent back to full. It multiplies each channel's own volume rather than
+  replacing it, so a quiet channel stays quiet, and a channel turned off is silent either way. Below full
+  volume the figure shows beside the beep set on each radio's entry.
+- Changing either volume with a channel under the cursor plays that channel's beep at the new level.
+- Interface tones are not beeps and keep their own level.
+- Three things in the beep mixer that could tear the audio: a ninth simultaneous beep replaced whichever
+  sound happened to be in the first slot, which could cut one off at full amplitude (it now takes the one
+  nearest its end); clips were not faded at the tail, so anything truncated or ending abruptly clicked; and
+  unloading the sounds waited a fixed 50 ms for the audio thread rather than actually waiting for it, which
+  could free a clip out from under the mixer.
+
+### The channel stops flapping
+
+- **Alt-tabbing no longer moves you out of the TeamSpeak channel.** Reforger stops writing its state while it
+  is not the window you are using, and three seconds of that was read as having left the game: you were moved
+  back to your old channel, then moved in again when you returned, and everyone else in the channel heard a
+  join and a leave each time. The plugin now keeps you where you are until the game actually says it is
+  leaving, which it does the instant you quit to the menu or disconnect.
+- Your radio transmission still ends after three seconds of silence from the game, so a frozen game cannot
+  hold your transmit key open on the net.
+- A crash cannot say goodbye, so a crashed game keeps you in the game channel for five minutes before the
+  plugin gives up on it. The TeamSpeak log distinguishes the two: `Game state paused; holding the channel`
+  when the game goes quiet, `Left game` when it is written off.
+
+### Unconscious players
+
+- **`unconsciousCanSpeak`**, off by default, lets a server give unconscious players their voice back, so
+  someone bleeding out can still talk to the medic. Radios stay out of reach while unconscious either way,
+  which is vanilla's own rule, and the dead are always silent.
+
+## 1.0.10 — mod 1.0.10, plugin 1.0.10
 
 Since the published mod 1.0.1 (plugin 1.0.0/1.0.1).
 
 **Update the plugin.** The bridge protocol went from 6 to 8, and the plugin ignores state it does not
 recognise, so an older plugin leaves radio and positional audio dead while TeamSpeak still looks connected.
-The new join notice prints both versions side by side; if the plugin line does not read 1.0.12, that is why.
+The new join notice prints both versions side by side; if the plugin line does not read 1.0.10, that is why.
 
 ### Muffling now understands rooms
 
@@ -31,23 +75,6 @@ The new join notice prints both versions side by side; if the plugin line does n
 - A voice from outside heard through a door does not pick up the listener's room.
 - Overall strength cut by about 60% after the first round of testing.
 
-### Beeps
-
-- **The game's own roger beep is now a beep set**, alongside the TFAR and ACRE ones. It is what vanilla
-  plays at the end of a radio transmission, mixed the way the game mixes it, so it has no start beep —
-  vanilla has none.
-- **One beep volume for every channel**, on `;` by default, cycling down in the same ten steps as channel
-  volume and wrapping from silent back to full. It multiplies each channel's own volume rather than
-  replacing it, so a quiet channel stays quiet, and a channel turned off is silent either way. Below full
-  volume the figure shows beside the beep set on each radio's entry.
-- Changing either volume with a channel under the cursor plays that channel's beep at the new level.
-- Interface tones are not beeps and keep their own level.
-- Three things in the beep mixer that could tear the audio: a ninth simultaneous beep replaced whichever
-  sound happened to be in the first slot, which could cut one off at full amplitude (it now takes the one
-  nearest its end); clips were not faded at the tail, so anything truncated or ending abruptly clicked; and
-  unloading the sounds waited a fixed 50 ms for the audio thread rather than actually waiting for it, which
-  could free a clip out from under the mixer.
-
 ### TeamSpeak's microphone, not ours
 
 - The mod no longer touches your capture settings. TeamSpeak's own voice activation or push-to-talk governs
@@ -55,22 +82,6 @@ The new join notice prints both versions side by side; if the plugin line does n
 - A build before 1.0.7 could leave the microphone deactivated in TeamSpeak after a session. Unmute once and
   it will not come back.
 - Unconscious players cannot transmit or speak. Dead players cannot hear. The server checks this itself.
-- **`unconsciousCanSpeak`**, off by default, lets a server give unconscious players their voice back, so
-  someone bleeding out can still talk to the medic. Radios stay out of reach while unconscious either way,
-  which is vanilla's own rule, and the dead are always silent.
-
-### The channel stops flapping
-
-- **Alt-tabbing no longer moves you out of the TeamSpeak channel.** Reforger stops writing its state while it
-  is not the window you are using, and three seconds of that was read as having left the game: you were moved
-  back to your old channel, then moved in again when you returned, and everyone else in the channel heard a
-  join and a leave each time. The plugin now keeps you where you are until the game actually says it is
-  leaving, which it does the instant you quit to the menu or disconnect.
-- Your radio transmission still ends after three seconds of silence from the game, so a frozen game cannot
-  hold your transmit key open on the net.
-- A crash cannot say goodbye, so a crashed game keeps you in the game channel for five minutes before the
-  plugin gives up on it. The TeamSpeak log distinguishes the two: `Game state paused; holding the channel`
-  when the game goes quiet, `Left game` when it is written off.
 
 ### It tells you when it is working
 
