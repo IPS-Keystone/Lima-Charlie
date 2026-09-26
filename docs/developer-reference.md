@@ -117,7 +117,7 @@ Protocol 9.
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.11", "inGame": false,
+{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.12", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
 ```
@@ -181,6 +181,7 @@ build that predates this.
 | --- | --- | --- |
 | Plugin worker poll | 5 ms in game, 50 ms idle | `lc_core.c` |
 | Game state stale | 3000 ms | `lc_core.c` |
+| Game state grace | 300000 ms | `lc_core.c` |
 | Transmit stop debounce | 300 ms | `lc_core.c` |
 | Terrain link wait | 300 ms | `lc_core.c` |
 | Transmission max age | 3500 ms | `lc_core.c` |
@@ -188,6 +189,14 @@ build that predates this.
 | Terrain link refresh | 1000 ms, or 10 m of movement | `LC_RadioLinks.c` |
 | AI hearing report | 1000 ms | `LC_Client.c` |
 | Sound event retention | 1000 ms | `LC_SoundQueue.c` |
+
+Those two windows answer different questions. **Stale** (3 s) means the game is not ticking — alt-tabbed,
+minimised, hitching or gone — and only ends the radio transmission, so a frozen game cannot hold a transmit
+key open on the net. **Grace** (5 min) is how long a game that has stopped writing still counts as being
+played, for the TeamSpeak channel, the peer list and the voices. A normal exit writes `inGame:false`, which
+is immediate, so the grace only decides how long a crashed game keeps you in the game channel — and that is
+much cheaper than moving everyone out of the channel and back in whenever they alt-tab, since every move is
+a notification for everyone else in it.
 
 The worker only raises the Windows timer resolution to 1 ms while a game is running; the setting is
 process-wide and costs power system-wide, and TeamSpeak is usually open far longer than Reforger is.

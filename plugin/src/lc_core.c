@@ -24,7 +24,16 @@
 /* Nothing here is latency-critical until a game is running, and TeamSpeak often runs for hours without one.
    While idle the worker polls slowly and leaves the system timer resolution alone. */
 #define LC_IDLE_POLL_MS 50
+/* No write for this long means the game is not ticking: alt-tabbed, minimised, hitching, or gone. Only the
+   radio transmission ends on it, so a frozen game cannot hold a transmit key open on the net. */
 #define LC_GAME_STALE_MS 3000
+/* How long a game that stopped writing is still treated as being played, for the channel, the peers and the
+   voices. Leaving the game properly writes inGame:false, which is immediate and is what normally ends a
+   session, so this only decides how long a crashed or killed game keeps you in the game channel. Long,
+   because being dragged out of the channel and back in every time someone alt-tabs is worse than sitting in
+   the mission channel for a few minutes after a crash: every move is a join and leave notification for
+   everyone else in it. */
+#define LC_GAME_GRACE_MS 300000
 #define LC_STATE_HEARTBEAT_MS 250
 #define LC_STATE_MIN_INTERVAL_MS 20
 #define LC_STATE_BODY_CAP 8192
@@ -65,6 +74,8 @@ static int                g_haveGame;
 static unsigned long long g_gameStamp;
 static int                g_gameDir = -1;
 static int                g_wasInGame;
+/* Whether the state was being written on the previous loop, for the one log line each way */
+static int                g_wasFresh = 1;
 static uint64             g_sch;
 
 static uint64             g_previousChannel;
@@ -242,19 +253,34 @@ static void poll_game_state(char* buf, lc_game_state* parsed)
     }
 }
 
-static int compute_in_game(void)
+/* Milliseconds since the game last wrote its state, 0 if it has never been seen or the clock went backwards. */
+static unsigned long long game_state_age_ms(void)
 {
-    if (!g_haveGame || !g_game.inGame)
-        return 0;
     const unsigned long long now = lc_profile_now_stamp();
-    return now < g_gameStamp || (now - g_gameStamp) / 10000ULL < LC_GAME_STALE_MS;
+    if (now < g_gameStamp)
+        return 0;
+
+    return (now - g_gameStamp) / 10000ULL;
+}
+
+/* In a game, and the state is being written: everything may act on it. */
+static int game_fresh(void)
+{
+    return g_haveGame && g_game.inGame && game_state_age_ms() < LC_GAME_STALE_MS;
+}
+
+/* In a game as far as anyone can tell. The game says so and has not been silent long enough to be written
+   off, whether or not it is writing right now. */
+static int game_present(void)
+{
+    return g_haveGame && g_game.inGame && game_state_age_ms() < LC_GAME_GRACE_MS;
 }
 
 void lc_core_status(lc_status* out)
 {
     memset(out, 0, sizeof(*out));
     /* g_game is only replaced wholesale by the worker, so a torn read would at worst show stale text. */
-    out->inGame = compute_in_game();
+    out->inGame = game_present();
     if (!out->inGame)
         return;
 
@@ -715,13 +741,23 @@ static DWORD WINAPI core_main(LPVOID param)
         if (sch != g_sch)
             on_connection_switched(sch);
         const int connected = is_connected(sch);
-        const int inGame    = compute_in_game();
+        const int inGame    = game_present();
+        const int fresh     = game_fresh();
 
         if (inGame && !g_wasInGame)
             lc_logf(LC_LOG_INFO, "Entered game as player %d (%s)", g_game.playerId, g_game.playerName);
         if (!inGame && g_wasInGame)
             on_left_game(sch, connected);
         g_wasInGame = inGame;
+
+        /* Said once each way, because this is the difference between "they alt-tabbed" and "they crashed" when
+           reading a log afterwards. */
+        if (inGame && fresh != g_wasFresh) {
+            lc_logf(LC_LOG_INFO, fresh ? "Game state updating again" : "Game state paused; holding the channel");
+            g_wasFresh = fresh;
+        } else if (!inGame) {
+            g_wasFresh = 1;
+        }
 
         update_channel(sch, connected, inGame, nowMs);
 
@@ -732,7 +768,8 @@ static DWORD WINAPI core_main(LPVOID param)
         const int haveChannel = connected && get_own_channel(sch, &me, &channel);
 
         update_handshake(sch, inGame, haveChannel, channel, nowMs);
-        update_radio_tx(sch, connected, inGame, nowMs);
+        /* Fresh, not present: a game that stopped writing cannot be holding its transmit key. */
+        update_radio_tx(sch, connected, fresh, nowMs);
         update_sound_events(inGame);
         lc_peers_expire(nowMs, LC_PEER_MAX_AGE_MS);
         lc_transmissions_expire(nowMs, LC_TRANSMISSION_MAX_AGE_MS);
@@ -740,15 +777,16 @@ static DWORD WINAPI core_main(LPVOID param)
         write_plugin_state(connected, inGame, haveChannel, connected && is_mic_muted(sch, nowMs), me, channel, nowMs);
 
         /* A 1 ms system timer is what makes the 5 ms poll actually sleep 5 ms, but it is process-wide and
-           costs power everywhere, so it is only held while a game is running. */
-        if (inGame != fastTimer) {
-            if (inGame)
+           costs power everywhere, so it is only held while a game is actually writing. A game that has gone
+           quiet is picked up again within one idle poll. */
+        if (fresh != fastTimer) {
+            if (fresh)
                 timeBeginPeriod(1);
             else
                 timeEndPeriod(1);
-            fastTimer = inGame;
+            fastTimer = fresh;
         }
-        Sleep(inGame ? LC_POLL_MS : LC_IDLE_POLL_MS);
+        Sleep(fresh ? LC_POLL_MS : LC_IDLE_POLL_MS);
     }
     if (fastTimer)
         timeEndPeriod(1);

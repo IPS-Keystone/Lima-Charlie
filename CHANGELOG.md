@@ -1,12 +1,12 @@
 # Changelog
 
-## 1.0.11 — mod 1.0.11, plugin 1.0.11
+## 1.0.12 — mod 1.0.12, plugin 1.0.12
 
 Since the published mod 1.0.1 (plugin 1.0.0/1.0.1).
 
 **Update the plugin.** The bridge protocol went from 6 to 8, and the plugin ignores state it does not
 recognise, so an older plugin leaves radio and positional audio dead while TeamSpeak still looks connected.
-The new join notice prints both versions side by side; if the plugin line does not read 1.0.11, that is why.
+The new join notice prints both versions side by side; if the plugin line does not read 1.0.12, that is why.
 
 ### Muffling now understands rooms
 
@@ -58,6 +58,19 @@ The new join notice prints both versions side by side; if the plugin line does n
 - **`unconsciousCanSpeak`**, off by default, lets a server give unconscious players their voice back, so
   someone bleeding out can still talk to the medic. Radios stay out of reach while unconscious either way,
   which is vanilla's own rule, and the dead are always silent.
+
+### The channel stops flapping
+
+- **Alt-tabbing no longer moves you out of the TeamSpeak channel.** Reforger stops writing its state while it
+  is not the window you are using, and three seconds of that was read as having left the game: you were moved
+  back to your old channel, then moved in again when you returned, and everyone else in the channel heard a
+  join and a leave each time. The plugin now keeps you where you are until the game actually says it is
+  leaving, which it does the instant you quit to the menu or disconnect.
+- Your radio transmission still ends after three seconds of silence from the game, so a frozen game cannot
+  hold your transmit key open on the net.
+- A crash cannot say goodbye, so a crashed game keeps you in the game channel for five minutes before the
+  plugin gives up on it. The TeamSpeak log distinguishes the two: `Game state paused; holding the channel`
+  when the game goes quiet, `Left game` when it is written off.
 
 ### It tells you when it is working
 

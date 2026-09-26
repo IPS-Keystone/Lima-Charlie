@@ -27,10 +27,20 @@ cat "$USERPROFILE/Documents/My Games/ArmaReforger/profile/LimaCharlie/plugin_sta
 The game log also prints a status line whenever any of it changes:
 
 ```
-[LC] Plugin 1.0.11: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
+[LC] Plugin 1.0.12: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
 ```
 
 Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.log`.
+
+## Left in the game channel after a crash
+
+Quitting normally tells the plugin, and you are moved back to the channel you came from at once. A crash
+cannot, so the plugin waits five minutes before deciding the game is gone. Move yourself back if you do not
+want to wait; nothing is broken. The TeamSpeak log shows `Game state paused; holding the channel` when the
+game stops writing, and `Left game` when it eventually gives up.
+
+The same two lines appear when you alt-tab, which is deliberate: you keep the channel, and everyone else is
+spared a join and leave notification every time you look at something else.
 
 ## Diagnostic logging
 

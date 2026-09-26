@@ -30,8 +30,8 @@ failures make a sound on their own:
 
 ```
 Lima Charlie
-Mod loaded: 1.0.11
-TeamSpeak plugin: 1.0.11
+Mod loaded: 1.0.12
+TeamSpeak plugin: 1.0.12
 TeamSpeak: connected
 Channel: LimaCharlie
 Others with the plugin here: 3
@@ -42,6 +42,17 @@ not connected to a server, or the channel move not having happened. It appears a
 later, so starting TeamSpeak after the game tells you when it has been picked up.
 
 `Others with the plugin here` counting 0 is normal if you are the first one in.
+
+**Alt-tabbing does not move you out of the channel.** Reforger stops writing its state when it is not the
+window you are using, and the plugin used to read three seconds of that as having left the game, which moved
+you back to your old channel and moved you in again when you returned. Every one of those was a join and a
+leave notification for everyone else in the channel. Now the plugin keeps you where you are until the game
+says it is leaving, which it does the moment you quit to the menu or disconnect. Your radio transmission
+still ends after three seconds of silence from the game, so a frozen game cannot hold your key open on the
+net.
+
+If the game crashes or is killed, it never gets to say it is leaving, and you stay in the game channel for
+five minutes before the plugin gives up on it.
 
 The notice is silent when everything is in place and makes a sound when it is not. It uses the game's hint
 panel, falling back to a popup if you have hints turned off; with both turned off it only reaches
