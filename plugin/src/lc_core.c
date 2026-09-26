@@ -399,6 +399,13 @@ static void finish_radio_tx(void)
         send_radio_announcement(g_txSch, 0);
 }
 
+/* A channel's beeps play at the channel's own volume scaled by the one beep volume the player sets for
+   every channel. The voice itself is untouched by it. */
+static float beep_gain(float radioVolume)
+{
+    return radioVolume * g_game.beepVolume;
+}
+
 /* Announces our own radio transmission to the channel and plays our local beeps. A release is held for
    LC_TX_STOP_DEBOUNCE_MS, so hammering push-to-talk on one radio reads as one transmission to everyone. */
 static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long long nowMs)
@@ -473,13 +480,6 @@ static int find_reception(const lc_reception* list, int count, anyID client, con
             return i;
     }
     return -1;
-}
-
-/* A channel's beeps play at the channel's own volume scaled by the one beep volume the player sets for
-   every channel. The voice itself is untouched by it. */
-static float beep_gain(float radioVolume)
-{
-    return radioVolume * g_game.beepVolume;
 }
 
 /* Beeps for receptions that started or ended since the last update. */

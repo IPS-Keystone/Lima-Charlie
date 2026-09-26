@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.12 — mod 1.0.12, plugin 1.0.12
+
+Since 1.0.11. Protocol is unchanged at 9, so this is a plugin-only fix.
+
+- **Your own transmission beeps are back.** The beep volume added in 1.0.11 was applied through a function
+  defined further down the file than the two places that called it for the local start and end beeps. C
+  accepts that, guesses the function returns an int, and passes the arguments wrongly, so both of your own
+  beeps played at a nonsense volume — in practice, silence. The beeps for other people's transmissions were
+  below the definition and were never affected.
+- The build now treats a call to an undeclared function as an error rather than a warning, which is what let
+  this through.
+
 ## 1.0.11 — mod 1.0.11, plugin 1.0.11
 
 Since 1.0.10.

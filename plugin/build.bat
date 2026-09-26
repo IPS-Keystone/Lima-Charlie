@@ -20,7 +20,9 @@ if not exist build mkdir build
 if not exist build\tests mkdir build\tests
 
 set COMMON=/nologo /O2 /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN
-set OURS=%COMMON% /W4 /std:c11 /Isrc /Ithird_party\ts3sdk /Ithird_party\cjson
+rem C4013 is a call to something not declared yet: in C that compiles, guesses int, and quietly passes
+rem arguments wrongly. It cost a release's local radio beeps once; it is an error here.
+set OURS=%COMMON% /W4 /we4013 /std:c11 /Isrc /Ithird_party\ts3sdk /Ithird_party\cjson
 set LIBS=shell32.lib ole32.lib uuid.lib winmm.lib
 set SOURCES=src\lc_core.c src\lc_peers.c src\lc_game_state.c src\lc_profile_files.c src\lc_log.c src\lc_audio.c src\lc_direct_voice.c src\lc_radio.c src\lc_transmissions.c src\lc_sounds.c src\lc_reverb.c
 set TEST_SOURCES=src\lc_direct_voice.c src\lc_peers.c src\lc_game_state.c src\lc_log.c src\lc_radio.c src\lc_transmissions.c src\lc_reverb.c src\lc_audio.c
