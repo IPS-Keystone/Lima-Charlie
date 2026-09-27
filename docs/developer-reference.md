@@ -117,7 +117,7 @@ Protocol 9.
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.12", "inGame": false,
+{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.13", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
 ```
@@ -174,6 +174,26 @@ For yourself it reads `lc_core_status`, which reports the live game state. For a
 than a stale entry. "Playing" is only shown for yourself, because it comes from `self.alive` which nobody
 broadcasts. An empty version field renders as `unknown`, which is what you see against a peer running a
 build that predates this.
+
+## How beeps reach your ears
+
+Beeps are WAVs in the plugin's `sounds/<set>/` folders, handed to TeamSpeak's own player with
+`ts3Functions.playWaveFile`. That API takes a path and nothing else, so the ear and the volume are baked into
+a rendered copy: `sounds/beepcache/<set>_<name>_e<ear>_v<step>.wav`, 48 kHz 16-bit stereo, written the first
+time that combination is asked for and reused after. Volume is quantised to twenty steps to keep the number
+of files down, and the cache is emptied on every load so a plugin update cannot leave an old rendering of a
+changed beep behind.
+
+Until 1.0.13 they were written into the mixed playback buffer instead, in
+`ts3plugin_onEditMixedPlaybackVoiceDataEvent`. That buffer is shared with every plugin the client has loaded,
+handed to each in load order, and a plugin that overwrites rather than adds to it destroys whatever is
+already there. Coalition VON did that on a tester's machine and the beeps tore; nothing about our own mixing
+could have prevented it, because we load first. TeamSpeak's player is out of reach of all of them.
+
+That code is still there as a fallback, used when the cache directory cannot be made or written — a
+read-only install, or a locked-down profile. The log says which happened.
+
+Voices are unaffected and still go through `ts3plugin_onEditPostProcessVoiceDataEvent` per speaker.
 
 ## Timings
 

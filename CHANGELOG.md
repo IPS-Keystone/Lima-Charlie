@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.13 — mod 1.0.13, plugin 1.0.13
+
+Since 1.0.12. Protocol is unchanged at 9, so this is a plugin-only change.
+
+- **Beeps are played by TeamSpeak now, not mixed into its playback buffer.** That buffer is shared with every
+  plugin the client has loaded and handed to each in turn, so a plugin that overwrites it rather than adding
+  to it destroys whatever we put there — which is what Coalition VON was doing to a tester's beeps. TeamSpeak's
+  own player is out of reach of all of them.
+- **The ear and the volume survive the move.** The API that plays a file takes a path and nothing else, so a
+  copy of the clip with the panning and volume already applied is rendered to `sounds/beepcache/` the first
+  time each combination is needed, and reused after. Volume is quantised to twenty steps to keep the number of
+  files down, and the cache is emptied on load so a changed beep cannot leave a stale rendering behind.
+- TeamSpeak mixes these itself, so its own sound volume in Options → Notifications now applies to our beeps
+  as well as ours.
+- The old path is kept as a fallback for installs where the cache cannot be written; the log says when it is
+  used.
+
 ## 1.0.12 — mod 1.0.12, plugin 1.0.12
 
 Since 1.0.11. Protocol is unchanged at 9, so this is a plugin-only fix.

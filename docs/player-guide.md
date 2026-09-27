@@ -30,8 +30,8 @@ failures make a sound on their own:
 
 ```
 Lima Charlie
-Mod loaded: 1.0.12
-TeamSpeak plugin: 1.0.12
+Mod loaded: 1.0.13
+TeamSpeak plugin: 1.0.13
 TeamSpeak: connected
 Channel: LimaCharlie
 Others with the plugin here: 3
@@ -142,6 +142,9 @@ signal that distance alone would carry. This is TFAR's model.
 You hear a start and end beep on someone else's transmission only within 90% of the radio's range by
 default. Past that the voice arrives with no beeps — so a beep means the signal is worth listening to.
 Your own beeps always play when you key up and release.
+
+Beeps are played by TeamSpeak rather than mixed into the voice stream, so TeamSpeak's own sound volume in
+Options → Notifications applies to them as well as ours.
 
 **Beep volume is one setting for every channel**, on `;` by default, in the same ten steps as channel
 volume and wrapping the same way. It multiplies each channel's own volume, so a channel at 50% with beeps

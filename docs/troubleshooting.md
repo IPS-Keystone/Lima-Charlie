@@ -27,7 +27,7 @@ cat "$USERPROFILE/Documents/My Games/ArmaReforger/profile/LimaCharlie/plugin_sta
 The game log also prints a status line whenever any of it changes:
 
 ```
-[LC] Plugin 1.0.12: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
+[LC] Plugin 1.0.13: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
 ```
 
 Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.log`.
@@ -41,6 +41,18 @@ game stops writing, and `Left game` when it eventually gives up.
 
 The same two lines appear when you alt-tab, which is deliberate: you keep the channel, and everyone else is
 spared a join and leave notification every time you look at something else.
+
+## No beeps at all
+
+Beeps play through TeamSpeak's own sound player, from rendered copies under
+`%APPDATA%/TS3Client/plugins/limacharlie/sounds/beepcache/`. If that folder cannot be created or written,
+the TeamSpeak log says so and beeps fall back to being mixed directly into playback, which works but can be
+overwritten by another plugin that does its own mixing.
+
+Worth checking, in order: that the beep set on that channel is not `No beeps`; that the beep volume is not
+wound down to silent (it shows beside the beep set on the radio entry when it is below full); and that
+TeamSpeak's own sound volume in Options → Notifications is up, since it now mixes our beeps as well as its
+own.
 
 ## Diagnostic logging
 

@@ -2,8 +2,16 @@
 
 /* Radio and UI sounds. Each folder in the sounds directory is a sound set named after the folder; each 16-bit
    PCM WAV in it is a sound named after the file. Radio beep sets hold local_start/local_end (own transmission)
-   and remote_start/remote_end (someone else's); the "ui" set holds interface tones. Sounds are mixed into
-   TeamSpeak's final playback rather than played through TeamSpeak, so a radio set to one ear beeps in that ear. */
+   and remote_start/remote_end (someone else's); the "ui" set holds interface tones.
+
+   Sounds are handed to TeamSpeak's own player, which mixes them itself. The ear and the volume are baked into
+   a rendered copy of the clip under "beepcache", because that API takes a path and nothing else: one file per
+   set, sound, ear and twentieth of volume, written the first time that combination is asked for.
+
+   The alternative is writing them into the mixed playback buffer, which is what this did until 1.0.13. That
+   buffer is shared with every other plugin the client has loaded, in load order, and a plugin that overwrites
+   rather than adds to it destroys whatever we put there. Coalition VON did exactly that on a tester's machine.
+   The buffer path is kept as a fallback for when the cache cannot be written. */
 
 #include "lc_game_state.h"
 

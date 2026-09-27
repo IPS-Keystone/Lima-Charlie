@@ -2,6 +2,7 @@
 
 #include "lc_audio.h"
 #include "lc_log.h"
+#include "lc_ts.h"
 
 #include <windows.h>
 
@@ -16,6 +17,11 @@
 #define LC_MAX_PLAYING 8
 #define LC_PLAY_QUEUE 32
 #define LC_BEEP_GAIN 0.7f
+/* Volume is quantised to this many steps before a file is rendered, so the cache stays small. Twice the ten
+   steps the radio menu offers, which is finer than the product of two ten-step volumes needs. */
+#define LC_VOLUME_STEPS 20
+/* Rendered variants live here, under the sounds directory; skipped when enumerating sound sets. */
+#define LC_CACHE_DIR_NAME L"beepcache"
 
 /* 48 kHz interleaved stereo */
 typedef struct {
@@ -44,6 +50,9 @@ typedef struct {
 
 static lc_sound_set g_sets[LC_MAX_SOUND_SETS];
 static int           g_setCount;
+/* Where rendered ear and volume variants are written; empty when the directory could not be made, which
+   leaves every sound on the mixed buffer fallback. Worker thread only. */
+static wchar_t       g_cacheDir[MAX_PATH];
 static volatile LONG g_ready;
 /* Non-zero while the audio thread is inside the mix, so unloading waits rather than freeing clips underneath it */
 static volatile LONG g_mixing;
@@ -209,6 +218,29 @@ static int load_set(const wchar_t* dir, const wchar_t* setFolder, lc_sound_set* 
     return set->clipCount;
 }
 
+/* Rendered variants from an earlier run, which may have been made from different clips. */
+static void purge_cache(void)
+{
+    wchar_t pattern[MAX_PATH];
+    _snwprintf(pattern, MAX_PATH, L"%s\\*.wav", g_cacheDir);
+    pattern[MAX_PATH - 1] = L'\0';
+
+    WIN32_FIND_DATAW found;
+    const HANDLE     find = FindFirstFileW(pattern, &found);
+    if (find == INVALID_HANDLE_VALUE)
+        return;
+    do {
+        if (found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+
+        wchar_t path[MAX_PATH];
+        _snwprintf(path, MAX_PATH, L"%s\\%s", g_cacheDir, found.cFileName);
+        path[MAX_PATH - 1] = L'\0';
+        DeleteFileW(path);
+    } while (FindNextFileW(find, &found));
+    FindClose(find);
+}
+
 int lc_sounds_load(const char* soundsDir)
 {
     lc_sounds_unload();
@@ -220,12 +252,25 @@ int lc_sounds_load(const char* soundsDir)
     _snwprintf(pattern, MAX_PATH, L"%s\\*", dir);
     pattern[MAX_PATH - 1] = L'\0';
 
+    /* Cleared and remade on every load: the variants are derived from the clips, so a plugin update that
+       changes a beep must not leave the old rendering behind. */
+    _snwprintf(g_cacheDir, MAX_PATH, L"%s\\%s", dir, LC_CACHE_DIR_NAME);
+    g_cacheDir[MAX_PATH - 1] = L'\0';
+    if (CreateDirectoryW(g_cacheDir, NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
+        purge_cache();
+    } else {
+        lc_logf(LC_LOG_WARNING, "Could not make %ls; beeps go through the mixed playback buffer instead", g_cacheDir);
+        g_cacheDir[0] = L'\0';
+    }
+
     WIN32_FIND_DATAW found;
     const HANDLE     find = FindFirstFileW(pattern, &found);
     if (find == INVALID_HANDLE_VALUE)
         return 0;
     do {
         if (!(found.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || found.cFileName[0] == L'.')
+            continue;
+        if (_wcsicmp(found.cFileName, LC_CACHE_DIR_NAME) == 0)
             continue;
         if (g_setCount >= LC_MAX_SOUND_SETS)
             break;
@@ -262,6 +307,96 @@ void lc_sounds_unload(void)
     g_queueTail = 0;
 }
 
+/* 48 kHz 16-bit stereo WAV of one clip with the ear and volume already applied. */
+static int write_variant(const lc_clip* clip, float gainLeft, float gainRight, const wchar_t* path)
+{
+    const unsigned long frames = (unsigned long)clip->frameCount;
+    const unsigned long bytes  = frames * 4;
+
+    FILE* f = _wfopen(path, L"wb");
+    if (!f)
+        return 0;
+
+    unsigned char header[44];
+    memcpy(header, "RIFF", 4);
+    const unsigned long riffSize = 36 + bytes;
+    header[4] = (unsigned char)(riffSize & 0xFF);
+    header[5] = (unsigned char)((riffSize >> 8) & 0xFF);
+    header[6] = (unsigned char)((riffSize >> 16) & 0xFF);
+    header[7] = (unsigned char)((riffSize >> 24) & 0xFF);
+    memcpy(header + 8, "WAVEfmt ", 8);
+    static const unsigned char fmt[20] = {16, 0, 0, 0,      /* chunk size */
+                                          1,  0,            /* PCM */
+                                          2,  0,            /* stereo */
+                                          0x80, 0xBB, 0, 0, /* 48000 a second */
+                                          0x00, 0xEE, 0x02, 0, /* 192000 bytes a second */
+                                          4,  0,            /* block align */
+                                          16, 0};           /* bits a sample */
+    memcpy(header + 16, fmt, sizeof(fmt));
+    memcpy(header + 36, "data", 4);
+    header[40] = (unsigned char)(bytes & 0xFF);
+    header[41] = (unsigned char)((bytes >> 8) & 0xFF);
+    header[42] = (unsigned char)((bytes >> 16) & 0xFF);
+    header[43] = (unsigned char)((bytes >> 24) & 0xFF);
+    if (fwrite(header, 1, sizeof(header), f) != sizeof(header)) {
+        fclose(f);
+        return 0;
+    }
+
+    int ok = 1;
+    for (int i = 0; i < clip->frameCount && ok; ++i) {
+        const float l = (float)clip->frames[i * 2] * gainLeft;
+        const float r = (float)clip->frames[i * 2 + 1] * gainRight;
+        short       frame[2];
+        frame[0] = l > 32767.0f ? 32767 : (l < -32768.0f ? -32768 : (short)l);
+        frame[1] = r > 32767.0f ? 32767 : (r < -32768.0f ? -32768 : (short)r);
+        ok       = fwrite(frame, sizeof(frame), 1, f) == 1;
+    }
+    fclose(f);
+    if (!ok)
+        DeleteFileW(path);
+
+    return ok;
+}
+
+/* Hands the clip to TeamSpeak's own player, rendering the variant for this ear and volume if it is the first
+   time that pairing has been asked for. Returns 0 if anything stops it, so the caller can fall back. */
+static int play_through_teamspeak(const lc_clip* clip, const char* set, int ear, float volume)
+{
+    if (!g_cacheDir[0] || !g_ts3.playWaveFile || !g_ts3.getCurrentServerConnectionHandlerID)
+        return 0;
+
+    const uint64 sch = g_ts3.getCurrentServerConnectionHandlerID();
+    if (!sch)
+        return 0;
+
+    int step = (int)(volume * LC_VOLUME_STEPS + 0.5f);
+    if (step < 1)
+        return 0;
+    if (step > LC_VOLUME_STEPS)
+        step = LC_VOLUME_STEPS;
+
+    wchar_t path[MAX_PATH];
+    if (_snwprintf(path, MAX_PATH, L"%s\\%hs_%hs_e%d_v%02d.wav", g_cacheDir, set, clip->name, ear, step) < 0)
+        return 0;
+
+    path[MAX_PATH - 1] = L'\0';
+    if (GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES) {
+        const float gain = LC_BEEP_GAIN * (float)step / (float)LC_VOLUME_STEPS;
+        if (!write_variant(clip, ear == LC_EAR_RIGHT ? 0.0f : gain, ear == LC_EAR_LEFT ? 0.0f : gain, path)) {
+            lc_logf(LC_LOG_WARNING, "Could not write %ls; beeps fall back to the mixed buffer", path);
+            g_cacheDir[0] = L'\0';
+            return 0;
+        }
+    }
+
+    char utf8[MAX_PATH * 3];
+    if (!WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8, (int)sizeof(utf8), NULL, NULL))
+        return 0;
+
+    return g_ts3.playWaveFile(sch, utf8) == ERROR_ok;
+}
+
 void lc_sounds_play(const char* set, const char* name, int ear, float volume)
 {
     if (!g_ready || !set || !set[0] || !name || !name[0] || volume <= 0.0f)
@@ -282,7 +417,15 @@ void lc_sounds_play(const char* set, const char* name, int ear, float volume)
     if (!clip)
         return;
 
-    const float gain = LC_BEEP_GAIN * (volume > 1.0f ? 1.0f : volume);
+    if (volume > 1.0f)
+        volume = 1.0f;
+
+    /* TeamSpeak's own player owns its mixing, so nothing another plugin does to the shared buffer can reach
+       this. Only when it cannot be used does the sound go into that buffer instead. */
+    if (play_through_teamspeak(clip, set, ear, volume))
+        return;
+
+    const float gain = LC_BEEP_GAIN * volume;
     const LONG  head = g_queueHead;
     const LONG  next = (head + 1) % LC_PLAY_QUEUE;
     if (next == g_queueTail)
