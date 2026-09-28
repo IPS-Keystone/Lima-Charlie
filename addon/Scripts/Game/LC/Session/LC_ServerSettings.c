@@ -93,6 +93,11 @@ class LC_ServerSettings
 	//------------------------------------------------------------------------------------------------
 	//! Layer 4. Every key is optional; the ones present win, and which ones did is logged so a setting
 	//! that is not doing what the mod's config says is traceable to this file.
+	//!
+	//! Exactly one line goes to the log every session, saying which of the four things happened: the file
+	//! was generated, it was read and overrode something, it was read and overrode nothing, or it could not
+	//! be read. Without that, a server whose settings are not what the operator expects gives them nothing
+	//! to go on - silence used to mean both "no keys matched" and "the file is being ignored".
 	protected void ApplyFile()
 	{
 		if (!FileIO.FileExists(PATH))
@@ -104,7 +109,7 @@ class LC_ServerSettings
 		JsonLoadContext load = new JsonLoadContext();
 		if (!load.LoadFromFile(PATH))
 		{
-			Print("[LC] Could not parse " + PATH + "; its settings are ignored this session", LogLevel.ERROR);
+			Print("[LC] Found " + PATH + " but could not parse it, so the mod's config stands this session", LogLevel.ERROR);
 			return;
 		}
 
@@ -146,9 +151,12 @@ class LC_ServerSettings
 			overridden += " channelLabels";
 
 		if (overridden.IsEmpty())
+		{
+			Print("[LC] Read " + PATH + "; none of its keys override the mod's config", LogLevel.NORMAL);
 			return;
+		}
 
-		Print("[LC] server.json overrides:" + overridden, LogLevel.NORMAL);
+		Print("[LC] Read " + PATH + "; it overrides:" + overridden, LogLevel.NORMAL);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -276,9 +284,9 @@ class LC_ServerSettings
 		save.WriteValue("channelLabels", LC_ChannelLabels.UnpackToText(m_sChannelLabels));
 
 		if (save.SaveToFile(PATH))
-			Print("[LC] Wrote " + PATH + " with this session's settings; edit it to override the mod's config", LogLevel.NORMAL);
+			Print("[LC] No " + PATH + " found, so it has been generated from this session's settings; edit it to override the mod's config", LogLevel.NORMAL);
 		else
-			Print("[LC] Could not write " + PATH, LogLevel.WARNING);
+			Print("[LC] No " + PATH + " found and it could not be written, so the mod's config stands", LogLevel.WARNING);
 	}
 
 	//------------------------------------------------------------------------------------------------

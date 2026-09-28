@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.1 — mod 2.0.1, plugin 2.0.1
+
+Since 2.0.0. The change is in the mod; the plugin is rebuilt only so both halves report the same number.
+
+- **Every session now logs one line about `server.json`**, saying which of four things happened: it was
+  generated, it was read and overrides something, it was read and overrides nothing, or it was found and
+  could not be parsed. Two of those used to be silent — a file whose keys all matched the mod's config
+  logged nothing at all, which looked exactly like a file being ignored.
+
+```
+[LC] No $profile:LimaCharlie/server.json found, so it has been generated from this session's settings; edit it to override the mod's config
+[LC] Read $profile:LimaCharlie/server.json; it overrides: cleanRangePercent channelLabels
+[LC] Read $profile:LimaCharlie/server.json; none of its keys override the mod's config
+[LC] Found $profile:LimaCharlie/server.json but could not parse it, so the mod's config stands this session
+```
+
 ## 2.0.0 — mod 2.0.0, plugin 2.0.0
 
 **The first stable release since 1.0.1**, and the one to install. It gathers everything tested through the

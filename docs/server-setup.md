@@ -77,11 +77,19 @@ without one, so start the server once and then edit the file that appears:
 ```
 
 Only the keys present in the file override anything, so you can cut it down to the two or three you care
-about. Each key that takes effect is named in the log at session start:
+about. Every session logs exactly one line saying what happened to the file, so a server whose settings are
+not what you expected tells you why:
 
 ```
-[LC] server.json overrides: cleanRangePercent channelLabels
+[LC] No $profile:LimaCharlie/server.json found, so it has been generated from this session's settings; edit it to override the mod's config
+[LC] Read $profile:LimaCharlie/server.json; it overrides: cleanRangePercent channelLabels
+[LC] Read $profile:LimaCharlie/server.json; none of its keys override the mod's config
+[LC] Found $profile:LimaCharlie/server.json but could not parse it, so the mod's config stands this session
 ```
+
+The third means the file is being read but every key in it already matches the mod's config — not that it
+is being ignored. The fourth is the one to act on: fix the JSON, because nothing in the file is taking
+effect until you do.
 
 **The catch:** a key in this file pins that setting. If a later mod update changes a default, your server
 keeps your value. Delete a key to hand that setting back to the mod, or delete the file to hand back all of
