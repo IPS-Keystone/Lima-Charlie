@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.0.0 — mod 2.0.0, plugin 2.0.0
+
+**The first stable release since 1.0.1**, and the one to install. It gathers everything tested through the
+1.0.2–1.0.14 development builds; those sections are kept below as the detail of how it got here.
+
+**Update both halves.** The bridge protocol went from 6 to 9, and the plugin ignores state it does not
+recognise, so an older plugin leaves radio and positional audio dead while TeamSpeak still looks connected.
+The join notice prints both versions side by side; if either line does not read 2.0.0, that is why.
+
+Two things every player has to do that they did not before:
+
+- **TeamSpeak's sound pack must be on, with its volume up** (Options → Notifications). Radio beeps are
+  handed to the same player that makes TeamSpeak's join and leave noises, so *Sounds deactivated* means no
+  beeps and no interface tones. Voices are unaffected.
+- **No in-game key is needed to speak.** TeamSpeak's own voice activation or push-to-talk governs your
+  microphone; the mod no longer touches it. The transmit keys are for radios only, and still ship unbound.
+
+For server operators: `$profile:LimaCharlie/server.json` now holds every setting and has the last word over
+the mod's config and the mission header. Delete an existing one to pick up the new keys. If your group also
+runs Coalition VON, keep the Lima Charlie channel name distinct from any channel CVON has used.
+
+The headline changes, all detailed below: occlusion decided from the engine's room model before any ray,
+with open doorways carrying sound the way vanilla does; room reverb sized from the room; vanilla's roger
+beep as a beep set, plus one beep volume for every channel; unconscious players silent unless the server
+says otherwise; a join notice that tells a player whether the whole chain is working; and the TeamSpeak
+channel held while you are alt-tabbed.
+
 ## 1.0.14 — mod 1.0.14, plugin 1.0.14
 
 Since 1.0.13. The change is in the mod; the plugin is rebuilt only so both halves report the same number.

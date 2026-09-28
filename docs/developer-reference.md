@@ -42,7 +42,7 @@ has to be matched to the mod it is bridged to, so it carries the scheme.
 
 | Position | Bumped for | Example |
 | --- | --- | --- |
-| **Major** | The first public release, and each major feature afterwards | 1.0.0 → 2.0.0 for electronic warfare |
+| **Major** | The first public release, and each major feature afterwards | 2.0.0 → 3.0.0 for electronic warfare |
 | **Stable** | Bug fixes and small feature changes | 1.0.0 → 1.1.0 |
 | **Dev** | Testing new features or changes | 1.1.0 → 1.1.1 |
 
@@ -116,7 +116,7 @@ Protocol 9.
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.14", "inGame": false,
+{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "2.0.0", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
   "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
 ```
@@ -183,7 +183,7 @@ time that combination is asked for and reused after. Volume is quantised to twen
 of files down, and the cache is emptied on every load so a plugin update cannot leave an old rendering of a
 changed beep behind.
 
-Until 1.0.14 they were written into the mixed playback buffer instead, in
+Before 1.0.13 they were written into the mixed playback buffer instead, in
 `ts3plugin_onEditMixedPlaybackVoiceDataEvent`. That buffer is shared with every plugin the client has loaded,
 handed to each in load order, and a plugin that overwrites rather than adds to it destroys whatever is
 already there. Coalition VON did that on a tester's machine and the beeps tore; nothing about our own mixing

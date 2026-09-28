@@ -37,8 +37,8 @@ failures make a sound on their own:
 
 ```
 Lima Charlie
-Mod loaded: 1.0.14
-TeamSpeak plugin: 1.0.14
+Mod loaded: 2.0.0
+TeamSpeak plugin: 2.0.0
 TeamSpeak: connected
 Channel: LimaCharlie
 Others with the plugin here: 3
@@ -159,8 +159,11 @@ voices, which keeps them out of reach of other plugins. Two things follow, both 
 - **Sound pack volume is your beep ceiling.** Turn it up. The mod's beep volume scales down from whatever
   TeamSpeak is set to, so a low sound pack volume caps every beep.
 
-Nothing else is affected: voices do not go through the sound pack, so speech is unchanged either way. If you
-can hear people but never a beep, this is the first thing to check.
+The interface tones go the same way — the deny buzz, the confirmation click, the direct speech toggle — so
+they are silent with the sound pack off as well.
+
+Voices are not affected either way: they never touch the sound pack, so speech is unchanged. If you can hear
+people but never a beep, this is the first thing to check.
 
 **Beep volume is one setting for every channel**, in the same ten steps as channel volume and wrapping the
 same way. It multiplies each channel's own volume, so a channel at 50% with beeps
