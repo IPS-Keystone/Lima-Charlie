@@ -49,10 +49,16 @@ Beeps play through TeamSpeak's own sound player, from rendered copies under
 the TeamSpeak log says so and beeps fall back to being mixed directly into playback, which works but can be
 overwritten by another plugin that does its own mixing.
 
-Worth checking, in order: that the beep set on that channel is not `No beeps`; that the beep volume is not
-wound down to silent (it shows beside the beep set on the radio entry when it is below full); and that
-TeamSpeak's own sound volume in Options → Notifications is up, since it now mixes our beeps as well as its
-own.
+Worth checking, in this order:
+
+1. **TeamSpeak's sound pack is not switched off.** Options → Notifications: with *Sounds deactivated*
+   selected, the player we hand beeps to makes no sound at all. This is the common one.
+2. **Sound pack volume is up**, in the same place. It is the ceiling our beep volume scales down from.
+3. The beep set on that channel is not `No beeps`.
+4. The beep volume is not wound down to silent — it shows beside the beep set on the radio entry.
+
+Voices never go through the sound pack, so "I can hear people but no beeps" points squarely at the first
+two.
 
 ## Diagnostic logging
 

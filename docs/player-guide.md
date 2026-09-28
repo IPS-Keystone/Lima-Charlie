@@ -150,8 +150,17 @@ You hear a start and end beep on someone else's transmission only within 90% of 
 default. Past that the voice arrives with no beeps — so a beep means the signal is worth listening to.
 Your own beeps always play when you key up and release.
 
-Beeps are played by TeamSpeak rather than mixed into the voice stream, so TeamSpeak's own sound volume in
-Options → Notifications applies to them as well as ours.
+**Beeps come out of TeamSpeak's sound pack, so TeamSpeak has to be allowed to make sounds.** They are
+handed to the same player that makes TeamSpeak's own join and leave noises, rather than being mixed into the
+voices, which keeps them out of reach of other plugins. Two things follow, both in Options → Notifications:
+
+- **The sound pack cannot be off.** Set to *Sounds deactivated*, TeamSpeak plays nothing at all and you get
+  no beeps, however loud the mod's own beep volume is set.
+- **Sound pack volume is your beep ceiling.** Turn it up. The mod's beep volume scales down from whatever
+  TeamSpeak is set to, so a low sound pack volume caps every beep.
+
+Nothing else is affected: voices do not go through the sound pack, so speech is unchanged either way. If you
+can hear people but never a beep, this is the first thing to check.
 
 **Beep volume is one setting for every channel**, in the same ten steps as channel volume and wrapping the
 same way. It multiplies each channel's own volume, so a channel at 50% with beeps
