@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.0.14 — mod 1.0.14, plugin 1.0.14
+
+Since 1.0.13. The change is in the mod; the plugin is rebuilt only so both halves report the same number.
+
+- **One open doorway between you no longer muffles anything.** Standing to the side of an open door, with
+  someone out in front of it, was muffled because the room model charged a fifth of a muffle for passing
+  through the doorway and the trace found the wall beside you. An open portal within 15 m is now treated as
+  no obstruction at all, and no trace is taken, so it comes out clear — which is how vanilla sounds, and for
+  the same reason: its occlusion is gated on how enclosed the listener is, and a room standing open is not
+  enclosed.
+- A part-open door, a closed one, or anything further than 15 m is unchanged: the path is an upper bound and
+  the trace still decides, which is what keeps building corners and alleyways slightly muffled.
+
+### Keybinds and the radio menu
+
+- **The beep volume key now appears in the keybind menu, and binds.** Two faults: its default was `;`,
+  which the input system would not take, and an action whose default it cannot resolve is an action that
+  does not exist, so the entry had nothing to show. The default is now `O`. The entry also needs
+  `m_sPreset`, which is what the menu attaches a new binding to — without it the row draws but refuses
+  every key.
+- Every keybind name is shortened to the length the menu is built for — vanilla's own field documents 15
+  characters and ours ran to 48 — and the four transmit keys are marked as continuous, as vanilla marks its
+  own hold actions.
+- **The radio menu keys now appear in the game's control hint panel**, the one that prompts you to open a
+  door, whenever the menu is open. Ear, beeps, channel volume, beep volume, transmit key and type frequency.
+- **The beep volume is shown on every radio entry**, not only once it has been turned down. A setting that
+  only appears after you change it is a setting nobody finds.
+- **The type-frequency box has moved off the middle of the radial menu** to the right of it, so it no longer
+  covers the channels you are picking between.
+
 ## 1.0.13 — mod 1.0.13, plugin 1.0.13
 
 Since 1.0.12. Protocol is unchanged at 9, so this is a plugin-only change.

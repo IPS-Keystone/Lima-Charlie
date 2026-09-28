@@ -231,6 +231,14 @@ class LC_Rooms
 	protected static const float CLOSED_MUFFLE = 0.6;
 	//! Muffle for a wide open doorway
 	protected static const float OPEN_MUFFLE = 0.2;
+	//! One wide open doorway between them, and close enough to be at it, is treated as nothing at all: no
+	//! muffle and no trace, so standing to one side of an open door is clear even though a wall is in the
+	//! way. This is what vanilla does, and the reason it sounds right in a doorway: its occlusion is gated
+	//! on how enclosed the listener is, and a room standing open to the outside is not enclosed. The cost
+	//! of it is vanilla's too - outdoors is a single area, so anyone outdoors within the range below is
+	//! equally clear, including someone around the back of the building. Beyond the range the path is an
+	//! upper bound again and the trace decides, which is what keeps corners and alleyways muffled.
+	protected static const float OPEN_PATH_RANGE_M = 15;
 	//! How much of the listener's room a voice excites: all of it from inside the same room, a little from
 	//! elsewhere in the building, and next to none from outdoors, where the voice arrives through an opening
 	//! rather than filling the room
@@ -398,7 +406,7 @@ class LC_Rooms
 	//! clearer, since a path cost cannot know whether the two can simply see each other. 0 needs no trace,
 	//! because nothing can beat it.
 	//! \return false when the room model cannot answer, so tracing alone decides
-	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, out float muffle)
+	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, out float muffle)
 	{
 		muffle = 0;
 
@@ -446,6 +454,13 @@ class LC_Rooms
 		// one - is not silenced. It falls back to tracing, which is what happens without a room model at all.
 		if (distance >= UNREACHABLE)
 			return false;
+
+		// One open doorway, and near enough to be standing at it: clear, and no trace to say otherwise
+		if (distance <= OPEN_MUFFLE && distanceSq <= OPEN_PATH_RANGE_M * OPEN_PATH_RANGE_M)
+		{
+			muffle = 0;
+			return true;
+		}
 
 		muffle = Math.Min(distance, 1);
 		return true;

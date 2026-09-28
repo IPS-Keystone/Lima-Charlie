@@ -44,6 +44,17 @@ in-game transmit keys are only for radios.
 Earlier versions gated the microphone on the game's keys, which is why they demanded continuous or voice
 activation. That restriction is gone.
 
+## TeamSpeak's sound pack
+
+**Radio beeps come out of TeamSpeak's sound pack, so it has to be on.** In Options → Notifications, leave
+the sound pack set to something other than *Sounds deactivated*, and turn the sound pack volume up: it is
+the ceiling the mod's own beep volume scales down from. Beeps are handed to the same player that makes
+TeamSpeak's join and leave noises, which is what keeps them out of reach of other plugins that mix their
+own audio.
+
+Voices are not affected, so a group with sounds switched off will hear each other perfectly and simply
+never hear a beep.
+
 ## Channel handling
 
 The plugin moves you into the configured TeamSpeak channel when you join the game, and back to wherever you

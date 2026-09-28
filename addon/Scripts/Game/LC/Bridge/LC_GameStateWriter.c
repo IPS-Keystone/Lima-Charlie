@@ -258,7 +258,7 @@ class LC_GameStateWriter
 			if (distanceSq > maxDistanceSq)
 				continue;
 
-			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now);
+			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, distanceSq, reader.IsPlayerTalking(playerId), now);
 			if (m_bRoomDiagnostics)
 				AppendRoomDiagnostic(playerId, muffle);
 
@@ -283,7 +283,7 @@ class LC_GameStateWriter
 	//! of the two wins: a path through the rooms cannot tell whether the two can see each other, and a trace
 	//! cannot tell that an open door two rooms away carries a voice. Only the same room needs neither, being
 	//! clear already.
-	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
+	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, float distanceSq, bool talking, int now)
 	{
 		LC_MuffleSample sample = m_mMuffle.Get(playerId);
 		if (!sample)
@@ -298,13 +298,13 @@ class LC_GameStateWriter
 
 		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
 		float roomMuffle;
-		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, roomMuffle))
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, roomMuffle))
 		{
 			sample.m_bFromRooms = true;
 			m_iRoomsResolved++;
 
-			// Same room: nothing a trace finds can improve on clear, and a pillar or a crate between them
-			// must not make it worse
+			// Same room, or one open doorway apart: nothing a trace finds can improve on clear, and a wall
+			// beside the doorway, a pillar or a crate between them must not make it worse
 			if (roomMuffle <= 0)
 			{
 				// Any trace result is now stale: a later fallback has to trace again rather than reuse it

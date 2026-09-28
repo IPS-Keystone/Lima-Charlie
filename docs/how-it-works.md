@@ -95,6 +95,7 @@ Where that model covers both people, it decides the muffle outright and no trace
 | Situation | Muffle |
 | --- | --- |
 | Same room | 0 |
+| One wide open doorway apart, within 15 m | 0 |
 | Different rooms of one building | cheapest path between them across the doorways |
 | One inside a building, the other outside it | cheapest path from that room to the outside |
 
@@ -103,7 +104,15 @@ window, which is not a path at all until it breaks. So an open door two rooms aw
 through and a closed one is worth about as much as the wall beside it. Nothing has to be in line of sight
 for this, which is the part traces cannot do: shouting round a corner through an open door now carries.
 
-**Both have a say, and the clearer wins.** A path through the rooms cannot tell whether the two can simply
+**An open doorway is treated as no obstruction at all**, as long as you are within 15 m of each other: no
+muffle, and no trace to argue with it. Standing to one side of an open door with someone out in front of it
+is clear, even though there is a wall between you. Vanilla behaves the same way, because its occlusion is
+gated on how enclosed the listener is and a room standing open to the outside does not count as enclosed. It
+costs what vanilla's costs: outdoors is a single area, so within that 15 m anyone outdoors is equally clear,
+including someone around the back of the building. Beyond it, and for a part-open or closed door, the path is
+an upper bound again and the trace decides.
+
+**Otherwise both have a say, and the clearer wins.** A path through the rooms cannot tell whether the two can simply
 see each other, through an open hangar door or across a room the engine has split in two; a trace cannot
 tell that an open door two rooms away carries a voice. So anything other than same-room is traced as well
 and the lower muffle is used. Same room needs neither — it is clear already, and a pillar or a crate between
