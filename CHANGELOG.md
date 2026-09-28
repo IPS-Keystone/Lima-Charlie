@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.14 — mod 1.0.14, plugin 1.0.14
+
+Since 1.0.13. The change is in the mod; the plugin is rebuilt only so both halves report the same number.
+
+- **One open doorway between you no longer muffles anything.** Standing to the side of an open door, with
+  someone out in front of it, was muffled because the room model charged a fifth of a muffle for passing
+  through the doorway and the trace found the wall beside you. An open portal within 15 m is now treated as
+  no obstruction at all, and no trace is taken, so it comes out clear — which is how vanilla sounds, and for
+  the same reason: its occlusion is gated on how enclosed the listener is, and a room standing open is not
+  enclosed.
+- A part-open door, a closed one, or anything further than 15 m is unchanged: the path is an upper bound and
+  the trace still decides, which is what keeps building corners and alleyways slightly muffled.
+
 ## 1.0.13 — mod 1.0.13, plugin 1.0.13
 
 Since 1.0.12. Protocol is unchanged at 9, so this is a plugin-only change.
