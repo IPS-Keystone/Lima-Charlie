@@ -5,12 +5,12 @@ FrameWidgetClass {
    Name "Panel"
    Slot FrameWidgetSlot "{6A5C69DD20000042}" {
     Anchor 0.5 0.5 0.5 0.5
-    PositionX -170
-    OffsetLeft -170
+    PositionX 340
+    OffsetLeft 340
     PositionY -80
     OffsetTop -80
     SizeX 340
-    OffsetRight -170
+    OffsetRight -680
     SizeY 160
     OffsetBottom -80
    }

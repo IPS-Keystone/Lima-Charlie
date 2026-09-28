@@ -11,11 +11,15 @@
 | Cycle ear | `T` | Both → left → right, per radio |
 | Cycle beep set | `K` | Changes the transmission tones, per radio |
 | Cycle volume | `L` | Steps down 10%, wrapping from 0% back to 100% |
-| Cycle beep volume | `;` | The same steps, for beeps on every channel at once |
+| Cycle beep volume | *unbound* | The same steps, for beeps on every channel at once |
 | Adjust volume | `Ctrl` + scroll | On the hovered channel in the radio menu |
 
-**The four transmit keys ship unbound on purpose.** Bind them in Options → Keybinds → Lima Charlie
-before you can use a radio at all. Everything else has a default you can change there too.
+**The four transmit keys and the beep volume key ship unbound on purpose.** Bind them in Options →
+Keybinds → Lima Charlie; without a transmit key you cannot use a radio at all. Everything else has a
+default you can change there too.
+
+With the radio menu open, the keys that act on the channel under your cursor appear in the game's own
+control hint panel, the same one that prompts you to open a door.
 
 **You need no key to talk to the people around you.** TeamSpeak decides when your microphone is open, by
 whatever you have it set to, and the people near you hear you positioned and muffled by where you both
@@ -146,10 +150,10 @@ Your own beeps always play when you key up and release.
 Beeps are played by TeamSpeak rather than mixed into the voice stream, so TeamSpeak's own sound volume in
 Options → Notifications applies to them as well as ours.
 
-**Beep volume is one setting for every channel**, on `;` by default, in the same ten steps as channel
-volume and wrapping the same way. It multiplies each channel's own volume, so a channel at 50% with beeps
-at 50% beeps at a quarter volume, and a channel turned off is silent either way. Below full volume the
-figure appears beside the beep set on each radio's entry in the radio menu. Interface tones — the deny
+**Beep volume is one setting for every channel**, in the same ten steps as channel volume and wrapping the
+same way. It multiplies each channel's own volume, so a channel at 50% with beeps
+at 50% beeps at a quarter volume, and a channel turned off is silent either way. The figure sits beside the
+beep set on every radio's entry, so `TFAR SW 70%` is that channel's beep set at the beep volume you set. Interface tones — the deny
 buzz, the confirmation click — are not beeps and keep their own level.
 
 With the radio menu open and a channel under the cursor, changing either volume plays that channel's beep

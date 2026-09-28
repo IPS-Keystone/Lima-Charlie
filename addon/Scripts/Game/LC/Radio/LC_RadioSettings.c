@@ -240,8 +240,9 @@ class LC_RadioSettings
 		}
 
 		// The beep volume is one setting for every channel, so it rides along on each channel's beep label
-		// rather than having a line of its own. At full volume there is nothing worth saying.
-		if (name == "No beeps" || m_fBeepVolume >= 1)
+		// rather than having a line of its own. Shown even at full volume, because a setting that only
+		// appears once it has been changed is a setting nobody finds.
+		if (name == "No beeps")
 			return name;
 
 		int percent = Math.Round(m_fBeepVolume * 100);
