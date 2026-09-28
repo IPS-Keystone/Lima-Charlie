@@ -2,7 +2,14 @@
 
 ## First checks
 
-Both files live in `$profile/LimaCharlie/`, which for the published game is
+**Read the status notice.** It appears a few seconds after joining and names whichever part of the chain is
+missing. Most reports of "the mod does not work" are the plugin not running or TeamSpeak not being
+connected, and the notice says which. It is repeated in `console.log` as `[LC] Status: ...`, so it is
+there even for a player who has hints and notifications turned off.
+
+### The bridge files
+
+Both live in `$profile/LimaCharlie/`, which for the published game is
 `Documents/My Games/ArmaReforger/profile/LimaCharlie/`.
 
 ```bash
@@ -20,21 +27,86 @@ cat "$USERPROFILE/Documents/My Games/ArmaReforger/profile/LimaCharlie/plugin_sta
 The game log also prints a status line whenever any of it changes:
 
 ```
-[LC] Plugin 0.9.0: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
+[LC] Plugin 1.0.13: TeamSpeak connected=1, client id=3, in game channel=1, peers=1
 ```
 
 Game logs are in `Documents/My Games/ArmaReforger/logs/logs_<timestamp>/console.log`.
 
+## Left in the game channel after a crash
+
+Quitting normally tells the plugin, and you are moved back to the channel you came from at once. A crash
+cannot, so the plugin waits five minutes before deciding the game is gone. Move yourself back if you do not
+want to wait; nothing is broken. The TeamSpeak log shows `Game state paused; holding the channel` when the
+game stops writing, and `Left game` when it eventually gives up.
+
+The same two lines appear when you alt-tab, which is deliberate: you keep the channel, and everyone else is
+spared a join and leave notification every time you look at something else.
+
+## No beeps at all
+
+Beeps play through TeamSpeak's own sound player, from rendered copies under
+`%APPDATA%/TS3Client/plugins/limacharlie/sounds/beepcache/`. If that folder cannot be created or written,
+the TeamSpeak log says so and beeps fall back to being mixed directly into playback, which works but can be
+overwritten by another plugin that does its own mixing.
+
+Worth checking, in order: that the beep set on that channel is not `No beeps`; that the beep volume is not
+wound down to silent (it shows beside the beep set on the radio entry when it is below full); and that
+TeamSpeak's own sound volume in Options → Notifications is up, since it now mixes our beeps as well as its
+own.
+
 ## Diagnostic logging
 
-Set `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs both sides of the bridge
+Set `diagnosticLog` in `server.json`, or `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs both sides of the bridge
 once a second. That includes a Game Master in the editor, who used to get the sending half regardless;
 it now needs the setting like everyone else.
+
+## Room diagnostics
+
+`roomDiagnosticLog` in `server.json`, or `m_bRoomDiagnosticLog 1` in the mod's config, logs one line a second per client about the engine's room model, which is what
+decides muffling for anyone in a building:
+
+```
+[LC] rooms listener Barn_01 room 2, 96 m3 | layout 4 areas, 5 portals, 5 usable, 0 unfound, 3712 cells, done | portals 0:0 1:100 2:0B 3:0 | rooms 3 traced 1 | 4 Barn_01 room 2, 96 m3 R 0.00, 7 outdoors T 0.60
+```
+
+- **listener** — the room you are in, and its volume.
+- **layout** — how much of that building type has been mapped. `unfound` portals are doorways the engine
+  reports but probing never located; the layout still works without them.
+- **portals** — how open each doorway is, as a percentage, with `B` for one that blocks sound (an intact
+  window), `S` for one that passes sound anyway (broken glass), `X` for disabled. **Open a door and watch
+  the number change** — that confirms the engine keeps this up to date.
+- **rooms N traced M** — how many nearby players the room model answered for, and how many still needed
+  traces.
+- Then per player: their room, `R` if the room model decided their muffle or `T` if a trace did, the muffle
+  itself, and in brackets what the last trace for them hit.
+
+That bracket is how to chase down something muffling when it should not:
+
+```
+7 outdoors T 0.60 [Lamppost_01 0.3m skip2]
+7 outdoors T 0.60 [Wall_Concrete_01 4.0m]
+7 outdoors T 0.60 [world]
+```
+
+- A **name and a width** is the thing that blocked. Under 0.8 m across should have been ignored, so seeing
+  one there means the filter did not reject it.
+- **`sN`** after the width is how much of that thing's bounding box its colliders fill: `s0.95` is a solid
+  wall, `s0.10` something you could see straight through. Diagnostic only for now — if it separates the
+  two cleanly across enough props, it can replace both the name list and the width test with one
+  measurement.
+- **`skipN`** counts props the trace ignored on the way. A narrow thing named as cover *without* a `skip`
+  count means the engine never consulted our filter at all, which is a different problem from the
+  threshold being wrong.
+- **`world`** is terrain or other geometry with no entity behind it, which always counts as cover.
+- **`clear`** means that trace found nothing, so the muffle came from the other direction or from the rooms.
+
+If `traced` stays high while everyone is indoors together, the building has no room model and traces are
+doing the work, which is the intended fallback.
 
 **Sending half** — the whole game state as written:
 
 ```
-[LC] game_state {"v":6,"seq":362,...,"tx":2,"txRadio":"-2147482979:1",...}
+[LC] game_state {"v":7,"seq":362,...,"tx":2,"txRadio":"-2147482979:1",...}
 ```
 
 **Receiving half** — what the plugin reports back:
@@ -79,9 +151,17 @@ Reception working proves the protocol versions match, since a version mismatch r
 
 ## "My microphone never opens"
 
-TeamSpeak's own push-to-talk fights the plugin. Set TeamSpeak to Continuous Transmission or Voice
-Activation Detection. The plugin controls the mic through `CLIENT_INPUT_DEACTIVATED` and expects to be the
-only thing gating it.
+Nothing in Lima Charlie touches your microphone any more, so this is TeamSpeak's own setup: check its
+capture device and mode as you would for any other channel. If TeamSpeak shows you as talking and nobody
+hears you, the problem is elsewhere — read the status notice and `peers`.
+
+**Builds before 1.0.7 gated the microphone on the game's transmit keys**, by holding TeamSpeak's own local
+mute shut whenever no key was held. On those, voice activation could not open the microphone at all, and a
+session that ended while it was shut could leave TeamSpeak muted afterwards. If a player is stuck muted
+after running one, unmute the microphone in TeamSpeak once; from 1.0.7 nothing touches it again.
+
+From 1.0.8 the status notice says so outright: **"Microphone: muted in TeamSpeak"**, whenever the local
+mute, the mute toggle or a muted speaker is holding it shut.
 
 ## Keybinds show as unbound but work
 

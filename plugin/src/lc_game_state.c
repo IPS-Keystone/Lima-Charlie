@@ -124,7 +124,6 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
         copy_string(session, "token", out->token, sizeof(out->token));
         out->playerId = get_int(session, "playerId", 0);
         copy_string(session, "playerName", out->playerName, sizeof(out->playerName));
-        copy_string(session, "tsServer", out->tsServer, sizeof(out->tsServer));
         copy_string(session, "tsChannel", out->tsChannel, sizeof(out->tsChannel));
         copy_string(session, "tsChannelPassword", out->tsChannelPassword, sizeof(out->tsChannelPassword));
         copy_string(session, "modVersion", out->modVersion, sizeof(out->modVersion));
@@ -140,6 +139,12 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
         out->cleanFraction = get_float(self, "cleanFraction", LC_RADIO_CLEAN_FRACTION);
         out->beepFraction  = get_float(self, "beepFraction", LC_RADIO_BEEP_FRACTION);
         out->unlimitedRx   = get_bool(self, "unlimitedRx");
+        out->roomVolume    = get_float(self, "roomVolume", 0.0f);
+        out->beepVolume    = get_float(self, "beepVolume", 1.0f);
+        if (out->beepVolume < 0.0f)
+            out->beepVolume = 0.0f;
+        else if (out->beepVolume > 1.0f)
+            out->beepVolume = 1.0f;
         parse_radios(self, out);
         parse_sounds(self, out);
 
@@ -156,6 +161,8 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
             p->alive            = get_bool(player, "alive");
             get_vec3(player, "pos", p->pos);
             p->muffle = get_float(player, "muffle", 0.0f);
+            /* How much of the listener's room this voice fills, for the reverb send */
+            p->room = get_float(player, "room", 1.0f);
         }
 
         const cJSON* links = cJSON_GetObjectItemCaseSensitive(root, "links");

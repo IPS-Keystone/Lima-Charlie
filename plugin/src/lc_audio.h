@@ -7,12 +7,15 @@
 #include "lc_ts.h"
 
 #define LC_AUDIO_MAX_TARGETS 256
+/* Frames of one voice buffer that can go to the room reverb; a TeamSpeak period is far shorter */
+#define LC_AUDIO_MAX_SEND 8192
 
 typedef struct {
     anyID client;
     float gainLeft;
     float gainRight;
     float muffle; /* 0 clear .. 1 fully muffled */
+    float roomShare; /* 0 .. 1 how much of the listener's room this voice fills, scaling the reverb send */
     float radioLeft;
     float radioRight;
     float radioQuality; /* 1 clean .. near 0 barely readable; garbles the radio path, not its volume */

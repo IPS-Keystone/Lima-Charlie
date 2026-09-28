@@ -7,6 +7,12 @@ class LC_MuffleSample
 	vector m_vSpeaker;
 	int m_iTracedTick;
 	int m_iSeenTick;
+	//! Where this player was standing in the engine's room model when last checked
+	ref LC_RoomLocation m_Room = new LC_RoomLocation();
+	//! Whether the room model answered for this player, rather than a trace, for the diagnostic line
+	bool m_bFromRooms;
+	//! What the last trace for this player hit, for the diagnostic line
+	string m_sCover;
 }
 
 //------------------------------------------------------------------------------------------------
@@ -16,23 +22,26 @@ class LC_GameStateWriter
 {
 	protected static const string DIRECTORY = "$profile:LimaCharlie";
 	protected static const string PATH = "$profile:LimaCharlie/game_state.json";
-	protected static const int PROTOCOL_VERSION = 6;
+	protected static const int PROTOCOL_VERSION = 9;
 	//! 20 Hz while anyone's voice is live; transmit, radio and terrain changes are written immediately
 	protected static const int INTERVAL_MS = 50;
 	//! 10 Hz when nobody is talking and we are not transmitting: positions still move, but nothing is audible
 	protected static const int IDLE_INTERVAL_MS = 100;
+	//! 2 Hz with no plugin reading any of it - TeamSpeak not running, or not yet started. Still often enough
+	//! for the plugin to find a fresh state within half a second of starting up.
+	protected static const int NO_PLUGIN_INTERVAL_MS = 500;
 	//! Players beyond this distance cannot matter for direct speech
 	protected static const float NEARBY_RANGE_M = 60;
 	//! Occlusion traces are the expensive part, so each nearby player is re-traced only as often as it can
 	//! matter: often while they talk, less often while silent (so the result is ready when they start), and
 	//! rarely when neither end has moved, which is most of a briefing or a building clear
-	protected static const int OCCLUSION_TALKING_MS = 100;
-	protected static const int OCCLUSION_SILENT_MS = 500;
-	protected static const int OCCLUSION_STILL_MS = 2000;
-	protected static const float OCCLUSION_MOVE_M = 0.25;
+	protected static const int OCCLUSION_TALKING_MS = 50;
+	protected static const int OCCLUSION_SILENT_MS = 250;
+	protected static const int OCCLUSION_STILL_MS = 1000;
+	protected static const float OCCLUSION_MOVE_M = 0.15;
 	//! At most this many players are re-traced in one write, so a crowd arriving at once is spread over
 	//! several frames instead of landing in one
-	protected static const int OCCLUSION_BUDGET = 8;
+	protected static const int OCCLUSION_BUDGET = 12;
 	//! A player not seen nearby for this long has their cached result dropped
 	protected static const int OCCLUSION_FORGET_MS = 5000;
 	//! A camera further than this from the body it belongs to is a free camera: Game Master, spectator or photo
@@ -40,6 +49,8 @@ class LC_GameStateWriter
 	protected static const float FREE_CAMERA_RANGE_M = 20;
 	//! How often the whole state goes to the log while the server's diagnostic setting is on
 	protected static const int DIAGNOSTIC_INTERVAL_MS = 1000;
+	//! Nearby players listed in one room diagnostic line
+	protected static const int DIAGNOSTIC_MAX_PLAYERS = 6;
 
 	protected int m_iSeq;
 	protected int m_iNextWriteTick;
@@ -54,6 +65,14 @@ class LC_GameStateWriter
 	protected ref array<int> m_aForget = {};
 	protected int m_iTraceBudget;
 	protected ref LC_Occlusion m_Occlusion = new LC_Occlusion();
+	protected ref LC_Rooms m_Rooms = new LC_Rooms();
+	//! Where the listener is in the room model; the room checks are all relative to this
+	protected ref LC_RoomLocation m_ListenerRoom = new LC_RoomLocation();
+	protected int m_iNextRoomDiagnosticTick;
+	protected bool m_bRoomDiagnostics;
+	protected int m_iRoomsResolved;
+	protected int m_iRoomsTraced;
+	protected string m_sRoomDiagnostic;
 
 	//------------------------------------------------------------------------------------------------
 	void LC_GameStateWriter()
@@ -103,19 +122,27 @@ class LC_GameStateWriter
 		m_iLastSoundSeq = soundSeq;
 		m_iNextWriteTick = now + GetWriteInterval(client, transmitType);
 
+		m_sRoomDiagnostic = string.Empty;
+		m_bRoomDiagnostics = client.GetRoomDiagnostics();
 		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, radios, now, unlimitedRange);
 		WriteFile(json);
 		LogDiagnostic(now, json, client.GetDiagnosticLog());
+		LogRoomDiagnostic(now, client.GetRoomDiagnostics());
 	}
 
 	//------------------------------------------------------------------------------------------------
 	//! Voice only needs fresh positions while someone can be heard
 	protected int GetWriteInterval(notnull LC_Client client, EVONTransmitType transmitType)
 	{
+		LC_PluginStateReader reader = client.GetPluginState();
+
+		// Nobody is reading this. Somebody playing without TeamSpeak running should not pay for the bridge.
+		if (!reader.IsPluginRunning(System.GetTickCount()))
+			return NO_PLUGIN_INTERVAL_MS;
+
 		if (transmitType != EVONTransmitType.NONE)
 			return INTERVAL_MS;
 
-		LC_PluginStateReader reader = client.GetPluginState();
 		if (reader.IsSelfTalking() || reader.IsAnyPlayerTalking())
 			return INTERVAL_MS;
 
@@ -166,24 +193,9 @@ class LC_GameStateWriter
 		json += ",\"session\":{\"token\":" + LC_Json.String(client.GetSessionToken());
 		json += ",\"playerId\":" + localPlayerId.ToString();
 		json += ",\"playerName\":" + LC_Json.String(playerManager.GetPlayerName(localPlayerId));
-		json += ",\"tsServer\":" + LC_Json.String(client.GetTeamSpeakServer());
 		json += ",\"tsChannel\":" + LC_Json.String(client.GetTeamSpeakChannel());
 		json += ",\"tsChannelPassword\":" + LC_Json.String(client.GetTeamSpeakChannelPassword());
 		json += ",\"modVersion\":" + LC_Json.String(LC_Version.VERSION) + "}";
-
-		int transmit = transmitType;
-		json += ",\"self\":{\"alive\":" + LC_Json.Bool(IsListening(localEntity));
-		json += ",\"pos\":" + LC_Json.Position(listenerPosition);
-		json += ",\"dir\":" + LC_Json.Direction(listenerDirection);
-		json += ",\"tx\":" + transmit.ToString();
-		json += ",\"txFrequency\":" + transmitFrequency.ToString();
-		json += ",\"txRadio\":" + LC_Json.String(transmitRadio);
-		json += ",\"voiceRange\":" + voiceRange.ToString(-1, 1);
-		json += ",\"cleanFraction\":" + client.GetCleanFraction().ToString(-1, 2);
-		json += ",\"beepFraction\":" + client.GetBeepFraction().ToString(-1, 2);
-		json += ",\"unlimitedRx\":" + LC_Json.Bool(unlimitedRange);
-		json += ",\"radios\":" + radios;
-		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson() + "}";
 
 		// Occlusion is traced from the listener's head, not the camera, so third person does not hear around walls.
 		// A free camera is nowhere near the body it belongs to, and that camera is where the player really listens
@@ -200,6 +212,28 @@ class LC_GameStateWriter
 			}
 		}
 
+		// Which room the listener is in, and a slice of the work of mapping that building's type
+		m_Rooms.Locate(m_ListenerRoom, occlusionOrigin, now);
+		m_Rooms.Update(m_ListenerRoom);
+
+		int transmit = transmitType;
+		json += ",\"self\":{\"alive\":" + LC_Json.Bool(IsListening(localEntity));
+		json += ",\"pos\":" + LC_Json.Position(listenerPosition);
+		json += ",\"dir\":" + LC_Json.Direction(listenerDirection);
+		json += ",\"tx\":" + transmit.ToString();
+		json += ",\"txFrequency\":" + transmitFrequency.ToString();
+		json += ",\"txRadio\":" + LC_Json.String(transmitRadio);
+		json += ",\"voiceRange\":" + voiceRange.ToString(-1, 1);
+		json += ",\"cleanFraction\":" + client.GetCleanFraction().ToString(-1, 2);
+		json += ",\"beepFraction\":" + client.GetBeepFraction().ToString(-1, 2);
+		json += ",\"unlimitedRx\":" + LC_Json.Bool(unlimitedRange);
+		json += ",\"radios\":" + radios;
+		// One beep volume for every channel, scaling each channel's own volume where the plugin plays beeps
+		json += ",\"beepVolume\":" + client.GetRadioSettings().GetBeepVolume().ToString(-1, 2);
+		// Volume of the room the listener is in, 0 outdoors: the plugin sizes its reverb from it
+		json += ",\"roomVolume\":" + m_ListenerRoom.m_fVolume.ToString(-1, 0);
+		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson() + "}";
+
 		json += ",\"players\":[";
 		m_aPlayerIds.Clear();
 		playerManager.GetPlayers(m_aPlayerIds);
@@ -207,6 +241,8 @@ class LC_GameStateWriter
 		float maxDistanceSq = NEARBY_RANGE_M * NEARBY_RANGE_M;
 		m_iTraceBudget = OCCLUSION_BUDGET;
 		bool first = true;
+		m_iRoomsResolved = 0;
+		m_iRoomsTraced = 0;
 		foreach (int playerId : m_aPlayerIds)
 		{
 			if (playerId == localPlayerId)
@@ -223,15 +259,18 @@ class LC_GameStateWriter
 				continue;
 
 			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, reader.IsPlayerTalking(playerId), now);
+			if (m_bRoomDiagnostics)
+				AppendRoomDiagnostic(playerId, muffle);
 
 			if (!first)
 				json += ",";
 
 			first = false;
 			json += "{\"id\":" + playerId.ToString();
-			json += ",\"alive\":" + LC_Json.Bool(IsAlive(entity));
+			json += ",\"alive\":" + LC_Json.Bool(LC_Life.CanSpeak(entity));
 			json += ",\"pos\":" + LC_Json.Position(position);
-			json += ",\"muffle\":" + muffle.ToString(-1, 2) + "}";
+			json += ",\"muffle\":" + muffle.ToString(-1, 2);
+			json += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2) + "}";
 		}
 
 		json += "],\"links\":" + client.GetRadioLinks().BuildJson() + "}";
@@ -240,8 +279,10 @@ class LC_GameStateWriter
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! How muffled a nearby player is, from the cache unless their result is due and there is budget left in
-	//! this write. Due means their interval has passed and either end has moved, or it has gone stale.
+	//! How muffled a nearby player is. Both the engine's room model and a trace get a say, and the clearer
+	//! of the two wins: a path through the rooms cannot tell whether the two can see each other, and a trace
+	//! cannot tell that an open door two rooms away carries a voice. Only the same room needs neither, being
+	//! clear already.
 	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
 	{
 		LC_MuffleSample sample = m_mMuffle.Get(playerId);
@@ -255,6 +296,36 @@ class LC_GameStateWriter
 
 		sample.m_iSeenTick = now;
 
+		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
+		float roomMuffle;
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, roomMuffle))
+		{
+			sample.m_bFromRooms = true;
+			m_iRoomsResolved++;
+
+			// Same room: nothing a trace finds can improve on clear, and a pillar or a crate between them
+			// must not make it worse
+			if (roomMuffle <= 0)
+			{
+				// Any trace result is now stale: a later fallback has to trace again rather than reuse it
+				sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
+				return 0;
+			}
+
+			// Otherwise the path is only an upper bound: a trace may find they can see each other
+			return Math.Min(roomMuffle, TraceMuffle(sample, speaker, speakerPosition, listener, listenerPosition, talking, now));
+		}
+
+		sample.m_bFromRooms = false;
+		m_iRoomsTraced++;
+		return TraceMuffle(sample, speaker, speakerPosition, listener, listenerPosition, talking, now);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The traced muffle for this player, from the cache unless it is due and there is budget left in this
+	//! write. Due means their interval has passed and either end has moved, or it has gone stale.
+	protected float TraceMuffle(notnull LC_MuffleSample sample, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
+	{
 		int interval = OCCLUSION_SILENT_MS;
 		if (talking)
 			interval = OCCLUSION_TALKING_MS;
@@ -270,10 +341,78 @@ class LC_GameStateWriter
 
 		m_iTraceBudget--;
 		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
+		if (m_bRoomDiagnostics)
+			sample.m_sCover = m_Occlusion.DescribeCover();
 		sample.m_vListener = listenerPosition;
 		sample.m_vSpeaker = speakerPosition;
 		sample.m_iTracedTick = now;
 		return sample.m_fMuffle;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! How much of our room this player's voice fills, for the plugin's reverb send
+	protected float GetRoomShare(int playerId, float muffle)
+	{
+		LC_MuffleSample sample = m_mMuffle.Get(playerId);
+		if (!sample)
+			return 0;
+
+		return m_Rooms.GetRoomShare(m_ListenerRoom, sample.m_Room, muffle, !sample.m_bFromRooms);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! One nearby player's room and where their muffle came from: R for the room model, T for a trace
+	protected void AppendRoomDiagnostic(int playerId, float muffle)
+	{
+		LC_MuffleSample sample = m_mMuffle.Get(playerId);
+		if (!sample || m_iRoomsResolved + m_iRoomsTraced > DIAGNOSTIC_MAX_PLAYERS)
+			return;
+
+		string source = "T";
+		if (sample.m_bFromRooms)
+			source = "R";
+
+		if (!m_sRoomDiagnostic.IsEmpty())
+			m_sRoomDiagnostic += ", ";
+
+		m_sRoomDiagnostic += playerId.ToString() + " " + m_Rooms.Describe(sample.m_Room) + " " + source + " " + muffle.ToString(-1, 2);
+		if (!sample.m_sCover.IsEmpty())
+			m_sRoomDiagnostic += " [" + sample.m_sCover + "]";
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Where the listener is, what is known about that building, how open its doorways are, and how each
+	//! nearby player's muffle was decided. One line a second while the server's room diagnostic is on.
+	protected void LogRoomDiagnostic(int now, bool enabled)
+	{
+		if (!enabled)
+		{
+			m_iNextRoomDiagnosticTick = 0;
+			return;
+		}
+
+		if (now < m_iNextRoomDiagnosticTick)
+			return;
+
+		m_iNextRoomDiagnosticTick = now + DIAGNOSTIC_INTERVAL_MS;
+
+		string line = "[LC] rooms listener " + m_Rooms.Describe(m_ListenerRoom);
+		line += " | layout " + m_Rooms.DescribeLayout(m_ListenerRoom);
+
+		int probes = m_Rooms.GetBuildSpent();
+		if (probes > 0)
+			line += " | probes " + probes.ToString();
+
+		string portals = m_Rooms.DescribePortals(m_ListenerRoom);
+		if (!portals.IsEmpty())
+			line += " | portals " + portals;
+
+		line += " | rooms " + m_iRoomsResolved.ToString() + " traced " + m_iRoomsTraced.ToString();
+		if (!m_sRoomDiagnostic.IsEmpty())
+			line += " | " + m_sRoomDiagnostic;
+
+		// PrintFormat, because Print of a bare variable logs it as "string line = '...'"
+		PrintFormat("%1", line);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -308,7 +447,7 @@ class LC_GameStateWriter
 	//! A Game Master has no body to be alive or dead, so they listen through the camera instead.
 	protected static bool IsListening(IEntity localEntity)
 	{
-		if (IsAlive(localEntity))
+		if (LC_Life.CanHear(localEntity))
 			return true;
 
 		// A character that is not alive is dead, whatever the camera is doing
@@ -327,20 +466,6 @@ class LC_GameStateWriter
 			return false;
 
 		return editorManager.IsOpened();
-	}
-
-	//------------------------------------------------------------------------------------------------
-	protected static bool IsAlive(IEntity entity)
-	{
-		ChimeraCharacter character = ChimeraCharacter.Cast(entity);
-		if (!character)
-			return false;
-
-		SCR_CharacterControllerComponent controller = SCR_CharacterControllerComponent.Cast(character.GetCharacterController());
-		if (!controller)
-			return false;
-
-		return controller.GetLifeState() != ECharacterLifeState.DEAD;
 	}
 
 	//------------------------------------------------------------------------------------------------

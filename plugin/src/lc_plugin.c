@@ -4,6 +4,7 @@
 #include "lc_core.h"
 #include "lc_peers.h"
 #include "lc_log.h"
+#include "lc_reverb.h"
 #include "lc_sounds.h"
 #include "lc_ts.h"
 #include "lc_version.h"
@@ -179,6 +180,8 @@ PLUGINS_EXPORTDLL void ts3plugin_onEditPostProcessVoiceDataEvent(uint64 serverCo
 PLUGINS_EXPORTDLL void ts3plugin_onEditMixedPlaybackVoiceDataEvent(uint64 serverConnectionHandlerID, short* samples, int sampleCount, int channels, const unsigned int* channelSpeakerArray, unsigned int* channelFillMask)
 {
     (void)serverConnectionHandlerID;
+    /* The room's tail first, then beeps, which are heard in the headset rather than in the room */
+    lc_reverb_mix(samples, sampleCount, channels, channelSpeakerArray, channelFillMask);
     lc_sounds_mix(samples, sampleCount, channels, channelSpeakerArray, channelFillMask);
 }
 

@@ -90,7 +90,9 @@ class LC_FrequencyInput
 			return;
 		}
 
-		GetGame().GetInputManager().ActivateContext(CONTEXT, 1);
+		InputManager inputManager = GetGame().GetInputManager();
+		if (inputManager)
+			inputManager.ActivateContext(CONTEXT, 1);
 		if (m_wEdit && !m_wEdit.IsInWriteMode())
 			m_wEdit.ActivateWriteMode();
 	}

@@ -9,7 +9,7 @@ class LC_RadioSettings
 	static const int TRANSMIT_KEY_COUNT = 4;
 
 	protected static const int EAR_COUNT = 3;
-	protected static const int BEEP_SET_COUNT = 6;
+	protected static const int BEEP_SET_COUNT = 7;
 	protected static const int BEEP_SET_SHORT_RANGE = 0;
 	protected static const int BEEP_SET_LONG_RANGE = 1;
 	protected static const float VOLUME_STEPS = 10;
@@ -19,6 +19,8 @@ class LC_RadioSettings
 	protected ref map<string, float> m_mVolume = new map<string, float>();
 	//! Transmit key index -> transceiver id (LC_Radio.GetId) the player assigned to it
 	protected ref map<int, string> m_mKeyAssignments = new map<int, string>();
+	//! One beep volume for every channel, on top of each channel's own volume
+	protected float m_fBeepVolume = 1;
 
 	//------------------------------------------------------------------------------------------------
 	int GetEar(notnull SCR_VONEntryRadio entry)
@@ -70,6 +72,32 @@ class LC_RadioSettings
 
 		m_mVolume.Set(LC_Radio.GetId(entry), volume);
 		return volume;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! 0 silent to 1 full, applied to every channel's beeps on top of that channel's own volume
+	float GetBeepVolume()
+	{
+		return m_fBeepVolume;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! One 10% step down, wrapping from silent back to full; returns the new volume
+	float CycleBeepVolume()
+	{
+		float volume = Math.Round(m_fBeepVolume * VOLUME_STEPS - 1) / VOLUME_STEPS;
+		if (volume < 0)
+			volume = 1;
+
+		m_fBeepVolume = volume;
+		return volume;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! What one of this channel's beeps is played at: the channel's volume scaled by the global beep volume
+	float GetBeepGain(notnull SCR_VONEntryRadio entry)
+	{
+		return GetVolume(entry) * m_fBeepVolume;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -179,25 +207,45 @@ class LC_RadioSettings
 			case 2: return "tfar_ab";
 			case 3: return "tfar_classic";
 			case 4: return "acre";
+			case 5: return "vanilla";
 		}
 
 		return "none";
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Which sound in a set to play as a sample when a channel's settings change. The game's own radio
+	//! beeps only at the end of a transmission, so that set has no start beep to demonstrate.
+	string GetSampleName(notnull SCR_VONEntryRadio entry)
+	{
+		if (GetBeepSetIndex(entry) == 5)
+			return "local_end";
+
+		return "local_start";
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Compact beep set label for the radial menu
 	string GetBeepSetShortName(notnull SCR_VONEntryRadio entry)
 	{
+		string name = "No beeps";
 		switch (GetBeepSetIndex(entry))
 		{
-			case 0: return "TFAR SW";
-			case 1: return "TFAR LR";
-			case 2: return "TFAR AB";
-			case 3: return "TFAR Classic";
-			case 4: return "ACRE";
+			case 0: name = "TFAR SW"; break;
+			case 1: name = "TFAR LR"; break;
+			case 2: name = "TFAR AB"; break;
+			case 3: name = "TFAR Classic"; break;
+			case 4: name = "ACRE"; break;
+			case 5: name = "Vanilla"; break;
 		}
 
-		return "No beeps";
+		// The beep volume is one setting for every channel, so it rides along on each channel's beep label
+		// rather than having a line of its own. At full volume there is nothing worth saying.
+		if (name == "No beeps" || m_fBeepVolume >= 1)
+			return name;
+
+		int percent = Math.Round(m_fBeepVolume * 100);
+		return name + " " + percent.ToString() + "%";
 	}
 
 	//------------------------------------------------------------------------------------------------

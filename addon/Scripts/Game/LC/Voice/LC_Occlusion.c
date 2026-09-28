@@ -3,18 +3,53 @@
 //! The plugin turns it into a low-pass filter and some attenuation.
 class LC_Occlusion
 {
-	//! One wall, or the listener or speaker inside a different vehicle
+	//! One wall, or one vehicle hull
 	protected static const float SINGLE_OBSTACLE_MUFFLE = 0.6;
-	//! At least two separate obstacles, e.g. rooms apart
+	//! At least two separate obstacles, e.g. rooms apart, or two hulls
 	protected static const float MULTIPLE_OBSTACLE_MUFFLE = 0.9;
-	protected static const float VEHICLE_MUFFLE = 0.5;
+	//! Anything narrower than this across is a prop rather than cover: posts, bollards, signs, bins, trunks
+	protected static const float NARROW_M = 0.8;
+
+	//! Prefab name fragments for fences and railings you can see straight through. They are flat, so their
+	//! bounding box is no wider than a solid fence's and the width test cannot tell them apart, and their
+	//! collider is a plane filling that box, so measuring how solid they are cannot either. The vanilla
+	//! families: NetFence is chain link, MetalFence covers the decorative and Soviet bar fences, PoleFence
+	//! and GraveFence are post and rail, GameProofFence is wire mesh, and the barbed families are
+	//! obstacles rather than walls. Plank fences (WoodenFence) and BridgeRailingConcrete are solid and are
+	//! deliberately absent.
+	protected static ref array<string> s_aSeeThrough = {
+		"NetFence",
+		"MetalFence",
+		"PoleFence",
+		"GraveFence",
+		"GameProofFence",
+		"PipeRailing",
+		"RailingMetal",
+		"BarbedTape",
+		"BarbedCoil",
+		"BarbedWire"
+	};
+
+	//! One decision per prefab, since the answer never changes for a given one
+	protected static ref map<string, bool> s_mSeeThrough = new map<string, bool>();
 
 	protected ref TraceParam m_Trace = new TraceParam();
 	protected ref array<IEntity> m_aExclude = {};
 
+	//! What last blocked a trace, for the diagnostic line: null means terrain or other world geometry
+	protected IEntity m_CoverEntity;
+	protected bool m_bCoverIsWorld;
+	protected float m_fCoverWidth;
+	protected int m_iSkipped;
+
 	//------------------------------------------------------------------------------------------------
-	//! A null listener is a free camera with no body of its own: what is in the way still muffles, but there is
-	//! no vehicle around it and nothing of its own to leave out of the trace.
+	//! A null listener is a free camera with no body of its own: what is in the way still muffles, but there
+	//! is nothing of its own to leave out of the trace.
+	//!
+	//! Vehicles are not treated as a special case and are not left out of the trace. Sitting in one used to
+	//! carry a flat muffle, which was wrong for everything you sit on rather than in: a mortar, a technical's
+	//! bed, an open jeep, a hatch you are turned out of. A hull that is really between two people blocks the
+	//! trace like any other wall, and an open mount does not block it at all.
 	float Compute(IEntity listener, vector listenerPosition, notnull IEntity speaker, vector speakerPosition)
 	{
 		IEntity listenerVehicle;
@@ -25,29 +60,20 @@ class LC_Occlusion
 		if (listenerVehicle && listenerVehicle == speakerVehicle)
 			return 0;
 
-		float muffle = 0;
-		if (listenerVehicle || speakerVehicle)
-			muffle = VEHICLE_MUFFLE;
-
 		m_aExclude.Clear();
 		if (listener)
 			m_aExclude.Insert(listener);
 
 		m_aExclude.Insert(speaker);
-		if (listenerVehicle)
-			m_aExclude.Insert(listenerVehicle);
-
-		if (speakerVehicle)
-			m_aExclude.Insert(speakerVehicle);
 
 		int obstacles = CountObstacles(listenerPosition, speakerPosition, m_aExclude);
 		if (obstacles >= 2)
-			return Math.Max(muffle, MULTIPLE_OBSTACLE_MUFFLE);
+			return MULTIPLE_OBSTACLE_MUFFLE;
 
 		if (obstacles == 1)
-			return Math.Max(muffle, SINGLE_OBSTACLE_MUFFLE);
+			return SINGLE_OBSTACLE_MUFFLE;
 
-		return muffle;
+		return 0;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -63,23 +89,195 @@ class LC_Occlusion
 		m_Trace.LayerMask = EPhysicsLayerDefs.Projectile;
 		m_Trace.ExcludeArray = exclude;
 
-		m_Trace.Start = from;
-		m_Trace.End = to;
-		m_Trace.TraceEnt = null;
-		if (world.TraceMove(m_Trace, null) >= 1)
+		m_CoverEntity = null;
+		m_bCoverIsWorld = false;
+		m_fCoverWidth = 0;
+		m_iSkipped = 0;
+
+		IEntity nearListener;
+		if (!TraceCover(world, from, to, nearListener))
 			return 0;
 
-		IEntity nearListener = m_Trace.TraceEnt;
-
-		m_Trace.Start = to;
-		m_Trace.End = from;
-		m_Trace.TraceEnt = null;
-		if (world.TraceMove(m_Trace, null) >= 1)
+		IEntity nearSpeaker;
+		if (!TraceCover(world, to, from, nearSpeaker))
 			return 1;
 
-		if (m_Trace.TraceEnt != nearListener)
+		if (nearSpeaker != nearListener)
 			return 2;
 
 		return 1;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether anything between these two points counts as cover, and what it was.
+	//!
+	//! One trace, with the engine's own filter callback deciding what is worth stopping at, so a path with
+	//! any number of props along it still costs a single trace. A lamp post, a bollard, a sign, a bin or a
+	//! person standing in the way used to block and read as a whole wall, which made open ground sound like
+	//! a building.
+	protected bool TraceCover(notnull BaseWorld world, vector from, vector to, out IEntity cover)
+	{
+		cover = null;
+		m_Trace.Start = from;
+		m_Trace.End = to;
+		m_Trace.TraceEnt = null;
+		if (world.TraceMove(m_Trace, FilterCover) >= 1)
+			return false;
+
+		cover = m_Trace.TraceEnt;
+		if (cover)
+		{
+			m_CoverEntity = cover;
+			m_fCoverWidth = Width(cover);
+		}
+		else
+		{
+			// Terrain and other unowned world geometry come back without an entity, and always count
+			m_bCoverIsWorld = true;
+		}
+
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The engine calls this for each entity the trace meets; false ignores that one and the trace carries
+	//! on behind it. Measured on the wider of its two horizontal sides, so a fence panel or a wall section
+	//! still counts while a post does not.
+	protected bool FilterCover(notnull IEntity entity, vector start = "0 0 0", vector dir = "0 0 0")
+	{
+		if (IsNeverCover(entity))
+		{
+			m_iSkipped++;
+			return false;
+		}
+
+		if (Width(entity) >= NARROW_M)
+			return true;
+
+		m_iSkipped++;
+		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Things that never muffle a voice however large their bounding box is, which is what rules them out
+	//! of the width test below: a tree's box is its whole canopy and a powerline's spans two poles.
+	protected bool IsNeverCover(notnull IEntity entity)
+	{
+		// Trees, the destructible ones and the parts a felled one breaks into. Vanilla's own vegetation
+		// checks cast to Tree the same way.
+		if (BaseTree.Cast(entity))
+			return true;
+
+		// Plain static trees, placed without destruction of their own
+		if (TreeEntity.Cast(entity))
+			return true;
+
+		// The wire itself, whose box spans the whole distance between its poles
+		if (PowerlineEntity.Cast(entity))
+			return true;
+
+		// Telegraph and power poles: thin, but with crossarms wide enough to pass for cover
+		if (PowerPoleEntity.Cast(entity))
+			return true;
+
+		// Rubble, splinters and other small debris, including what a felled tree leaves behind
+		if (SCR_BaseDebrisSmallEntity.Cast(entity))
+			return true;
+
+		// Nobody is cover, whatever their bounding box says
+		if (ChimeraCharacter.Cast(entity))
+			return true;
+
+		return IsSeeThrough(entity);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether this is one of the fences or railings you can see straight through, by prefab name. Names
+	//! are a poor handle, but a flat see-through fence is indistinguishable from a solid one by shape, and
+	//! nothing in the entity's class or its material says which it is.
+	protected bool IsSeeThrough(notnull IEntity entity)
+	{
+		string prefab = SCR_ResourceNameUtils.GetPrefabName(entity);
+		if (prefab.IsEmpty())
+			return false;
+
+		bool cached;
+		if (s_mSeeThrough.Find(prefab, cached))
+			return cached;
+
+		bool seeThrough;
+		foreach (string fragment : s_aSeeThrough)
+		{
+			if (prefab.Contains(fragment))
+			{
+				seeThrough = true;
+				break;
+			}
+		}
+
+		s_mSeeThrough.Set(prefab, seeThrough);
+		return seeThrough;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! How much of this thing's bounding box its colliders actually fill, as "s0.42". Diagnostic only, to
+	//! find out whether it separates a railing or a playground slide from a wall well enough to replace the
+	//! name list and the width test with one measurement.
+	protected string DescribeSolidity(notnull IEntity entity)
+	{
+		vector mins;
+		vector maxs;
+		entity.GetWorldBounds(mins, maxs);
+		float box = (maxs[0] - mins[0]) * (maxs[1] - mins[1]) * (maxs[2] - mins[2]);
+		if (box <= 0)
+			return "s?";
+
+		float colliders = MeshObjectVolumeCalculator.GetVolumeFromColliders(entity, EPhysicsLayerDefs.Projectile);
+		return "s" + (colliders / box).ToString(-1, 2);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Widest of the two horizontal sides of this entity's bounding box
+	protected float Width(notnull IEntity entity)
+	{
+		vector mins;
+		vector maxs;
+		entity.GetWorldBounds(mins, maxs);
+		return Math.Max(maxs[0] - mins[0], maxs[2] - mins[2]);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! What blocked the last trace and how many props it ignored on the way, for the diagnostic line
+	string DescribeCover()
+	{
+		string text;
+		if (m_CoverEntity)
+		{
+			string prefab = SCR_ResourceNameUtils.GetPrefabName(m_CoverEntity);
+			int lastSlash = prefab.LastIndexOf("/");
+			if (lastSlash >= 0)
+				prefab = prefab.Substring(lastSlash + 1, prefab.Length() - lastSlash - 1);
+
+			if (prefab.IsEmpty())
+				prefab = m_CoverEntity.GetName();
+
+			if (prefab.IsEmpty())
+				prefab = "unnamed";
+
+			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m " + DescribeSolidity(m_CoverEntity);
+		}
+		else if (m_bCoverIsWorld)
+		{
+			text = "world";
+		}
+		else
+		{
+			text = "clear";
+		}
+
+		if (m_iSkipped > 0)
+			text += " skip" + m_iSkipped.ToString();
+
+		return text;
 	}
 }

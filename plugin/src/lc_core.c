@@ -7,6 +7,7 @@
 #include "lc_peers.h"
 #include "lc_profile_files.h"
 #include "lc_radio.h"
+#include "lc_reverb.h"
 #include "lc_sounds.h"
 #include "lc_transmissions.h"
 #include "lc_version.h"
@@ -23,7 +24,16 @@
 /* Nothing here is latency-critical until a game is running, and TeamSpeak often runs for hours without one.
    While idle the worker polls slowly and leaves the system timer resolution alone. */
 #define LC_IDLE_POLL_MS 50
+/* No write for this long means the game is not ticking: alt-tabbed, minimised, hitching, or gone. Only the
+   radio transmission ends on it, so a frozen game cannot hold a transmit key open on the net. */
 #define LC_GAME_STALE_MS 3000
+/* How long a game that stopped writing is still treated as being played, for the channel, the peers and the
+   voices. Leaving the game properly writes inGame:false, which is immediate and is what normally ends a
+   session, so this only decides how long a crashed or killed game keeps you in the game channel. Long,
+   because being dragged out of the channel and back in every time someone alt-tabs is worse than sitting in
+   the mission channel for a few minutes after a crash: every move is a join and leave notification for
+   everyone else in it. */
+#define LC_GAME_GRACE_MS 300000
 #define LC_STATE_HEARTBEAT_MS 250
 #define LC_STATE_MIN_INTERVAL_MS 20
 #define LC_STATE_BODY_CAP 8192
@@ -64,12 +74,9 @@ static int                g_haveGame;
 static unsigned long long g_gameStamp;
 static int                g_gameDir = -1;
 static int                g_wasInGame;
+/* Whether the state was being written on the previous loop, for the one log line each way */
+static int                g_wasFresh = 1;
 static uint64             g_sch;
-
-static int    g_micManaged;
-static uint64 g_micSch;
-static int    g_savedInputDeactivated;
-static int    g_appliedInputDeactivated = -1;
 
 static uint64             g_previousChannel;
 static uint64             g_gameChannel;
@@ -117,6 +124,39 @@ static char g_radioHeard[LC_RADIO_RX_CAP];
 static long long          g_stateSeq;
 static unsigned long long g_lastStateWriteMs;
 static char               g_lastStateBody[LC_STATE_BODY_CAP];
+
+/* Whether TeamSpeak itself is holding the microphone shut, by the local mute, the muted-microphone
+   toggle, or a muted speaker, which implies the microphone too. A build before 1.0.7 gated the microphone
+   to follow the game's transmit keys, and one that stopped while it was shut could leave it that way, with
+   nothing on screen to say so. */
+static int read_mic_muted(uint64 sch)
+{
+    int value = 0;
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, &value) == ERROR_ok && value != INPUT_ACTIVE)
+        return 1;
+
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_MUTED, &value) == ERROR_ok && value != 0)
+        return 1;
+
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_OUTPUT_MUTED, &value) == ERROR_ok && value != 0)
+        return 1;
+
+    return 0;
+}
+
+/* Three TeamSpeak calls, each taking its locks, are not worth making two hundred times a second for
+   something only a person can change. Re-read no faster than the state file is written. */
+static int is_mic_muted(uint64 sch, unsigned long long nowMs)
+{
+    static int                cached;
+    static unsigned long long nextReadMs;
+    if (nowMs >= nextReadMs) {
+        nextReadMs = nowMs + LC_STATE_HEARTBEAT_MS;
+        cached     = read_mic_muted(sch);
+    }
+
+    return cached;
+}
 
 static int is_connected(uint64 sch)
 {
@@ -193,12 +233,6 @@ static void clear_talkers(void)
     LeaveCriticalSection(&g_talkersLock);
 }
 
-static void set_input_deactivated(uint64 sch, int value)
-{
-    if (g_ts3.setClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, value) == ERROR_ok)
-        g_ts3.flushClientSelfUpdates(sch, NULL);
-}
-
 static void poll_game_state(char* buf, lc_game_state* parsed)
 {
     size_t             len   = 0;
@@ -219,19 +253,34 @@ static void poll_game_state(char* buf, lc_game_state* parsed)
     }
 }
 
-static int compute_in_game(void)
+/* Milliseconds since the game last wrote its state, 0 if it has never been seen or the clock went backwards. */
+static unsigned long long game_state_age_ms(void)
 {
-    if (!g_haveGame || !g_game.inGame)
-        return 0;
     const unsigned long long now = lc_profile_now_stamp();
-    return now < g_gameStamp || (now - g_gameStamp) / 10000ULL < LC_GAME_STALE_MS;
+    if (now < g_gameStamp)
+        return 0;
+
+    return (now - g_gameStamp) / 10000ULL;
+}
+
+/* In a game, and the state is being written: everything may act on it. */
+static int game_fresh(void)
+{
+    return g_haveGame && g_game.inGame && game_state_age_ms() < LC_GAME_STALE_MS;
+}
+
+/* In a game as far as anyone can tell. The game says so and has not been silent long enough to be written
+   off, whether or not it is writing right now. */
+static int game_present(void)
+{
+    return g_haveGame && g_game.inGame && game_state_age_ms() < LC_GAME_GRACE_MS;
 }
 
 void lc_core_status(lc_status* out)
 {
     memset(out, 0, sizeof(*out));
     /* g_game is only replaced wholesale by the worker, so a torn read would at worst show stale text. */
-    out->inGame = compute_in_game();
+    out->inGame = game_present();
     if (!out->inGame)
         return;
 
@@ -242,21 +291,8 @@ void lc_core_status(lc_status* out)
     strncpy(out->token, g_game.token, sizeof(out->token) - 1);
 }
 
-/* Restores the user's own microphone state when the game stops controlling it. */
-static void release_mic(void)
-{
-    if (!g_micManaged)
-        return;
-    if (is_connected(g_micSch))
-        set_input_deactivated(g_micSch, g_savedInputDeactivated);
-    g_micManaged              = 0;
-    g_appliedInputDeactivated = -1;
-    lc_logf(LC_LOG_INFO, "Microphone control released");
-}
-
 static void on_connection_switched(uint64 sch)
 {
-    release_mic();
     lc_peers_reset();
     lc_transmissions_reset();
     lc_audio_reset();
@@ -271,31 +307,6 @@ static void on_connection_switched(uint64 sch)
     g_txStopPending      = 0;
     g_receptionCount     = 0;
     g_sch                = sch;
-}
-
-static void update_mic(uint64 sch, int connected, int inGame)
-{
-    if (!inGame || !connected) {
-        release_mic();
-        return;
-    }
-
-    if (!g_micManaged) {
-        int current = INPUT_ACTIVE;
-        if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, &current) != ERROR_ok)
-            return;
-        g_savedInputDeactivated   = current;
-        g_micManaged              = 1;
-        g_micSch                  = sch;
-        g_appliedInputDeactivated = -1;
-        lc_logf(LC_LOG_INFO, "Microphone now controlled by the game");
-    }
-
-    const int want = g_game.tx != LC_TX_NONE ? INPUT_ACTIVE : INPUT_DEACTIVATED;
-    if (want != g_appliedInputDeactivated) {
-        set_input_deactivated(sch, want);
-        g_appliedInputDeactivated = want;
-    }
 }
 
 static void update_channel(uint64 sch, int connected, int inGame, unsigned long long nowMs)
@@ -388,6 +399,13 @@ static void finish_radio_tx(void)
         send_radio_announcement(g_txSch, 0);
 }
 
+/* A channel's beeps play at the channel's own volume scaled by the one beep volume the player sets for
+   every channel. The voice itself is untouched by it. */
+static float beep_gain(float radioVolume)
+{
+    return radioVolume * g_game.beepVolume;
+}
+
 /* Announces our own radio transmission to the channel and plays our local beeps. A release is held for
    LC_TX_STOP_DEBOUNCE_MS, so hammering push-to-talk on one radio reads as one transmission to everyone. */
 static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long long nowMs)
@@ -410,7 +428,7 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
         const int changed = started || strcmp(radio->id, g_txRadio.id) != 0 || radio->frequency != g_txRadio.frequency || fabs(radio->range - g_txRadio.range) > 0.5f || strcmp(radio->key, g_txRadio.key) != 0 || strcmp(g_game.token, g_txToken) != 0;
         const int moved   = distance3(g_game.pos, g_txPos) > LC_RADIO_MOVE_REFRESH_M;
         if (started || resumed)
-            lc_sounds_play(radio->beep, "local_start", radio->ear, radio->volume);
+            lc_sounds_play(radio->beep, "local_start", radio->ear, beep_gain(radio->volume));
 
         g_txActive = 1;
         g_txSch    = sch;
@@ -431,7 +449,7 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
         g_txStopPending = 1;
         g_txStopAtMs    = nowMs + LC_TX_STOP_DEBOUNCE_MS;
         /* Your own beep follows the key, not the debounce, so releasing sounds immediate. */
-        lc_sounds_play(g_txRadio.beep, "local_end", g_txRadio.ear, g_txRadio.volume);
+        lc_sounds_play(g_txRadio.beep, "local_end", g_txRadio.ear, beep_gain(g_txRadio.volume));
     }
     if (!inGame || !connected || nowMs >= g_txStopAtMs)
         finish_radio_tx();
@@ -470,11 +488,11 @@ static void update_receptions(const lc_reception* current, int count, int playSo
     if (playSounds) {
         for (int i = 0; i < count; ++i) {
             if (find_reception(g_receptions, g_receptionCount, current[i].client, current[i].radioId) < 0)
-                lc_sounds_play(current[i].beep, "remote_start", current[i].ear, current[i].volume);
+                lc_sounds_play(current[i].beep, "remote_start", current[i].ear, beep_gain(current[i].volume));
         }
         for (int i = 0; i < g_receptionCount; ++i) {
             if (find_reception(current, count, g_receptions[i].client, g_receptions[i].radioId) < 0)
-                lc_sounds_play(g_receptions[i].beep, "remote_end", g_receptions[i].ear, g_receptions[i].volume);
+                lc_sounds_play(g_receptions[i].beep, "remote_end", g_receptions[i].ear, beep_gain(g_receptions[i].volume));
         }
     }
     if (count > 0)
@@ -504,6 +522,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     g_radioHeard[0] = '\0';
     if (!inGame || !connected) {
         update_receptions(NULL, 0, 0);
+        lc_reverb_set_room(0.0f);
         lc_audio_publish(0, NULL, 0);
         return;
     }
@@ -524,6 +543,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                 continue;
             target->client = peers[i].client;
             target->muffle = player->muffle;
+            target->roomShare = player->room;
             ++count;
         }
 
@@ -610,10 +630,11 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     }
 
     update_receptions(receptions, receptionCount, 1);
+    lc_reverb_set_room(g_game.roomVolume);
     lc_audio_publish(1, targets, count);
 }
 
-static void write_plugin_state(int connected, int inGame, int haveChannel, anyID me, uint64 channel, unsigned long long nowMs)
+static void write_plugin_state(int connected, int inGame, int haveChannel, int micMuted, anyID me, uint64 channel, unsigned long long nowMs)
 {
     if (g_gameDir < 0)
         return;
@@ -643,9 +664,9 @@ static void write_plugin_state(int connected, int inGame, int haveChannel, anyID
 
     char      body[LC_STATE_BODY_CAP];
     const int bodyLen = _snprintf(body, sizeof(body),
-        "\"pluginVersion\":\"%s\",\"inGame\":%s,\"tsConnected\":%s,\"tsClientId\":%u,\"inGameChannel\":%s,\"peers\":%d,\"selfTalking\":%s,\"talking\":\"%s\",\"radioRx\":\"%s\",\"radioHeard\":\"%s\"",
+        "\"pluginVersion\":\"%s\",\"inGame\":%s,\"tsConnected\":%s,\"tsClientId\":%u,\"inGameChannel\":%s,\"peers\":%d,\"selfTalking\":%s,\"micMuted\":%s,\"talking\":\"%s\",\"radioRx\":\"%s\",\"radioHeard\":\"%s\"",
         LC_PLUGIN_VERSION, inGame ? "true" : "false", connected ? "true" : "false", haveChannel ? (unsigned)me : 0U,
-        inGameChannel ? "true" : "false", peers, selfTalking ? "true" : "false", talking, g_radioRx, g_radioHeard);
+        inGameChannel ? "true" : "false", peers, selfTalking ? "true" : "false", micMuted ? "true" : "false", talking, g_radioRx, g_radioHeard);
     if (bodyLen <= 0 || (size_t)bodyLen >= sizeof(body))
         return;
 
@@ -720,7 +741,8 @@ static DWORD WINAPI core_main(LPVOID param)
         if (sch != g_sch)
             on_connection_switched(sch);
         const int connected = is_connected(sch);
-        const int inGame    = compute_in_game();
+        const int inGame    = game_present();
+        const int fresh     = game_fresh();
 
         if (inGame && !g_wasInGame)
             lc_logf(LC_LOG_INFO, "Entered game as player %d (%s)", g_game.playerId, g_game.playerName);
@@ -728,7 +750,15 @@ static DWORD WINAPI core_main(LPVOID param)
             on_left_game(sch, connected);
         g_wasInGame = inGame;
 
-        update_mic(sch, connected, inGame);
+        /* Said once each way, because this is the difference between "they alt-tabbed" and "they crashed" when
+           reading a log afterwards. */
+        if (inGame && fresh != g_wasFresh) {
+            lc_logf(LC_LOG_INFO, fresh ? "Game state updating again" : "Game state paused; holding the channel");
+            g_wasFresh = fresh;
+        } else if (!inGame) {
+            g_wasFresh = 1;
+        }
+
         update_channel(sch, connected, inGame, nowMs);
 
         /* Looked up once for the whole loop: each lookup takes TeamSpeak's own locks, and this runs 200 times a
@@ -738,23 +768,25 @@ static DWORD WINAPI core_main(LPVOID param)
         const int haveChannel = connected && get_own_channel(sch, &me, &channel);
 
         update_handshake(sch, inGame, haveChannel, channel, nowMs);
-        update_radio_tx(sch, connected, inGame, nowMs);
+        /* Fresh, not present: a game that stopped writing cannot be holding its transmit key. */
+        update_radio_tx(sch, connected, fresh, nowMs);
         update_sound_events(inGame);
         lc_peers_expire(nowMs, LC_PEER_MAX_AGE_MS);
         lc_transmissions_expire(nowMs, LC_TRANSMISSION_MAX_AGE_MS);
         publish_voice(connected, inGame, nowMs);
-        write_plugin_state(connected, inGame, haveChannel, me, channel, nowMs);
+        write_plugin_state(connected, inGame, haveChannel, connected && is_mic_muted(sch, nowMs), me, channel, nowMs);
 
         /* A 1 ms system timer is what makes the 5 ms poll actually sleep 5 ms, but it is process-wide and
-           costs power everywhere, so it is only held while a game is running. */
-        if (inGame != fastTimer) {
-            if (inGame)
+           costs power everywhere, so it is only held while a game is actually writing. A game that has gone
+           quiet is picked up again within one idle poll. */
+        if (fresh != fastTimer) {
+            if (fresh)
                 timeBeginPeriod(1);
             else
                 timeEndPeriod(1);
-            fastTimer = inGame;
+            fastTimer = fresh;
         }
-        Sleep(inGame ? LC_POLL_MS : LC_IDLE_POLL_MS);
+        Sleep(fresh ? LC_POLL_MS : LC_IDLE_POLL_MS);
     }
     if (fastTimer)
         timeEndPeriod(1);
@@ -762,7 +794,6 @@ static DWORD WINAPI core_main(LPVOID param)
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
     lc_audio_publish(0, NULL, 0);
-    release_mic();
     free(buf);
     free(parsed);
     return 0;

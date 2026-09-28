@@ -30,22 +30,26 @@ class LC_Settings
 	[Attribute(defvalue: "1", desc: "AI turn towards players they hear speaking out loud. Radio traffic is never audible to AI, and friendly AI ignore voices either way.")]
 	bool m_bAIHearing;
 
+	[Attribute(defvalue: "0", desc: "Unconscious players can still be heard speaking out loud, at the same range as anyone else. Off by default: someone bleeding out on the floor is silent until they are treated. Radios are refused while unconscious either way. Dead players are always silent.")]
+	bool m_bUnconsciousCanSpeak;
+
 	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client writes a line a second to its console log: what the game told the plugin, and what the plugin reports hearing back. Leave off for normal play: with a full server it is several kilobytes a second of log on every client.")]
 	bool m_bDiagnosticLog;
 
-	[Attribute(defvalue: "", desc: "TeamSpeak server players are moved to. Leave empty to leave everyone on the server they are already connected to.")]
-	string m_sTeamSpeakServer;
+	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client logs one line a second about the engine's room model: which room it thinks each nearby player is in, how open the doorways of the building you are in are, how much of the mapping of that building type is done, and whether each player's muffling came from the rooms or from a trace. Far less noisy than the setting above.")]
+	bool m_bRoomDiagnosticLog;
 
-	[Attribute(defvalue: "", desc: "TeamSpeak channel every player is moved into while in game. Leave empty to disable automatic channel moves.")]
+	[Attribute(defvalue: "LimaCharlie", desc: "TeamSpeak channel every player is moved into while in game, on whichever TeamSpeak server they are already connected to. Leave empty to disable automatic channel moves and let everyone sort out their own channel.")]
 	string m_sTeamSpeakChannel;
 
 	[Attribute(defvalue: "", desc: "Password of that channel, if it has one.")]
 	string m_sTeamSpeakChannelPassword;
 
 	//------------------------------------------------------------------------------------------------
-	//! Server only. The mission header wins, then the config shipped with the mod, then the attribute
-	//! defaults. Resolved once per session rather than cached for the launch, so a scenario change is
-	//! picked up without restarting.
+	//! Server only. The mission header wins over the config shipped with the mod, which wins over the
+	//! attribute defaults. $profile:LimaCharlie/server.json then overrides whatever comes out of here, key
+	//! by key, in LC_ServerSettings. Resolved once per session rather than cached for the launch, so a
+	//! scenario change is picked up without restarting.
 	static LC_Settings Get()
 	{
 		LC_Settings settings = GetFromMissionHeader();
@@ -85,6 +89,7 @@ class LC_Settings
 		settings.m_fTerrainEffectPercent = 100;
 		settings.m_bGameMasterUnlimitedRange = true;
 		settings.m_bAIHearing = true;
+		settings.m_sTeamSpeakChannel = "LimaCharlie";
 		return settings;
 	}
 

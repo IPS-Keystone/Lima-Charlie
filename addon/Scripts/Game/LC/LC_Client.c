@@ -4,7 +4,6 @@
 class LC_Client
 {
 	protected static const int SESSION_RETRY_MS = 2000;
-	protected static const int PLUGIN_WARNING_DELAY_MS = 10000;
 	//! LC_RadioPTT1 to LC_RadioPTT4: transmit keys, each sending on the channel assigned in LC_RadioSettings
 	protected static const string ACTION_RADIO_PTT = "LC_RadioPTT";
 	protected static const string ACTION_RADIO_KEY_ASSIGN = "LC_RadioKeyAssign";
@@ -13,6 +12,7 @@ class LC_Client
 	//! Radio setting actions below live in VONMenuContext, so they only work with the VON radial menu open
 	protected static const string ACTION_RADIO_VOLUME = "LC_RadioVolume";
 	protected static const string ACTION_RADIO_VOLUME_CYCLE = "LC_RadioVolumeCycle";
+	protected static const string ACTION_BEEP_VOLUME_CYCLE = "LC_BeepVolumeCycle";
 	protected static const string ACTION_RADIO_FREQUENCY = "LC_RadioFrequencyInput";
 	//! Key-up spam lockout: more radio key-ups than this inside the window refuses radio transmission for the
 	//! lockout, with a deny tone for each attempt. (Quick re-keys are also merged by the plugin.)
@@ -29,6 +29,7 @@ class LC_Client
 	protected ref LC_PluginStateReader m_Reader = new LC_PluginStateReader();
 	protected ref LC_Hud m_Hud = new LC_Hud();
 	protected ref LC_VonDisplayFeed m_VonDisplay = new LC_VonDisplayFeed();
+	protected ref LC_StatusNotice m_StatusNotice = new LC_StatusNotice();
 	protected ref LC_RadioSettings m_RadioSettings = new LC_RadioSettings();
 	protected ref LC_RadioLinks m_RadioLinks = new LC_RadioLinks();
 	protected ref LC_SoundQueue m_SoundQueue = new LC_SoundQueue();
@@ -37,13 +38,10 @@ class LC_Client
 
 	protected bool m_bHasSession;
 	protected string m_sSessionToken;
-	protected string m_sTeamSpeakServer;
 	protected string m_sTeamSpeakChannel;
 	protected string m_sTeamSpeakChannelPassword;
 	protected int m_iNextSessionRequestTick;
-	protected int m_iStartTick;
 	protected int m_iLastTick;
-	protected bool m_bPluginWarningShown;
 
 	//! Held Lima Charlie transmit key index, or -1
 	protected int m_iRadioPTTKey = -1;
@@ -70,6 +68,8 @@ class LC_Client
 	protected bool m_bGameMasterUnlimitedRange = true;
 	//! Server setting: log what we send the plugin and what it reports hearing, for troubleshooting
 	protected bool m_bDiagnosticLog;
+	//! Server setting: log what the engine's room model says about the people nearby
+	protected bool m_bRoomDiagnosticLog;
 
 	//------------------------------------------------------------------------------------------------
 	static LC_Client Get()
@@ -88,8 +88,7 @@ class LC_Client
 
 		s_Instance = new LC_Client();
 		s_Instance.m_PlayerController = playerController;
-		s_Instance.m_iStartTick = System.GetTickCount();
-		s_Instance.m_iLastTick = s_Instance.m_iStartTick;
+		s_Instance.m_iLastTick = System.GetTickCount();
 		GetGame().GetCallqueue().CallLater(s_Instance.Tick, 0, true);
 
 		InputManager inputManager = GetGame().GetInputManager();
@@ -138,6 +137,7 @@ class LC_Client
 			inputManager.AddActionListener(ACTION_RADIO_EAR_CYCLE, EActionTrigger.DOWN, OnRadioEarCycle);
 			inputManager.AddActionListener(ACTION_RADIO_BEEP_CYCLE, EActionTrigger.DOWN, OnRadioBeepCycle);
 			inputManager.AddActionListener(ACTION_RADIO_VOLUME_CYCLE, EActionTrigger.DOWN, OnRadioVolumeCycle);
+			inputManager.AddActionListener(ACTION_BEEP_VOLUME_CYCLE, EActionTrigger.DOWN, OnBeepVolumeCycle);
 			inputManager.AddActionListener(ACTION_RADIO_FREQUENCY, EActionTrigger.DOWN, OnRadioFrequencyInput);
 			inputManager.AddActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.DOWN, OnRadioPTT1);
 			inputManager.AddActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.UP, OnRadioPTT1);
@@ -155,6 +155,7 @@ class LC_Client
 		inputManager.RemoveActionListener(ACTION_RADIO_EAR_CYCLE, EActionTrigger.DOWN, OnRadioEarCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_BEEP_CYCLE, EActionTrigger.DOWN, OnRadioBeepCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_VOLUME_CYCLE, EActionTrigger.DOWN, OnRadioVolumeCycle);
+		inputManager.RemoveActionListener(ACTION_BEEP_VOLUME_CYCLE, EActionTrigger.DOWN, OnBeepVolumeCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_FREQUENCY, EActionTrigger.DOWN, OnRadioFrequencyInput);
 		inputManager.RemoveActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.DOWN, OnRadioPTT1);
 		inputManager.RemoveActionListener(ACTION_RADIO_PTT + "1", EActionTrigger.UP, OnRadioPTT1);
@@ -197,12 +198,7 @@ class LC_Client
 		m_Writer.Update(now, this);
 		m_Hud.Update(elapsedMs / 1000);
 		m_VonDisplay.Update(this, now);
-
-		if (!m_bPluginWarningShown && now - m_iStartTick > PLUGIN_WARNING_DELAY_MS && !m_Reader.IsPluginRunning(now))
-		{
-			m_bPluginWarningShown = true;
-			Print("[LC] TeamSpeak plugin not detected. Is TeamSpeak 3 running with the Lima Charlie plugin enabled?", LogLevel.WARNING);
-		}
+		m_StatusNotice.Update(now, this);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -210,6 +206,10 @@ class LC_Client
 	protected void UpdateAIHearing(int now)
 	{
 		if (!m_bAIHearing || now < m_iNextAIHearingTick || !m_Reader.IsSelfTalking())
+			return;
+
+		// TeamSpeak decides when the microphone is open, and it stays open while unconscious
+		if (!LC_Life.CanSpeak(GetControlledEntity()))
 			return;
 
 		m_iNextAIHearingTick = now + AI_HEARING_INTERVAL_MS;
@@ -394,6 +394,24 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Steps the beep volume down 10%, wrapping from silent back to full. One volume for every channel,
+	//! so unlike the other radio menu keys this does not need a channel under the cursor; with one there
+	//! the new volume is demonstrated on that channel's beeps.
+	protected void OnBeepVolumeCycle(float value = 0.0, EActionTrigger reason = 0)
+	{
+		m_RadioSettings.CycleBeepVolume();
+		RefreshRadioMenu();
+
+		// Wound down to silent, or on a channel that is itself turned down, the sample would play nothing at
+		// all, so the keypress still gets the interface tone to acknowledge it
+		SCR_VONEntryRadio entry = GetHoveredRadioEntry();
+		if (entry && m_RadioSettings.GetBeepGain(entry) > 0)
+			PlaySampleBeep(entry);
+		else
+			PlayUiSound("cycle");
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Ctrl + scroll is an analogue action, read every frame as Enhanced Radio does (scroll up is louder)
 	protected void UpdateRadioVolumeInput()
 	{
@@ -455,7 +473,7 @@ class LC_Client
 	//------------------------------------------------------------------------------------------------
 	protected void PlaySampleBeep(notnull SCR_VONEntryRadio entry)
 	{
-		m_SoundQueue.Add(m_RadioSettings.GetBeepSet(entry), "local_start", m_RadioSettings.GetEar(entry), m_RadioSettings.GetVolume(entry));
+		m_SoundQueue.Add(m_RadioSettings.GetBeepSet(entry), m_RadioSettings.GetSampleName(entry), m_RadioSettings.GetEar(entry), m_RadioSettings.GetBeepGain(entry));
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -485,7 +503,7 @@ class LC_Client
 
 	//------------------------------------------------------------------------------------------------
 	//! Gameplay settings the server owns, from LC_Settings
-	void OnSettingsReceived(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, bool diagnosticLog, string channelLabels, int channelNaming)
+	void OnSettingsReceived(float cleanFraction, float beepFraction, float terrainFactor, bool aiHearing, bool gameMasterUnlimitedRange, int flags, string channelLabels, int channelNaming)
 	{
 		LC_ChannelLabels.Unpack(channelLabels);
 		LC_ChannelLabels.SetNaming(channelNaming);
@@ -494,12 +512,14 @@ class LC_Client
 		m_fTerrainFactor = terrainFactor;
 		m_bAIHearing = aiHearing;
 		m_bGameMasterUnlimitedRange = gameMasterUnlimitedRange;
-		m_bDiagnosticLog = diagnosticLog;
+		m_bDiagnosticLog = (flags & 1) != 0;
+		m_bRoomDiagnosticLog = (flags & 2) != 0;
+		LC_Life.SetUnconsciousCanSpeak((flags & 4) != 0);
 
 		int cleanPercent = Math.Round(cleanFraction * 100);
 		int beepPercent = Math.Round(beepFraction * 100);
 		int terrainPercent = Math.Round(terrainFactor * 100);
-		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", diagnostic log " + diagnosticLog.ToString(), LogLevel.NORMAL);
+		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", unconscious speech " + LC_Life.GetUnconsciousCanSpeak().ToString() + ", diagnostic log " + m_bDiagnosticLog.ToString() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString(), LogLevel.NORMAL);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -524,6 +544,13 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Whether the server asked every client to log what the engine's room model says
+	bool GetRoomDiagnostics()
+	{
+		return m_bRoomDiagnosticLog;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Whether the server asked every client to log its side of the bridge
 	bool GetDiagnosticLog()
 	{
@@ -531,11 +558,10 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
-	void OnSessionReceived(string token, string teamSpeakServer, string teamSpeakChannel, string teamSpeakChannelPassword)
+	void OnSessionReceived(string token, string teamSpeakChannel, string teamSpeakChannelPassword)
 	{
 		m_bHasSession = true;
 		m_sSessionToken = token;
-		m_sTeamSpeakServer = teamSpeakServer;
 		m_sTeamSpeakChannel = teamSpeakChannel;
 		m_sTeamSpeakChannelPassword = teamSpeakChannelPassword;
 		Print("[LC] Session received, TeamSpeak channel: '" + teamSpeakChannel + "'", LogLevel.NORMAL);
@@ -663,9 +689,10 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
-	string GetTeamSpeakServer()
+	//! Whether the server has answered with this session's token and settings yet
+	bool HasSession()
 	{
-		return m_sTeamSpeakServer;
+		return m_bHasSession;
 	}
 
 	//------------------------------------------------------------------------------------------------

@@ -67,55 +67,76 @@ Written at 20 Hz while anyone is talking, 10 Hz idle, and immediately on any cha
 voice range, terrain links or the sound queue. Radio state is rebuilt on the write itself rather than
 compared every frame, so a radio setting reaches the plugin at the next scheduled write — at most 100 ms,
 and in practice sooner, since the settings that change it all queue a sound, which forces a write.
-Protocol 6.
+Protocol 9.
 
 ```json
 {
-  "v": 6, "seq": 42, "inGame": true,
+  "v": 9, "seq": 42, "inGame": true,
   "session": { "token": "...", "playerId": 1, "playerName": "Name",
-               "tsServer": "", "tsChannel": "Squad 1", "tsChannelPassword": "",
+               "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
   "self": { "alive": true, "pos": [x,y,z], "dir": [x,y,z], "tx": 2,
             "txFrequency": 45000, "txRadio": "123:1", "voiceRange": 20,
             "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false,
+            "roomVolume": 96, "beepVolume": 1,
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US",
                           "rx": true, "ear": 1, "volume": 0.8, "beep": "tfar_sw",
                           "halfDuplex": 0 } ],
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
-  "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6 } ],
+  "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6, "room": 0.35 } ],
   "links":   [ { "id": 2, "clearance": 35 } ]
 }
 ```
 
 - `self.pos`/`dir` are the **listener** (camera). `players[].pos` is the speaker's head.
 - `self.alive` means "can hear anything", not literally alive — it is true for an unconscious player and
-  for a bodiless Game Master.
+  for a bodiless Game Master. `players[].alive` is the other question, "can be heard", which an unconscious
+  player cannot be. `LC_Life` owns both.
+- Nothing touches `CLIENT_INPUT_DEACTIVATED`. TeamSpeak decides when a client is talking, by whatever the
+  player has it set to, and the game only decides where that voice goes.
 - `tx` mirrors `EVONTransmitType`: 0 none, 1 direct, 2 channel, 3 long range.
 - `radios[].id` is `<radio RplId>:<transceiver number>`, unique among the player's own radios.
 - `radios[].range` is the announced range, which is 1000000 for a Game Master with the editor open.
-- `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed.
+- `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed. `room` is how
+  much of the listener's room that voice fills, which scales the reverb send only: 1 in the same room,
+  0.35 elsewhere in the building, 0.1 from outdoors. New in protocol 8.
 - `links[]` answers the plugin's `radioRx` requests with terrain clearance in metres, already scaled by the
   server's terrain setting.
 - `sounds[]` is a queue with increasing `seq`; the plugin plays each once.
+- `roomVolume` is the volume in m³ of the room the listener is standing in, 0 outdoors. It sizes the
+  plugin's room reverb. New in protocol 8.
+- `beepVolume` is the player's one beep volume for every channel, 0..1, clamped on the way in. The plugin
+  multiplies it into `radios[].volume` wherever it plays a beep and nowhere else, so it never touches a
+  voice. New in protocol 9.
+- `players[].alive` follows the server's `unconsciousCanSpeak` setting: with it on, an unconscious player
+  is still audible. Radios are refused while unconscious either way, by vanilla's own activation.
 
 ### `plugin_state.json` — plugin to game
 
 Written atomically at 4 Hz or faster.
 
 ```json
-{ "v": 6, "seq": 971, "gameSeq": 445, "pluginVersion": "0.9.0", "inGame": false,
+{ "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "1.0.13", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
-  "selfTalking": true, "talking": "", "radioRx": "", "radioHeard": "" }
+  "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
 ```
 
+- `micMuted` — TeamSpeak is holding the microphone shut, by its local mute, its mute toggle, or a muted
+  speaker. Nothing here sets it; it is reported so the status notice can say why nobody can hear you.
 - `talking` — semicolon-delimited player ids currently speaking.
 - `radioRx` — `playerId,x,y,z;` requests for terrain clearance the game should answer.
 - `radioHeard` — `playerId,radioId,frequency,quality;` for every transmission actually being heard.
 
-### `server.json` — legacy
+### `server.json` — server overrides
 
-`{"teamspeakServer":"","teamspeakChannel":"","teamspeakChannelPassword":""}`. Read only when the configured
-channel is empty. Not created if missing.
+Holds every server setting under a plain name: `teamspeakChannel`, `teamspeakChannelPassword`,
+`cleanRangePercent`, `beepRangePercent`, `terrainEffectPercent`, `gameMasterUnlimitedRange`, `aiHearing`,
+`diagnosticLog`, `roomDiagnosticLog`, `channelNaming`, `channelLabels`.
+
+Read last, after the defaults, `Settings.conf` and the mission header, and it wins over all of them because
+it is the only layer an operator can change without republishing. Applied key by key through
+`DoesKeyExist`, so a file with one key overrides one setting. Written out in full by `WriteTemplate()` the
+first session it is missing. See [server-settings.md](server-settings.md) for the key formats.
 
 ## Plugin commands
 
@@ -153,12 +174,33 @@ than a stale entry. "Playing" is only shown for yourself, because it comes from 
 broadcasts. An empty version field renders as `unknown`, which is what you see against a peer running a
 build that predates this.
 
+## How beeps reach your ears
+
+Beeps are WAVs in the plugin's `sounds/<set>/` folders, handed to TeamSpeak's own player with
+`ts3Functions.playWaveFile`. That API takes a path and nothing else, so the ear and the volume are baked into
+a rendered copy: `sounds/beepcache/<set>_<name>_e<ear>_v<step>.wav`, 48 kHz 16-bit stereo, written the first
+time that combination is asked for and reused after. Volume is quantised to twenty steps to keep the number
+of files down, and the cache is emptied on every load so a plugin update cannot leave an old rendering of a
+changed beep behind.
+
+Until 1.0.13 they were written into the mixed playback buffer instead, in
+`ts3plugin_onEditMixedPlaybackVoiceDataEvent`. That buffer is shared with every plugin the client has loaded,
+handed to each in load order, and a plugin that overwrites rather than adds to it destroys whatever is
+already there. Coalition VON did that on a tester's machine and the beeps tore; nothing about our own mixing
+could have prevented it, because we load first. TeamSpeak's player is out of reach of all of them.
+
+That code is still there as a fallback, used when the cache directory cannot be made or written — a
+read-only install, or a locked-down profile. The log says which happened.
+
+Voices are unaffected and still go through `ts3plugin_onEditPostProcessVoiceDataEvent` per speaker.
+
 ## Timings
 
 | Constant | Value | Where |
 | --- | --- | --- |
 | Plugin worker poll | 5 ms in game, 50 ms idle | `lc_core.c` |
 | Game state stale | 3000 ms | `lc_core.c` |
+| Game state grace | 300000 ms | `lc_core.c` |
 | Transmit stop debounce | 300 ms | `lc_core.c` |
 | Terrain link wait | 300 ms | `lc_core.c` |
 | Transmission max age | 3500 ms | `lc_core.c` |
@@ -166,6 +208,14 @@ build that predates this.
 | Terrain link refresh | 1000 ms, or 10 m of movement | `LC_RadioLinks.c` |
 | AI hearing report | 1000 ms | `LC_Client.c` |
 | Sound event retention | 1000 ms | `LC_SoundQueue.c` |
+
+Those two windows answer different questions. **Stale** (3 s) means the game is not ticking — alt-tabbed,
+minimised, hitching or gone — and only ends the radio transmission, so a frozen game cannot hold a transmit
+key open on the net. **Grace** (5 min) is how long a game that has stopped writing still counts as being
+played, for the TeamSpeak channel, the peer list and the voices. A normal exit writes `inGame:false`, which
+is immediate, so the grace only decides how long a crashed game keeps you in the game channel — and that is
+much cheaper than moving everyone out of the channel and back in whenever they alt-tab, since every move is
+a notification for everyone else in it.
 
 The worker only raises the Windows timer resolution to 1 ms while a game is running; the setting is
 process-wide and costs power system-wide, and TeamSpeak is usually open far longer than Reforger is.
@@ -179,7 +229,7 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 | Session and settings | `LC_Session.c`, `LC_Settings.c`, `LC_ServerSettings.c`, `LC_MissionHeader.c`, `LC_PlayerController.c`, `LC_BaseGameMode.c` |
 | Radios | `LC_Radio.c`, `LC_RadioSettings.c`, `LC_RadioMode.c`, `LC_RadioLinks.c`, `LC_Terrain.c`, `LC_VONEntryRadio.c`, `LC_FrequencyInput.c` |
 | Channel names | `LC_ChannelLabel.c`, `LC_ChannelLabels.c` |
-| Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c` |
+| Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c`, `LC_Rooms.c` |
 | AI | `LC_AIHearing.c`, `LC_AIConfigComponent.c`, `LC_VoiceDangerEvent.c` |
 | UI | `LC_Hud.c`, `LC_VonDisplay.c`, `LC_VonDisplayFeed.c`, `LC_VONMenu.c`, `LC_VONEntryComponent.c` |
 
