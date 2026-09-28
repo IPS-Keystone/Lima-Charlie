@@ -61,6 +61,15 @@ copy /y build\limacharlie_win64.dll build\package\plugins\ >nul
 xcopy /e /i /q /y sounds build\package\plugins\limacharlie\sounds >nul
 if errorlevel 1 goto :fail
 
+rem The "vanilla" set is the game's own roger beep, built from Bohemia's samples by tools\make_vanilla_beeps.py.
+rem The TFAR and ACRE sets carry licences that cover passing them on; that one does not, so it is left out of
+rem anything we hand to players. It stays selectable: a player who runs the script gets the folder back and the
+rem set works. Set LC_PACKAGE_VANILLA=1 to include it in a build that is not going anywhere.
+if defined LC_PACKAGE_VANILLA goto :keepvanilla
+if exist build\package\plugins\limacharlie\sounds\vanilla rmdir /s /q build\package\plugins\limacharlie\sounds\vanilla
+echo Excluded the vanilla beep set from the package (LC_PACKAGE_VANILLA=1 to keep it)
+:keepvanilla
+
 rem Laid out like TFAR's package (directory entries, file attributes): TeamSpeak's installer extracted empty
 rem files from the plain zip .NET produced
 python package.py build\package "%PACKAGE%"

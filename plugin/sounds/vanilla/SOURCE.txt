@@ -11,5 +11,8 @@ remote_end.wav  Radio_RogerBeep_A_2 + Radio_RogerBeep_B_2
 There is no start beep because the game has none: it beeps at the end of a transmission only.
 
 The samples are Bohemia Interactive's. Unlike the TFAR and ACRE sets alongside this folder, they carry no
-licence that covers redistribution, so decide deliberately before shipping this folder inside a plugin
-package. Anyone can regenerate it from their own install with the script above.
+licence that covers redistribution, so build.bat leaves this folder out of the .ts3_plugin package it
+builds. Nothing handed to a player contains it, and anyone who wants the set runs the script above against
+their own install.
+
+Build with LC_PACKAGE_VANILLA=1 to include it anyway, in a package that is not being distributed.

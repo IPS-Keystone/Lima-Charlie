@@ -17,6 +17,10 @@ Two things every player has to do that they did not before:
 - **No in-game key is needed to speak.** TeamSpeak's own voice activation or push-to-talk governs your
   microphone; the mod no longer touches it. The transmit keys are for radios only, and still ship unbound.
 
+The **Vanilla** beep set is selectable but not in the download: it is built from Bohemia's own samples, which
+carry no licence covering redistribution, so the package ships without them and `tools/make_vanilla_beeps.py`
+rebuilds the set from your own game install if you want it.
+
 For server operators: `$profile:LimaCharlie/server.json` now holds every setting and has the last word over
 the mod's config and the mission header. Delete an existing one to pick up the new keys. If your group also
 runs Coalition VON, keep the Lima Charlie channel name distinct from any channel CVON has used.

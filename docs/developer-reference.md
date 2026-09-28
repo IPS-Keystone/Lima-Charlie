@@ -32,6 +32,12 @@ Version and protocol live in `src/lc_version.h`; see **Versioning and releases**
 `package.py` builds the `.ts3_plugin` zip with directory entries and DOS file attributes, mimicking TFAR's
 package — TeamSpeak's installer extracted 0-byte files from the plain zip .NET produced.
 
+**`sounds/vanilla` is excluded from the package.** It is the game's own roger beep, built from Bohemia's
+samples by `tools/make_vanilla_beeps.py`, and unlike the TFAR and ACRE sets alongside it those samples carry
+no licence covering redistribution — so nothing we hand to a player contains them. The set stays selectable
+in game: anyone who runs the script against their own install gets the folder and the beeps work. Build with
+`LC_PACKAGE_VANILLA=1` to keep it in a package that is not going anywhere.
+
 ## Versioning and releases
 
 Version numbers matter for the **plugin**, not the addon: the Reforger Workshop keeps every published

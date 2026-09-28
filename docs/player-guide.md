@@ -127,6 +127,11 @@ Per radio, kept for the session only — nothing is saved between sessions:
 - **Beep set** — TFAR SW, TFAR LR, TFAR AB, TFAR Classic, ACRE, Vanilla, or none. Defaults to TFAR SW for
   short range radios and TFAR LR for long range ones. Vanilla is the game's own roger beep, which the game
   only plays at the *end* of a transmission, so that set has no start beep.
+
+  **Vanilla is not in the download.** It is built from Bohemia's own samples, and unlike the TFAR and ACRE
+  sets those carry no licence that lets us pass them on, so the plugin ships without them. Select it and
+  nothing plays. To get it, run `tools/make_vanilla_beeps.py` from the plugin source against your own game
+  install; it writes the folder and the set works from then on.
 - **Volume** — ten steps.
 - **Transmit key** — which of the four keys sends on it. Unassigned radios default to their position in
   the list.
