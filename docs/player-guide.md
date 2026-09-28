@@ -11,12 +11,15 @@
 | Cycle ear | `T` | Both → left → right, per radio |
 | Cycle beep set | `K` | Changes the transmission tones, per radio |
 | Cycle volume | `L` | Steps down 10%, wrapping from 0% back to 100% |
-| Cycle beep volume | *unbound* | The same steps, for beeps on every channel at once |
+| Cycle beep volume | `O` | The same steps, for beeps on every channel at once |
 | Adjust volume | `Ctrl` + scroll | On the hovered channel in the radio menu |
 
-**The four transmit keys and the beep volume key ship unbound on purpose.** Bind them in Options →
-Keybinds → Lima Charlie; without a transmit key you cannot use a radio at all. Everything else has a
-default you can change there too.
+**The four transmit keys ship unbound on purpose.** Bind them in Options → Keybinds → Lima Charlie;
+without one you cannot use a radio at all. Everything else has a default you can change there too.
+
+The radio menu keys share their defaults with keys the game uses out in the world — beep volume is on `O`,
+which is also the wristwatch — because they only do anything while the radio menu is open. Rebind any of
+them if you would rather not have the overlap.
 
 With the radio menu open, the keys that act on the channel under your cursor appear in the game's own
 control hint panel, the same one that prompts you to open a door.

@@ -15,9 +15,11 @@ Since 1.0.13. The change is in the mod; the plugin is rebuilt only so both halve
 
 ### Keybinds and the radio menu
 
-- **The beep volume key now appears in the keybind menu.** It ships unbound, like the four transmit keys:
-  its default was `;`, and an action whose default binding the engine cannot resolve is an action that does
-  not exist, which is the likeliest reason it never showed while its neighbours did.
+- **The beep volume key now appears in the keybind menu, and binds.** Two faults: its default was `;`,
+  which the input system would not take, and an action whose default it cannot resolve is an action that
+  does not exist, so the entry had nothing to show. The default is now `O`. The entry also needs
+  `m_sPreset`, which is what the menu attaches a new binding to — without it the row draws but refuses
+  every key.
 - Every keybind name is shortened to the length the menu is built for — vanilla's own field documents 15
   characters and ours ran to 48 — and the four transmit keys are marked as continuous, as vanilla marks its
   own hold actions.
