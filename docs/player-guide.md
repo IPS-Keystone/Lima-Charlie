@@ -149,10 +149,9 @@ level as the noise rises, so a bad signal sounds noisier, not louder.
 Terrain between you and the transmitter counts as extra distance, so a ridge can garble or silence a
 signal that distance alone would carry. This is TFAR's model.
 
-**A transmission always sounds the same**, at that channel's volume and in that channel's ear, however near
-or far its speaker is standing. While someone is reaching you on a radio you hear them on the radio only:
-their voice in the room drops out for as long as they hold the key, so someone beside you keying up comes
-through exactly like someone two kilometres away, rather than in both ears on top of the radio.
+**The radio is always at the same level**, at that channel's volume and in that channel's ear, however near
+or far its speaker is standing. If they are close enough to hear in person, you hear both: their voice in the
+room as well as the radio, the way TFAR does it.
 
 ### Transmission beeps
 

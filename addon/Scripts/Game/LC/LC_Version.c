@@ -6,5 +6,5 @@
 //! because a release can change one without the other.
 class LC_Version
 {
-	static const string VERSION = "2.0.2";
+	static const string VERSION = "2.0.3";
 }

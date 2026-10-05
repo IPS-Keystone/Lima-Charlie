@@ -60,6 +60,26 @@ Worth checking, in this order:
 Voices never go through the sound pack, so "I can hear people but no beeps" points squarely at the first
 two.
 
+## A transmission sounds too quiet
+
+While anyone is coming in on a radio, the TeamSpeak log gets a line a second for them:
+
+```
+Radio rx player 3: in -24.1 dB, direct gain 0.03/0.02 out -55.0 dB, radio gain 0.80/0.00 quality 1.00 out -21.7 dB
+```
+
+- **`in`** is their voice as TeamSpeak delivered it, before Lima Charlie touched it. If this is low, the
+  problem is upstream: their microphone level, or something else in TeamSpeak changing the stream.
+- **`radio gain`** is left/right, the channel volume times a fixed 0.8, and it never varies with distance.
+  0 in one ear means that channel is routed to the other.
+- **`quality`** is 1.00 within the clean share of the radio's range and falls towards 0 at its edge; below 1
+  the voice is garbled and partly masked by static.
+- **`out`** for each path is what it produced. The radio's `out` should track its `in` for a given gain and
+  quality, wherever the speaker is standing.
+
+Comparing two lines, one from a speaker you can also hear in person and one from someone out of earshot,
+shows which of those three moved.
+
 ## Diagnostic logging
 
 Set `diagnosticLog` in `server.json`, or `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs both sides of the bridge

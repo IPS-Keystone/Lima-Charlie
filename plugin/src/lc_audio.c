@@ -58,6 +58,12 @@ typedef struct {
     int          dropoutRemaining;
     float        noise;
     unsigned int rng;
+
+    /* Sums of squares while on a radio, for lc_audio_take_levels */
+    float levelIn;
+    float levelDirect;
+    float levelRadio;
+    int   levelFrames;
 } lc_voice_state;
 
 /* How badly one buffer of radio voice is garbled, derived from signal quality. */
@@ -113,6 +119,33 @@ void lc_audio_publish(int active, const lc_voice_target* targets, int count)
     snapshot->count  = count;
     snapshot->active = active;
     InterlockedExchange(&g_readIndex, writeIndex);
+}
+
+static float level_db(float sumOfSquares, int frames)
+{
+    const float mean = sumOfSquares / (float)frames;
+    return mean > 1e-12f ? 10.0f * (float)log10(mean) : -120.0f;
+}
+
+int lc_audio_take_levels(anyID client, lc_audio_levels* out)
+{
+    const unsigned short slot = g_slotOfClient[client];
+    if (!slot)
+        return 0;
+
+    lc_voice_state* state  = &g_states[slot - 1];
+    const int       frames = state->levelFrames;
+    if (frames <= 0)
+        return 0;
+
+    out->inDb          = level_db(state->levelIn, frames);
+    out->directDb      = level_db(state->levelDirect, frames);
+    out->radioDb       = level_db(state->levelRadio, frames);
+    state->levelIn     = 0.0f;
+    state->levelDirect = 0.0f;
+    state->levelRadio  = 0.0f;
+    state->levelFrames = 0;
+    return 1;
 }
 
 void lc_audio_find_stereo(int channels, const unsigned int* channelSpeakerArray, int* left, int* right)
@@ -327,6 +360,15 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
         const float outRight = directRight + radio * (startRadioRight + (targetRadioRight - startRadioRight) * t);
         if (i < sendFrames)
             g_send[i] = roomShare * 0.5f * (directLeft + directRight);
+
+        if (useRadio) {
+            const float directMid = 0.5f * (directLeft + directRight);
+            const float radioMid  = 0.5f * (outLeft + outRight) - directMid;
+            state->levelIn     += x * x;
+            state->levelDirect += directMid * directMid;
+            state->levelRadio  += radioMid * radioMid;
+            ++state->levelFrames;
+        }
 
         for (int c = 0; c < channels; ++c)
             samples[base + c] = 0;

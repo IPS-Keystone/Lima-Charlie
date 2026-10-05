@@ -1,15 +1,25 @@
 # Changelog
 
-## 2.0.2 — mod 2.0.2, plugin 2.0.2
+## 2.0.3 — mod 2.0.3, plugin 2.0.3
 
 Since 2.0.1. Plugin change; the mod is bumped only so both halves report the same number.
 
-- **Radio transmissions sound the same whatever the speaker's distance.** A speaker close enough to hear in
-  person also had their direct voice playing on top of the radio, in both ears, so someone beside you keying
-  up came through louder than anyone further off and out of the radio's ear routing. While someone is
-  reaching you on a radio, the radio now replaces their direct voice entirely: you hear them in that
-  channel's ear at that channel's volume, as you would from two kilometres away. Their voice in the room
-  comes back when they release the key.
+- **Radio reception now logs its own levels**, once a second per talker and only while they are coming in
+  on a radio, to the TeamSpeak log:
+
+  ```
+  Radio rx player 3: in -24.1 dB, direct gain 0.03/0.02 out -55.0 dB, radio gain 0.80/0.00 quality 1.00 out -21.7 dB
+  ```
+
+  `in` is the voice as TeamSpeak handed it over, before anything of ours; the direct and radio figures are
+  what each path made of it. This is here to settle a report that transmissions from someone at the edge of
+  earshot came through quieter than transmissions from further away, which the mix as written cannot
+  produce: the radio gain has no distance term, and every per-talker difference between those two cases is
+  on the direct path. Two readings from a test — one speaker at the edge, one out of earshot — say whether the
+  difference is in what arrives, in the radio path, or in neither.
+- Local voice is unchanged under the radio. Someone close enough to hear in person is heard both in the room
+  and on the radio, as TFAR does. (A development build that removed the room voice during transmissions was
+  never released.)
 
 ## 2.0.1 — mod 2.0.1, plugin 2.0.1
 

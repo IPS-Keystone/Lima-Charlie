@@ -55,11 +55,10 @@
 #define LC_MAX_RECEPTIONS 64
 /* Radio voice does not get quieter with distance, only more garbled. */
 #define LC_RADIO_VOICE_GAIN 0.8f
-/* What is left of someone's direct voice while you are receiving them on a radio: nothing. The radio
-   replaces it, so a transmission comes through the radio's own routing - its ear, its volume - and sounds the
-   same whether its speaker is beside you, at the edge of earshot or two kilometres away. Playing both put a
-   close speaker in both ears on top of the radio, louder than anyone further off. */
-#define LC_DIRECT_UNDER_RADIO 0.0f
+/* While someone is being received on a radio, their levels go to the TeamSpeak log once a second: what
+   arrived from TeamSpeak, what the direct and radio paths produced, and the radio's signal quality. Only
+   during reception, so it is quiet the rest of the time. */
+#define LC_LEVEL_LOG_MS 1000
 #define LC_RADIO_RX_CAP 4096
 
 static HANDLE        g_thread = NULL;
@@ -505,6 +504,40 @@ static void update_receptions(const lc_reception* current, int count, int playSo
     g_receptionCount = count;
 }
 
+/* One line a second for each talker being received on a radio, with every gain that shapes what you hear
+   from them and the levels that actually came out. Direct speech and radio are mixed from the same samples,
+   so this is what tells a transmission that is quiet on arrival from one the mix made quiet. */
+static void log_radio_levels(const lc_transmission* transmissions, int transmissionCount, const lc_voice_target* targets, int count, unsigned long long nowMs)
+{
+    static unsigned long long nextLogMs;
+    if (nowMs < nextLogMs)
+        return;
+
+    nextLogMs = nowMs + LC_LEVEL_LOG_MS;
+    for (int i = 0; i < count; ++i) {
+        const lc_voice_target* target = &targets[i];
+        if (target->radioLeft <= 0.0f && target->radioRight <= 0.0f)
+            continue;
+
+        int playerId = 0;
+        for (int t = 0; t < transmissionCount; ++t) {
+            if (transmissions[t].client == target->client) {
+                playerId = transmissions[t].info.playerId;
+                break;
+            }
+        }
+
+        lc_audio_levels levels;
+        if (!lc_audio_take_levels(target->client, &levels))
+            continue;
+
+        lc_logf(LC_LOG_INFO,
+            "Radio rx player %d: in %.1f dB, direct gain %.2f/%.2f out %.1f dB, radio gain %.2f/%.2f quality %.2f out %.1f dB",
+            playerId, levels.inDb, target->gainLeft, target->gainRight, levels.directDb,
+            target->radioLeft, target->radioRight, target->radioQuality, levels.radioDb);
+    }
+}
+
 static lc_voice_target* find_target(lc_voice_target* targets, int count, anyID client)
 {
     for (int i = 0; i < count; ++i) {
@@ -532,8 +565,9 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
         return;
     }
 
-    int    count          = 0;
-    int    receptionCount = 0;
+    int    count             = 0;
+    int    receptionCount    = 0;
+    int    transmissionCount = 0;
     size_t rxLen          = 0;
     size_t heardLen       = 0;
     if (g_game.alive && g_game.token[0]) {
@@ -552,7 +586,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
             ++count;
         }
 
-        const int transmissionCount = lc_transmissions_list(g_game.token, transmissions, LC_MAX_TRANSMISSIONS);
+        transmissionCount = lc_transmissions_list(g_game.token, transmissions, LC_MAX_TRANSMISSIONS);
         for (int i = 0; i < transmissionCount; ++i) {
             const lc_transmission* tx     = &transmissions[i];
             const lc_player_state* player = find_player(tx->info.playerId);
@@ -634,17 +668,10 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
         }
     }
 
-    /* A transmission sounds the same however far away its speaker is standing: the radio is all you hear */
-    for (int i = 0; i < count; ++i) {
-        if (targets[i].radioLeft > 0.0f || targets[i].radioRight > 0.0f) {
-            targets[i].gainLeft *= LC_DIRECT_UNDER_RADIO;
-            targets[i].gainRight *= LC_DIRECT_UNDER_RADIO;
-        }
-    }
-
     update_receptions(receptions, receptionCount, 1);
     lc_reverb_set_room(g_game.roomVolume);
     lc_audio_publish(1, targets, count);
+    log_radio_levels(transmissions, transmissionCount, targets, count, nowMs);
 }
 
 static void write_plugin_state(int connected, int inGame, int haveChannel, int micMuted, anyID me, uint64 channel, unsigned long long nowMs)

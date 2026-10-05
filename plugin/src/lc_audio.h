@@ -33,3 +33,15 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
 
 /* Channel indices to use as left and right (the same index for mono output). */
 void lc_audio_find_stereo(int channels, const unsigned int* channelSpeakerArray, int* left, int* right);
+
+/* RMS levels in dBFS for one talker since the last call, measured only while they are on a radio: the
+   samples as TeamSpeak handed them over, and what the direct and radio paths each made of them. */
+typedef struct {
+    float inDb;
+    float directDb;
+    float radioDb;
+} lc_audio_levels;
+
+/* Worker thread. Returns 0 when nothing has been measured for this client since the last call. Reads what the
+   audio thread is still adding to, which is acceptable for a log line: a torn read misreports one second. */
+int lc_audio_take_levels(anyID client, lc_audio_levels* out);
