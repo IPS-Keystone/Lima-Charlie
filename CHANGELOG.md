@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.2 — mod 2.0.2, plugin 2.0.2
+
+Since 2.0.1. Plugin change; the mod is bumped only so both halves report the same number.
+
+- **Radio transmissions play at the same loudness whatever the speaker's distance.** The radio voice itself
+  never varied, but a speaker close enough to hear in person also had their direct voice playing on top at
+  full gain, while one at the edge of earshot added almost nothing. Someone beside you keying up came
+  through several dB louder than someone further off, which read as distant transmissions being quiet. Their
+  direct voice is now ducked to a fifth while you are receiving them on a radio: still present in the room,
+  never what sets the level.
+
 ## 2.0.1 — mod 2.0.1, plugin 2.0.1
 
 Since 2.0.0. The change is in the mod; the plugin is rebuilt only so both halves report the same number.
