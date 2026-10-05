@@ -4,12 +4,12 @@
 
 Since 2.0.1. Plugin change; the mod is bumped only so both halves report the same number.
 
-- **Radio transmissions play at the same loudness whatever the speaker's distance.** The radio voice itself
-  never varied, but a speaker close enough to hear in person also had their direct voice playing on top at
-  full gain, while one at the edge of earshot added almost nothing. Someone beside you keying up came
-  through several dB louder than someone further off, which read as distant transmissions being quiet. Their
-  direct voice is now ducked to a fifth while you are receiving them on a radio: still present in the room,
-  never what sets the level.
+- **Radio transmissions sound the same whatever the speaker's distance.** A speaker close enough to hear in
+  person also had their direct voice playing on top of the radio, in both ears, so someone beside you keying
+  up came through louder than anyone further off and out of the radio's ear routing. While someone is
+  reaching you on a radio, the radio now replaces their direct voice entirely: you hear them in that
+  channel's ear at that channel's volume, as you would from two kilometres away. Their voice in the room
+  comes back when they release the key.
 
 ## 2.0.1 — mod 2.0.1, plugin 2.0.1
 

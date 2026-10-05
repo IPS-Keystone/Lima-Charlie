@@ -55,12 +55,11 @@
 #define LC_MAX_RECEPTIONS 64
 /* Radio voice does not get quieter with distance, only more garbled. */
 #define LC_RADIO_VOICE_GAIN 0.8f
-/* What is left of someone's direct voice while you are also receiving them on a radio. The radio path is
-   constant, but direct speech is full-band at full gain beside you and -30 dB at the edge of earshot, so
-   playing both made a transmission several dB louder from someone close than from someone far away: the
-   radio did not get quieter at range, the transmission got louder up close. Ducked this far, the direct
-   voice is still a presence in the room but never decides how loud the transmission is. */
-#define LC_DIRECT_UNDER_RADIO 0.2f
+/* What is left of someone's direct voice while you are receiving them on a radio: nothing. The radio
+   replaces it, so a transmission comes through the radio's own routing - its ear, its volume - and sounds the
+   same whether its speaker is beside you, at the edge of earshot or two kilometres away. Playing both put a
+   close speaker in both ears on top of the radio, louder than anyone further off. */
+#define LC_DIRECT_UNDER_RADIO 0.0f
 #define LC_RADIO_RX_CAP 4096
 
 static HANDLE        g_thread = NULL;
@@ -635,7 +634,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
         }
     }
 
-    /* A transmission sounds the same however far away its speaker is standing */
+    /* A transmission sounds the same however far away its speaker is standing: the radio is all you hear */
     for (int i = 0; i < count; ++i) {
         if (targets[i].radioLeft > 0.0f || targets[i].radioRight > 0.0f) {
             targets[i].gainLeft *= LC_DIRECT_UNDER_RADIO;
