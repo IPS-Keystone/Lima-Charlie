@@ -41,6 +41,11 @@ That means **you do not need an in-game key to speak to the people next to you**
 TeamSpeak channel and the people near you hear it, positioned and muffled by where you both are. The
 in-game transmit keys are only for radios.
 
+The one exception: **holding a radio transmit key opens your microphone** for as long as you hold it, so a
+TeamSpeak push-to-talk user does not need two keys and voice activation does not clip a quiet word. Your
+TeamSpeak settings are saved first and put back exactly when you let go. A mute you set in TeamSpeak is not
+overridden.
+
 Earlier versions gated the microphone on the game's keys, which is why they demanded continuous or voice
 activation. That restriction is gone.
 

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Cycle voice level | `Ctrl` + `Tab` | Whisper → Normal → Shout → Whisper |
 | Transmit on channel 1–4 | *unbound* | Hold to talk on the radio assigned to that key |
-| Assign transmit key | `J` | Cycles the selected radio through keys 1–4 |
+| Assign transmit key | `J` | Opens a picker for the hovered radio: none, or keys 1–4 |
 | Type frequency | `F` | Opens a box to type a frequency in MHz |
 | Cycle ear | `T` | Both → left → right, per radio |
 | Cycle beep set | `K` | Changes the transmission tones, per radio |
@@ -27,6 +27,11 @@ control hint panel, the same one that prompts you to open a door.
 **You need no key to talk to the people around you.** TeamSpeak decides when your microphone is open, by
 whatever you have it set to, and the people near you hear you positioned and muffled by where you both
 are. The transmit keys are only for radios.
+
+**Holding a radio key opens your microphone**, whatever TeamSpeak is set to. On TeamSpeak push-to-talk you
+do not have to hold its key as well; on voice activation a quiet word is not clipped by the threshold. When
+you let go, everything goes back exactly as it was — about a third of a second later, so the end of your
+last word still goes out. A microphone you have muted in TeamSpeak stays muted.
 
 `Ctrl` + scroll and `Ctrl` + `Tab` are hidden from the keybind menu; the rest are listed.
 
@@ -133,8 +138,10 @@ Per radio, kept for the session only — nothing is saved between sessions:
   nothing plays. To get it, run `tools/make_vanilla_beeps.py` from the plugin source against your own game
   install; it writes the folder and the set works from then on.
 - **Volume** — ten steps.
-- **Transmit key** — which of the four keys sends on it. Unassigned radios default to their position in
-  the list.
+- **Transmit key** — which of the four keys sends on it. Press `J` with the radio under the cursor and a
+  picker opens beside the menu with five buttons: **None** and **1** to **4**. The key it is on now is lit.
+  Choosing a key takes it from whichever radio had it; **None** takes the radio off every key. A radio you
+  have never set defaults to its position in the list.
 
 ### What a transmission sounds like
 

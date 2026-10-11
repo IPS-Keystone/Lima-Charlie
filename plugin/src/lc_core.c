@@ -295,6 +295,9 @@ void lc_core_status(lc_status* out)
     strncpy(out->token, g_game.token, sizeof(out->token) - 1);
 }
 
+/* Defined with the radio transmission code below; a connection switch has to undo it too. */
+static void release_capture(void);
+
 static void on_connection_switched(uint64 sch)
 {
     lc_peers_reset();
@@ -307,6 +310,7 @@ static void on_connection_switched(uint64 sch)
     g_helloToken[0]      = '\0';
     g_helloChannel       = 0;
     g_nextChannelCheckMs = 0;
+    release_capture();
     g_txActive           = 0;
     g_txStopPending      = 0;
     g_receptionCount     = 0;
@@ -395,10 +399,66 @@ static void send_radio_announcement(uint64 sch, int on)
     g_ts3.sendPluginCommand(sch, lc_plugin_id(), command, PluginCommandTarget_CURRENT_CHANNEL, NULL, NULL);
 }
 
+/* Holding a radio key opens the microphone, whatever TeamSpeak is set to: a push-to-talk user does not have to
+   hold TeamSpeak's key as well, and voice activation does not clip a quiet word on the net. TFAR does the same.
+
+   Everything changed is saved first and put back exactly as it was, rather than inferred. TFAR infers - it
+   deactivates input on release whenever voice activation was off - and that switches off the microphone of
+   anyone on continuous transmission, which is the bug 1.0.6 shipped and 1.0.7 removed. A deliberate mute in
+   TeamSpeak is a different setting and is left alone: holding a radio key does not unmute you. */
+static uint64 g_forcedSch;
+static int    g_forcedInput;
+static int    g_forcedVad;
+
+static void force_capture(uint64 sch)
+{
+    if (g_forcedSch || !sch)
+        return;
+
+    int input = INPUT_ACTIVE;
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, &input) != ERROR_ok)
+        return;
+
+    int   vadOn = 0;
+    char* vad   = NULL;
+    if (g_ts3.getPreProcessorConfigValue(sch, "vad", &vad) == ERROR_ok && vad) {
+        vadOn = strcmp(vad, "true") == 0;
+        g_ts3.freeMemory(vad);
+    }
+
+    if (vadOn)
+        g_ts3.setPreProcessorConfigValue(sch, "vad", "false");
+    if (input != INPUT_ACTIVE) {
+        g_ts3.setClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, INPUT_ACTIVE);
+        g_ts3.flushClientSelfUpdates(sch, NULL);
+    }
+
+    g_forcedSch   = sch;
+    g_forcedInput = input;
+    g_forcedVad   = vadOn;
+}
+
+/* Safe to call when nothing is forced. Called on every way a transmission can end. */
+static void release_capture(void)
+{
+    if (!g_forcedSch)
+        return;
+
+    const uint64 sch = g_forcedSch;
+    g_forcedSch      = 0;
+    if (g_forcedVad)
+        g_ts3.setPreProcessorConfigValue(sch, "vad", "true");
+    if (g_forcedInput != INPUT_ACTIVE) {
+        g_ts3.setClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, g_forcedInput);
+        g_ts3.flushClientSelfUpdates(sch, NULL);
+    }
+}
+
 static void finish_radio_tx(void)
 {
     g_txActive      = 0;
     g_txStopPending = 0;
+    release_capture();
     if (is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
 }
@@ -433,6 +493,8 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
         const int moved   = distance3(g_game.pos, g_txPos) > LC_RADIO_MOVE_REFRESH_M;
         if (started || resumed)
             lc_sounds_play(radio->beep, "local_start", radio->ear, beep_gain(radio->volume));
+
+        force_capture(sch);
 
         g_txActive = 1;
         g_txSch    = sch;
@@ -831,6 +893,7 @@ static DWORD WINAPI core_main(LPVOID param)
     if (fastTimer)
         timeEndPeriod(1);
 
+    release_capture();
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
     lc_audio_publish(0, NULL, 0);
