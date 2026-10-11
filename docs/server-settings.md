@@ -18,7 +18,8 @@ Resolved once per session, in layers, each overriding the one before it:
    `Settings.conf`.
 4. **`$profile/LimaCharlie/server.json`** — the last word, and the only one a server operator can change
    without rebuilding and republishing the mod. Key by key: the keys present override, everything else
-   falls through to the layers above. Logs `server.json overrides: ...` naming each key that took effect.
+   falls through to the layers above. One log line a session says whether the file was generated, read and
+   overriding (naming each key), read and overriding nothing, or unparseable.
 
 An empty `LC_Settings { }` means every setting is at its default. That is the shipped state.
 
@@ -62,7 +63,7 @@ edit:
   it will be written again next session.
 
 **The generated file pins those values.** A setting the mod changes later will not move on a server whose
-`server.json` already names it. The `server.json overrides:` log line lists exactly which ones are pinned.
+`server.json` already names it. The `Read ...; it overrides:` log line lists exactly which ones are pinned.
 
 Anything the file cannot be parsed as is ignored for the whole session, with an error in the log, rather
 than half-applied.

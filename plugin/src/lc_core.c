@@ -55,6 +55,10 @@
 #define LC_MAX_RECEPTIONS 64
 /* Radio voice does not get quieter with distance, only more garbled. */
 #define LC_RADIO_VOICE_GAIN 0.8f
+/* While someone is being received on a radio, their levels go to the TeamSpeak log once a second: what
+   arrived from TeamSpeak, what the direct and radio paths produced, and the radio's signal quality. Only
+   during reception, so it is quiet the rest of the time. */
+#define LC_LEVEL_LOG_MS 1000
 #define LC_RADIO_RX_CAP 4096
 
 static HANDLE        g_thread = NULL;
@@ -291,6 +295,9 @@ void lc_core_status(lc_status* out)
     strncpy(out->token, g_game.token, sizeof(out->token) - 1);
 }
 
+/* Defined with the radio transmission code below; a connection switch has to undo it too. */
+static void release_capture(void);
+
 static void on_connection_switched(uint64 sch)
 {
     lc_peers_reset();
@@ -303,6 +310,7 @@ static void on_connection_switched(uint64 sch)
     g_helloToken[0]      = '\0';
     g_helloChannel       = 0;
     g_nextChannelCheckMs = 0;
+    release_capture();
     g_txActive           = 0;
     g_txStopPending      = 0;
     g_receptionCount     = 0;
@@ -391,10 +399,66 @@ static void send_radio_announcement(uint64 sch, int on)
     g_ts3.sendPluginCommand(sch, lc_plugin_id(), command, PluginCommandTarget_CURRENT_CHANNEL, NULL, NULL);
 }
 
+/* Holding a radio key opens the microphone, whatever TeamSpeak is set to: a push-to-talk user does not have to
+   hold TeamSpeak's key as well, and voice activation does not clip a quiet word on the net. TFAR does the same.
+
+   Everything changed is saved first and put back exactly as it was, rather than inferred. TFAR infers - it
+   deactivates input on release whenever voice activation was off - and that switches off the microphone of
+   anyone on continuous transmission, which is the bug 1.0.6 shipped and 1.0.7 removed. A deliberate mute in
+   TeamSpeak is a different setting and is left alone: holding a radio key does not unmute you. */
+static uint64 g_forcedSch;
+static int    g_forcedInput;
+static int    g_forcedVad;
+
+static void force_capture(uint64 sch)
+{
+    if (g_forcedSch || !sch)
+        return;
+
+    int input = INPUT_ACTIVE;
+    if (g_ts3.getClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, &input) != ERROR_ok)
+        return;
+
+    int   vadOn = 0;
+    char* vad   = NULL;
+    if (g_ts3.getPreProcessorConfigValue(sch, "vad", &vad) == ERROR_ok && vad) {
+        vadOn = strcmp(vad, "true") == 0;
+        g_ts3.freeMemory(vad);
+    }
+
+    if (vadOn)
+        g_ts3.setPreProcessorConfigValue(sch, "vad", "false");
+    if (input != INPUT_ACTIVE) {
+        g_ts3.setClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, INPUT_ACTIVE);
+        g_ts3.flushClientSelfUpdates(sch, NULL);
+    }
+
+    g_forcedSch   = sch;
+    g_forcedInput = input;
+    g_forcedVad   = vadOn;
+}
+
+/* Safe to call when nothing is forced. Called on every way a transmission can end. */
+static void release_capture(void)
+{
+    if (!g_forcedSch)
+        return;
+
+    const uint64 sch = g_forcedSch;
+    g_forcedSch      = 0;
+    if (g_forcedVad)
+        g_ts3.setPreProcessorConfigValue(sch, "vad", "true");
+    if (g_forcedInput != INPUT_ACTIVE) {
+        g_ts3.setClientSelfVariableAsInt(sch, CLIENT_INPUT_DEACTIVATED, g_forcedInput);
+        g_ts3.flushClientSelfUpdates(sch, NULL);
+    }
+}
+
 static void finish_radio_tx(void)
 {
     g_txActive      = 0;
     g_txStopPending = 0;
+    release_capture();
     if (is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
 }
@@ -429,6 +493,8 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
         const int moved   = distance3(g_game.pos, g_txPos) > LC_RADIO_MOVE_REFRESH_M;
         if (started || resumed)
             lc_sounds_play(radio->beep, "local_start", radio->ear, beep_gain(radio->volume));
+
+        force_capture(sch);
 
         g_txActive = 1;
         g_txSch    = sch;
@@ -500,6 +566,40 @@ static void update_receptions(const lc_reception* current, int count, int playSo
     g_receptionCount = count;
 }
 
+/* One line a second for each talker being received on a radio, with every gain that shapes what you hear
+   from them and the levels that actually came out. Direct speech and radio are mixed from the same samples,
+   so this is what tells a transmission that is quiet on arrival from one the mix made quiet. */
+static void log_radio_levels(const lc_transmission* transmissions, int transmissionCount, const lc_voice_target* targets, int count, unsigned long long nowMs)
+{
+    static unsigned long long nextLogMs;
+    if (nowMs < nextLogMs)
+        return;
+
+    nextLogMs = nowMs + LC_LEVEL_LOG_MS;
+    for (int i = 0; i < count; ++i) {
+        const lc_voice_target* target = &targets[i];
+        if (target->radioLeft <= 0.0f && target->radioRight <= 0.0f)
+            continue;
+
+        int playerId = 0;
+        for (int t = 0; t < transmissionCount; ++t) {
+            if (transmissions[t].client == target->client) {
+                playerId = transmissions[t].info.playerId;
+                break;
+            }
+        }
+
+        lc_audio_levels levels;
+        if (!lc_audio_take_levels(target->client, &levels))
+            continue;
+
+        lc_logf(LC_LOG_INFO,
+            "Radio rx player %d: in %.1f dB, direct gain %.2f/%.2f out %.1f dB, radio gain %.2f/%.2f quality %.2f out %.1f dB",
+            playerId, levels.inDb, target->gainLeft, target->gainRight, levels.directDb,
+            target->radioLeft, target->radioRight, target->radioQuality, levels.radioDb);
+    }
+}
+
 static lc_voice_target* find_target(lc_voice_target* targets, int count, anyID client)
 {
     for (int i = 0; i < count; ++i) {
@@ -527,8 +627,9 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
         return;
     }
 
-    int    count          = 0;
-    int    receptionCount = 0;
+    int    count             = 0;
+    int    receptionCount    = 0;
+    int    transmissionCount = 0;
     size_t rxLen          = 0;
     size_t heardLen       = 0;
     if (g_game.alive && g_game.token[0]) {
@@ -547,7 +648,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
             ++count;
         }
 
-        const int transmissionCount = lc_transmissions_list(g_game.token, transmissions, LC_MAX_TRANSMISSIONS);
+        transmissionCount = lc_transmissions_list(g_game.token, transmissions, LC_MAX_TRANSMISSIONS);
         for (int i = 0; i < transmissionCount; ++i) {
             const lc_transmission* tx     = &transmissions[i];
             const lc_player_state* player = find_player(tx->info.playerId);
@@ -632,6 +733,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     update_receptions(receptions, receptionCount, 1);
     lc_reverb_set_room(g_game.roomVolume);
     lc_audio_publish(1, targets, count);
+    log_radio_levels(transmissions, transmissionCount, targets, count, nowMs);
 }
 
 static void write_plugin_state(int connected, int inGame, int haveChannel, int micMuted, anyID me, uint64 channel, unsigned long long nowMs)
@@ -791,6 +893,7 @@ static DWORD WINAPI core_main(LPVOID param)
     if (fastTimer)
         timeEndPeriod(1);
 
+    release_capture();
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
     lc_audio_publish(0, NULL, 0);

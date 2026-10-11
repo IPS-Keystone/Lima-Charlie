@@ -19,6 +19,9 @@ class LC_RadioSettings
 	protected ref map<string, float> m_mVolume = new map<string, float>();
 	//! Transmit key index -> transceiver id (LC_Radio.GetId) the player assigned to it
 	protected ref map<int, string> m_mKeyAssignments = new map<int, string>();
+	//! Channels the player has taken off every transmit key, so the default by position does not hand them
+	//! one back
+	protected ref array<string> m_aNoKey = {};
 	//! One beep volume for every channel, on top of each channel's own volume
 	protected float m_fBeepVolume = 1;
 
@@ -150,7 +153,7 @@ class LC_RadioSettings
 			return null;
 
 		SCR_VONEntryRadio defaultEntry = entries[key];
-		if (!defaultEntry || GetAssignedKey(defaultEntry) >= 0)
+		if (!defaultEntry || GetAssignedKey(defaultEntry) >= 0 || m_aNoKey.Contains(LC_Radio.GetId(defaultEntry)))
 			return null;
 
 		return defaultEntry;
@@ -170,18 +173,32 @@ class LC_RadioSettings
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Moves a channel to the next transmit key (1, 2, 3, 4, 1...), taking that key from whatever it sent on.
-	//! Returns the new key index.
-	int CycleKey(notnull SCR_VONEntryRadio entry, notnull array<SCR_VONEntryRadio> entries)
+	//! Puts a channel on one transmit key, taking that key from whatever it sent on before
+	void SetKey(notnull SCR_VONEntryRadio entry, int key)
 	{
-		int key = (GetKey(entry, entries) + 1) % TRANSMIT_KEY_COUNT;
+		if (key < 0 || key >= TRANSMIT_KEY_COUNT)
+			return;
 
+		string id = LC_Radio.GetId(entry);
 		int previous = GetAssignedKey(entry);
 		if (previous >= 0)
 			m_mKeyAssignments.Remove(previous);
 
-		m_mKeyAssignments.Set(key, LC_Radio.GetId(entry));
-		return key;
+		m_aNoKey.RemoveItem(id);
+		m_mKeyAssignments.Set(key, id);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Takes a channel off every transmit key, including the one its position in the list would give it
+	void ClearKey(notnull SCR_VONEntryRadio entry)
+	{
+		int previous = GetAssignedKey(entry);
+		if (previous >= 0)
+			m_mKeyAssignments.Remove(previous);
+
+		string id = LC_Radio.GetId(entry);
+		if (!m_aNoKey.Contains(id))
+			m_aNoKey.Insert(id);
 	}
 
 	//------------------------------------------------------------------------------------------------

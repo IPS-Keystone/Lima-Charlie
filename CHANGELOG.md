@@ -1,5 +1,60 @@
 # Changelog
 
+## 2.0.4 — mod 2.0.4, plugin 2.0.4
+
+Since 2.0.3.
+
+- **Radio keys open your microphone in TeamSpeak.** Holding any radio transmit key forces TeamSpeak's input
+  on and switches voice activation detection off for the length of the transmission, so a push-to-talk user
+  does not need to hold TeamSpeak's key as well and voice activation never clips a quiet word on the net.
+  This is what TFAR does, with one difference: the settings are saved before the transmission and restored
+  exactly afterwards, rather than inferred. TFAR deactivates input on release whenever voice activation was
+  off, which switches off the microphone of anyone on continuous transmission — the bug 1.0.6 shipped. The
+  release follows the transmission's own third-of-a-second tail, so the last word goes out. A mute set in
+  TeamSpeak is a separate setting and is left alone.
+- **A transmit key picker.** `J` over a radio in the VON menu now opens a small menu beside it with five
+  buttons — **None** and **1** to **4** — modelled on the Coalition squad interface's colour team picker.
+  The key the radio is on now is lit. Choosing a key moves it from whatever radio had it; **None** takes the
+  radio off every key, including the one its position in the list would give it, which was not possible
+  before. Esc closes it.
+
+## 2.0.3 — mod 2.0.3, plugin 2.0.3
+
+Since 2.0.1. Plugin change; the mod is bumped only so both halves report the same number.
+
+- **Radio reception now logs its own levels**, once a second per talker and only while they are coming in
+  on a radio, to the TeamSpeak log:
+
+  ```
+  Radio rx player 3: in -24.1 dB, direct gain 0.03/0.02 out -55.0 dB, radio gain 0.80/0.00 quality 1.00 out -21.7 dB
+  ```
+
+  `in` is the voice as TeamSpeak handed it over, before anything of ours; the direct and radio figures are
+  what each path made of it. This is here to settle a report that transmissions from someone at the edge of
+  earshot came through quieter than transmissions from further away, which the mix as written cannot
+  produce: the radio gain has no distance term, and every per-talker difference between those two cases is
+  on the direct path. Two readings from a test — one speaker at the edge, one out of earshot — say whether the
+  difference is in what arrives, in the radio path, or in neither.
+- Local voice is unchanged under the radio. Someone close enough to hear in person is heard both in the room
+  and on the radio, as TFAR does. (A development build that removed the room voice during transmissions was
+  never released.)
+
+## 2.0.1 — mod 2.0.1, plugin 2.0.1
+
+Since 2.0.0. The change is in the mod; the plugin is rebuilt only so both halves report the same number.
+
+- **Every session now logs one line about `server.json`**, saying which of four things happened: it was
+  generated, it was read and overrides something, it was read and overrides nothing, or it was found and
+  could not be parsed. Two of those used to be silent — a file whose keys all matched the mod's config
+  logged nothing at all, which looked exactly like a file being ignored.
+
+```
+[LC] No $profile:LimaCharlie/server.json found, so it has been generated from this session's settings; edit it to override the mod's config
+[LC] Read $profile:LimaCharlie/server.json; it overrides: cleanRangePercent channelLabels
+[LC] Read $profile:LimaCharlie/server.json; none of its keys override the mod's config
+[LC] Found $profile:LimaCharlie/server.json but could not parse it, so the mod's config stands this session
+```
+
 ## 2.0.0 — mod 2.0.0, plugin 2.0.0
 
 **The first stable release since 1.0.1**, and the one to install. It gathers everything tested through the

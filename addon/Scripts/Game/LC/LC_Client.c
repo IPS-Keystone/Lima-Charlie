@@ -345,16 +345,32 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Puts the selected channel on the next transmit key
+	//! Opens the transmit key picker for the channel under the cursor
 	protected void OnRadioKeyAssign(float value = 0.0, EActionTrigger reason = 0)
 	{
 		SCR_VONEntryRadio entry = GetHoveredRadioEntry();
 		if (!entry)
 			return;
 
-		m_RadioSettings.CycleKey(entry, m_aRadioEntries);
+		int number = m_aRadioEntries.Find(entry) + 1;
+		LC_KeyAssignMenu.Open(entry, m_RadioSettings.GetKey(entry, m_aRadioEntries), "Radio " + number.ToString() + " transmit key");
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Called by LC_KeyAssignMenu: a transmit key 0 to 3, or -1 to take the channel off all of them
+	void OnTransmitKeyChosen(notnull SCR_VONEntryRadio entry, int key)
+	{
+		RefreshRadioEntries();
+		if (!m_aRadioEntries.Contains(entry))
+			return;
+
+		if (key < 0)
+			m_RadioSettings.ClearKey(entry);
+		else
+			m_RadioSettings.SetKey(entry, key);
+
 		RefreshRadioMenu();
-		PlayUiSound("cycle");
+		PlayUiSound("confirm");
 	}
 
 	//------------------------------------------------------------------------------------------------

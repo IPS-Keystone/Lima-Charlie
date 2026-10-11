@@ -1,0 +1,271 @@
+FrameWidgetClass {
+ Name "LC_KeyAssignRoot"
+ {
+  FrameWidgetClass "{6A5C69DD200000C1}" {
+   Name "Panel"
+   Slot FrameWidgetSlot "{6A5C69DD200000C2}" {
+    Anchor 0.5 0.5 0.5 0.5
+    PositionX 340
+    OffsetLeft 340
+    PositionY -64
+    OffsetTop -64
+    SizeX 340
+    OffsetRight -680
+    SizeY 128
+    OffsetBottom -64
+   }
+   {
+    ImageWidgetClass "{6A5C69DD200000A0}" {
+     Name "Background"
+     Slot FrameWidgetSlot "{6A5C69DD200000A1}" {
+      Anchor 0 0 0 0
+      PositionX 0
+      OffsetLeft 0
+      PositionY 0
+      OffsetTop 0
+      SizeX 340
+      OffsetRight -340
+      SizeY 128
+      OffsetBottom -128
+     }
+     Color 0.02 0.02 0.02 0.88
+    }
+    TextWidgetClass "{6A5C69DD200000A2}" {
+     Name "Title"
+     Slot FrameWidgetSlot "{6A5C69DD200000A3}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 10
+      OffsetTop 10
+      SizeX 308
+      OffsetRight -324
+      SizeY 28
+      OffsetBottom -38
+     }
+     Text "Transmit key"
+     "Font Size" 22
+     "Min Font Size" 22
+     FontProperties FontProperties "{6A5C69DD200000A4}" {
+      Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+     }
+    }
+    ButtonWidgetClass "{6A5C69DD200000A5}" {
+     Name "KeyNone"
+     Slot FrameWidgetSlot "{6A5C69DD200000A6}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -72
+      SizeY 48
+      OffsetBottom -96
+     }
+     Color 0.18 0.18 0.18 1
+    }
+    TextWidgetClass "{6A5C69DD200000A7}" {
+     Name "KeyNoneLabel"
+     Slot FrameWidgetSlot "{6A5C69DD200000A8}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -72
+      SizeY 48
+      OffsetBottom -96
+     }
+     "Z Order" 2
+     "Ignore Cursor" 1
+     Text "None"
+     "Font Size" 20
+     "Min Font Size" 20
+     "Horizontal Alignment" Center
+     "Vertical Alignment" Center
+     FontProperties FontProperties "{6A5C69DD200000A9}" {
+      Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+     }
+    }
+    ButtonWidgetClass "{6A5C69DD200000AA}" {
+     Name "Key1"
+     Slot FrameWidgetSlot "{6A5C69DD200000AB}" {
+      Anchor 0 0 0 0
+      PositionX 79
+      OffsetLeft 79
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -135
+      SizeY 48
+      OffsetBottom -96
+     }
+     Color 0.18 0.18 0.18 1
+    }
+    TextWidgetClass "{6A5C69DD200000AC}" {
+     Name "Key1Label"
+     Slot FrameWidgetSlot "{6A5C69DD200000AD}" {
+      Anchor 0 0 0 0
+      PositionX 79
+      OffsetLeft 79
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -135
+      SizeY 48
+      OffsetBottom -96
+     }
+     "Z Order" 2
+     "Ignore Cursor" 1
+     Text "1"
+     "Font Size" 20
+     "Min Font Size" 20
+     "Horizontal Alignment" Center
+     "Vertical Alignment" Center
+     FontProperties FontProperties "{6A5C69DD200000AE}" {
+      Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+     }
+    }
+    ButtonWidgetClass "{6A5C69DD200000AF}" {
+     Name "Key2"
+     Slot FrameWidgetSlot "{6A5C69DD200000B0}" {
+      Anchor 0 0 0 0
+      PositionX 142
+      OffsetLeft 142
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -198
+      SizeY 48
+      OffsetBottom -96
+     }
+     Color 0.18 0.18 0.18 1
+    }
+    TextWidgetClass "{6A5C69DD200000B1}" {
+     Name "Key2Label"
+     Slot FrameWidgetSlot "{6A5C69DD200000B2}" {
+      Anchor 0 0 0 0
+      PositionX 142
+      OffsetLeft 142
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -198
+      SizeY 48
+      OffsetBottom -96
+     }
+     "Z Order" 2
+     "Ignore Cursor" 1
+     Text "2"
+     "Font Size" 20
+     "Min Font Size" 20
+     "Horizontal Alignment" Center
+     "Vertical Alignment" Center
+     FontProperties FontProperties "{6A5C69DD200000B3}" {
+      Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+     }
+    }
+    ButtonWidgetClass "{6A5C69DD200000B4}" {
+     Name "Key3"
+     Slot FrameWidgetSlot "{6A5C69DD200000B5}" {
+      Anchor 0 0 0 0
+      PositionX 205
+      OffsetLeft 205
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -261
+      SizeY 48
+      OffsetBottom -96
+     }
+     Color 0.18 0.18 0.18 1
+    }
+    TextWidgetClass "{6A5C69DD200000B6}" {
+     Name "Key3Label"
+     Slot FrameWidgetSlot "{6A5C69DD200000B7}" {
+      Anchor 0 0 0 0
+      PositionX 205
+      OffsetLeft 205
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -261
+      SizeY 48
+      OffsetBottom -96
+     }
+     "Z Order" 2
+     "Ignore Cursor" 1
+     Text "3"
+     "Font Size" 20
+     "Min Font Size" 20
+     "Horizontal Alignment" Center
+     "Vertical Alignment" Center
+     FontProperties FontProperties "{6A5C69DD200000B8}" {
+      Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+     }
+    }
+    ButtonWidgetClass "{6A5C69DD200000B9}" {
+     Name "Key4"
+     Slot FrameWidgetSlot "{6A5C69DD200000BA}" {
+      Anchor 0 0 0 0
+      PositionX 268
+      OffsetLeft 268
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -324
+      SizeY 48
+      OffsetBottom -96
+     }
+     Color 0.18 0.18 0.18 1
+    }
+    TextWidgetClass "{6A5C69DD200000BB}" {
+     Name "Key4Label"
+     Slot FrameWidgetSlot "{6A5C69DD200000BC}" {
+      Anchor 0 0 0 0
+      PositionX 268
+      OffsetLeft 268
+      PositionY 48
+      OffsetTop 48
+      SizeX 56
+      OffsetRight -324
+      SizeY 48
+      OffsetBottom -96
+     }
+     "Z Order" 2
+     "Ignore Cursor" 1
+     Text "4"
+     "Font Size" 20
+     "Min Font Size" 20
+     "Horizontal Alignment" Center
+     "Vertical Alignment" Center
+     FontProperties FontProperties "{6A5C69DD200000BD}" {
+      Font "{EABA4FE9D014CCEF}UI/Fonts/RobotoCondensed/RobotoCondensed_Bold.fnt"
+     }
+    }
+    TextWidgetClass "{6A5C69DD200000BE}" {
+     Name "Hint"
+     Slot FrameWidgetSlot "{6A5C69DD200000BF}" {
+      Anchor 0 0 0 0
+      PositionX 16
+      OffsetLeft 16
+      PositionY 102
+      OffsetTop 102
+      SizeX 308
+      OffsetRight -324
+      SizeY 20
+      OffsetBottom -122
+     }
+     Text "Click a key, or Esc to cancel"
+     "Font Size" 14
+     "Min Font Size" 14
+     FontProperties FontProperties "{6A5C69DD200000C0}" {
+      Font "{3E7733BAC8C831F6}UI/Fonts/RobotoCondensed/RobotoCondensed_Regular.fnt"
+     }
+    }
+   }
+  }
+ }
+}
