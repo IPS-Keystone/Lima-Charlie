@@ -15,3 +15,7 @@ __pycache__/
 Thumbs.db
 desktop.ini
 *.swp
+# Claude Code config: local only, never published
+CLAUDE.md
+.mcp.json
+mcp.json
