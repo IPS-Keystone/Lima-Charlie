@@ -137,7 +137,8 @@ Per radio, kept for the session only — nothing is saved between sessions:
   sets those carry no licence that lets us pass them on, so the plugin ships without them. Select it and
   nothing plays. To get it, run `tools/make_vanilla_beeps.py` from the plugin source against your own game
   install; it writes the folder and the set works from then on.
-- **Volume** — ten steps.
+- **Volume** — ten steps, starting at 80%. At 100% a radio is a little louder than someone talking right
+  beside you.
 - **Transmit key** — which of the four keys sends on it. Press `J` with the radio under the cursor and a
   picker opens beside the menu with five buttons: **None** and **1** to **4**. The key it is on now is lit.
   Choosing a key takes it from whichever radio had it; **None** takes the radio off every key. A radio you

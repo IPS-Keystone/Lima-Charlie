@@ -53,11 +53,11 @@
 /* How long radio voice stays silent waiting for the game's terrain answer before assuming line of sight. */
 #define LC_LINK_WAIT_MS 300
 #define LC_MAX_RECEPTIONS 64
-/* Radio voice does not get quieter with distance, only more garbled. At full channel volume it is about 25%
-   louder than someone talking right beside you: the radio band throws away the low end of a voice, which at
-   the old 0.8 left it at half the level of the person next to you. Loud speech is rounded off by the
-   radio limiter in lc_audio.c rather than clipped. */
-#define LC_RADIO_VOICE_GAIN 1.85f
+/* Radio voice does not get quieter with distance, only more garbled. At full channel volume it is about 18%
+   louder than someone talking right beside you (channels start at 80%, a little under them): the radio band
+   throws away the low end of a voice, which at the old 0.8 left it at half the level of the person next to
+   you. Loud speech is rounded off by the radio limiter in lc_audio.c rather than clipped. */
+#define LC_RADIO_VOICE_GAIN 1.72f
 /* While someone is being received on a radio, their levels go to the TeamSpeak log once a second: what
    arrived from TeamSpeak, what the direct and radio paths produced, and the radio's signal quality. Only
    during reception, so it is quiet the rest of the time. */
