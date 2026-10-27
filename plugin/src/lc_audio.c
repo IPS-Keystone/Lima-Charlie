@@ -31,6 +31,8 @@
 /* Dropouts last 20 to 80 ms. */
 #define LC_DROPOUT_MIN_SAMPLES 960
 #define LC_DROPOUT_EXTRA_SAMPLES 2880
+/* Radio voice above this level is rounded off towards full scale rather than clipped */
+#define LC_RADIO_LIMIT_KNEE 0.7f
 /* A headset's drive of 1 multiplies the signal by this much more going into its soft clipper */
 #define LC_HEADSET_DRIVE_RANGE 9.0f
 
@@ -359,6 +361,18 @@ static float radio_tick(lc_voice_state* s, float x, const lc_garble* g)
     return v * g->voiceLevel + s->noise * g->noiseLevel;
 }
 
+/* Radio voice at its channel gain, rounded off above the knee so a shout on the net is squashed the way a
+   radio's own limiter would, instead of clipping square. Below the knee it passes untouched. */
+static float radio_limit(float v)
+{
+    const float level = (float)fabs(v);
+    if (level <= LC_RADIO_LIMIT_KNEE)
+        return v;
+    const float room    = 1.0f - LC_RADIO_LIMIT_KNEE;
+    const float limited = LC_RADIO_LIMIT_KNEE + room * (float)tanh((level - LC_RADIO_LIMIT_KNEE) / room);
+    return v < 0.0f ? -limited : limited;
+}
+
 static short to_sample(float value)
 {
     const float scaled = value * 32767.0f;
@@ -451,8 +465,8 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
 
         const float directLeft = direct * (startLeft + (targetLeft - startLeft) * t);
         const float directRight = direct * (startRight + (targetRight - startRight) * t);
-        const float outLeft  = directLeft + radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t);
-        const float outRight = directRight + radio * (startRadioRight + (targetRadioRight - startRadioRight) * t);
+        const float outLeft  = directLeft + radio_limit(radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t));
+        const float outRight = directRight + radio_limit(radio * (startRadioRight + (targetRadioRight - startRadioRight) * t));
         if (i < sendFrames)
             g_send[i] = roomShare * 0.5f * (directLeft + directRight);
 

@@ -341,6 +341,42 @@ static double headset_rms(float toneHz, int onRadio, const lc_hearing_path* dire
     return sqrt(sum / 960.0);
 }
 
+/* A full-scale shout on a radio at well above unity channel gain is rounded off, never clipped square. */
+static void test_radio_limit(void)
+{
+    lc_voice_target target;
+    memset(&target, 0, sizeof(target));
+    target.client       = 9;
+    target.radioLeft    = 2.0f;
+    target.radioRight   = 2.0f;
+    target.radioQuality = 1.0f;
+    lc_audio_reset();
+    lc_audio_publish(1, &target, 1, NULL, NULL);
+
+    static short frames[960 * 2];
+    int          clipped = 0;
+    int          peak    = 0;
+    for (int period = 0; period < 10; ++period) {
+        for (int i = 0; i < 960; ++i) {
+            const short v     = (short)(32000.0 * sin(2.0 * 3.14159265 * 700.0 * (double)(period * 960 + i) / 48000.0));
+            frames[i * 2]     = v;
+            frames[i * 2 + 1] = v;
+        }
+        lc_audio_process(9, frames, 960, 2, NULL, NULL);
+        for (int i = 0; i < 960 * 2; ++i) {
+            const int level = frames[i] < 0 ? -frames[i] : frames[i];
+            if (level >= 32767)
+                ++clipped;
+            if (level > peak)
+                peak = level;
+        }
+    }
+    lc_audio_publish(0, NULL, 0, NULL, NULL);
+    CHECK(clipped == 0);
+    /* Still loud: the limiter rounds the top off, it does not turn the radio down. */
+    CHECK(peak > 22000);
+}
+
 static void test_headset(void)
 {
     const lc_hearing_path unset    = {0.0f, 0.0f, 0.0f, 0.0f};
@@ -446,6 +482,7 @@ int main(void)
     test_game_state();
     test_reverb();
     test_headset();
+    test_radio_limit();
     printf(g_failures ? "%d check(s) failed\n" : "All checks passed\n", g_failures);
     return g_failures;
 }

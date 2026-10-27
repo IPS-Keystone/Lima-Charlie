@@ -10,6 +10,9 @@ Since 2.0.4.
   voices are shaped after walls and distance and before the room's echo, so the echo comes through the
   headset too; radio beeps are never touched. Neither mod needs the other. An older plugin ignores it, so
   the bridge protocol is unchanged (9). See docs/developer-reference.md, "Hearing hook for other mods".
+- **Radios are louder.** At full channel volume a radio voice is now about 25% louder than someone talking
+  right beside you; it was half their level, because the radio band throws away the low end of a voice.
+  Lower a channel's volume to taste. A shout on the net is rounded off by a limiter instead of clipping.
 
 ## 2.0.4 — mod 2.0.4, plugin 2.0.4
 
