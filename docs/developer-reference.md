@@ -92,7 +92,7 @@ Protocol 9.
                           "halfDuplex": 0 } ],
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
   "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6, "room": 0.35 } ],
-  "links":   [ { "id": 2, "clearance": 35 } ]
+  "links":   [ { "id": 2, "clearance": 35, "hills": [35, 12] } ]
 }
 ```
 
@@ -108,8 +108,12 @@ Protocol 9.
 - `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed. `room` is how
   much of the listener's room that voice fills, which scales the reverb send only: 1 in the same room,
   0.35 elsewhere in the building, 0.1 from outdoors. New in protocol 8.
-- `links[]` answers the plugin's `radioRx` requests with terrain clearance in metres, already scaled by the
-  server's terrain setting.
+- `links[]` answers the plugin's `radioRx` requests with the terrain to that transmitter: `hills` is every
+  hill above the line of sight, as its height in metres, highest first (up to 8), and `clearance` the
+  highest. Both are already scaled by the server's terrain setting. `hills` is new in 2.0.5 without a
+  protocol bump: a plugin that finds no `hills` treats `clearance` as one hill, and a 2.0.4 plugin reads only
+  `clearance` with its old TFAR formula, so mismatched halves still work but disagree on how much a hill
+  costs.
 - `sounds[]` is a queue with increasing `seq`; the plugin plays each once.
 - `roomVolume` is the volume in m³ of the room the listener is standing in, 0 outdoors. It sizes the
   plugin's room reverb. New in protocol 8.

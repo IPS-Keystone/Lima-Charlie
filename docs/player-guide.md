@@ -154,8 +154,10 @@ distortion, sample-and-hold artefacts, bit-crushing, occasional dropouts past th
 that rises from a clean 30 dB signal-to-noise ratio down to −3 dB at the edge. The voice itself is held
 level as the noise rises, so a bad signal sounds noisier, not louder.
 
-Terrain between you and the transmitter counts as extra distance, so a ridge can garble or silence a
-signal that distance alone would carry. This is TFAR's model.
+Hills between you and the transmitter shrink the radio's range, so a ridge can garble or silence a signal
+that distance alone would carry. Each hill takes a share that grows with its height above the line between
+you, a second hill takes its share of what the first left, and long range sets lose the same share as short
+ones, so they still reach far behind a ridge.
 
 **The radio is always at the same level**, at that channel's volume and in that channel's ear, however near
 or far its speaker is standing. If they are close enough to hear in person, you hear both: their voice in the

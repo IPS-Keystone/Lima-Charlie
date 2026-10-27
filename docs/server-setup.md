@@ -116,7 +116,7 @@ list entirely.
 | Setting | Why you might move it |
 | --- | --- |
 | `cleanRangePercent` | The big one. 35 means clear inside a third of a radio's range, garbling beyond. Raise it for forgiving comms, lower it for a rough feel. |
-| `terrainEffectPercent` | 0 ignores hills altogether; 200 makes a ridge twice as costly. Worth lowering on very hilly maps if your players cannot hold a net. |
+| `terrainEffectPercent` | Scales every hill's height: 0 ignores hills altogether, 200 makes each count as twice its height. Worth lowering on very hilly maps if your players cannot hold a net. |
 | `gameMasterUnlimitedRange` | On by default, so a Game Master can reach anyone. Turn off to hold them to the same ranges as everyone else. |
 | `aiHearing` | Enemy AI turning towards players who speak out loud. Off if you do not want voice to have tactical consequences. |
 | `unconsciousCanSpeak` | Off by default: a player bleeding out on the floor is silent. Turn on to let them keep talking while they wait for a medic. Radios stay out of reach while unconscious either way, and the dead are always silent. |

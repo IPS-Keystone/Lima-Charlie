@@ -15,7 +15,7 @@
                          "radio": { "gainDb": 0, "highPassHz": 0, "lowPassHz": 0, "drive": 0 } },
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
   "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6, "room": 0.35 } ],
-  "links": [ { "id": 2, "clearance": 35 } ]
+  "links": [ { "id": 2, "clearance": 35, "hills": [35, 12] } ]
 }
 self.pos/dir are the listener (camera); players carry no facing, as only the listener's matters.
 players[].pos is the speaker's head, and muffle (0 clear .. 1) is
@@ -40,14 +40,16 @@ radios[] are the local player's transceivers: rx is false when switched off or m
 2 right, volume is 0..1 and beep names a sound set folder. halfDuplex marks a radio that cannot listen while
 it transmits: it is deaf for as long as it is the radio being transmitted on. "sounds" holds the most recent sounds the game asked
 for (UI tones, sample beeps) with increasing seq; the plugin plays each seq once. "players" holds only players near enough to matter for direct speech. "links"
-answers the plugin's radioRx requests with the TFAR-style terrain clearance in metres (0 = line of sight)
-between that transmitting player and the local player, already scaled by the server's terrain effect
-setting: the terrain penalty is linear in the clearance, so the game scales it there rather than sending
-the coefficient across. */
+answers the plugin's radioRx requests with the terrain between that transmitting player and the local
+player: "hills" is the height in metres of every hill rising above the line of sight between them, highest
+first, and "clearance" the highest of them (0 = line of sight). Both are already scaled by the server's
+terrain effect setting, so the plugin never needs the setting itself. */
 
 #define LC_GAME_STATE_MAX_PLAYERS 128
 #define LC_GAME_STATE_MAX_RADIOS 16
 #define LC_GAME_STATE_MAX_LINKS 64
+/* Matches LC_Terrain.MAX_HILLS in the game */
+#define LC_LINK_MAX_HILLS 8
 #define LC_TOKEN_CAP 64
 #define LC_RADIO_ID_CAP 32
 #define LC_RADIO_KEY_CAP 64
@@ -100,7 +102,11 @@ typedef struct {
 
 typedef struct {
     int   playerId;
+    /* The highest hill above the line of sight, in metres */
     float clearance;
+    /* Every hill above the line of sight, highest first; a game that sends only "clearance" gives one */
+    int   hillCount;
+    float hills[LC_LINK_MAX_HILLS];
 } lc_link_state;
 
 /* One path of the listener's hearing profile, already range-checked: 0 everywhere means unchanged. */

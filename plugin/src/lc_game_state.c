@@ -199,6 +199,18 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
             lc_link_state* l = &out->links[out->linkCount++];
             l->playerId       = get_int(link, "id", 0);
             l->clearance      = get_float(link, "clearance", 0.0f);
+            const cJSON* hills = cJSON_GetObjectItemCaseSensitive(link, "hills");
+            const cJSON* hill;
+            cJSON_ArrayForEach(hill, hills)
+            {
+                if (l->hillCount >= LC_LINK_MAX_HILLS)
+                    break;
+                if (cJSON_IsNumber(hill) && hill->valuedouble > 0.0)
+                    l->hills[l->hillCount++] = (float)hill->valuedouble;
+            }
+            /* A game from before hills were counted separately sends only the highest */
+            if (!cJSON_IsArray(hills) && l->clearance > 0.0f)
+                l->hills[l->hillCount++] = l->clearance;
         }
         ok = 1;
     }

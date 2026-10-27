@@ -45,3 +45,14 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Survey written: docs/research/2026-10-28-terrain-autoconnect-vehicle-comms.md (terrain options A-D, CVON
   3.0.1 auto-connect, vehicle radios/intercoms in CVON/TFAR/ACRE2). Waiting on Duke: terrain option, go for
   auto-connect, vehicle comms scope.
+- Radio gain 1.85 -> 1.72 (+18% over a voice beside you at speaking level), channels default to 80% (11405a3).
+- Terrain A+B built, **uncommitted** on `radio-tuning`, awaiting Duke's OK on the numbers: game clearance is
+  now the worst ground's height above the line of sight (no near-end blow-up, no 10 m minimum); plugin takes
+  share = 0.5 * (1 - e^(-h/60)) of the range (no d/2000 term). Tests pass, Workbench compile OK 09:34.
+  Docs (how-it-works Terrain, LC_Settings terrain description "100 is the TFAR model") still to update.
+- Terrain revised (still **uncommitted**): game sends every hill above line of sight (`links[].hills`, top 8,
+  `clearance` = highest kept for old plugins); plugin combines them as shares of what is left, per hill
+  0.8 * (1 - e^(-h/95)), total cap 90%. Small hills as before, big ones stronger (250 m: 49% -> 74%).
+  Build + tests pass, Workbench compile OK 09:44. Awaiting Duke's OK on the numbers; docs still to do.
+- Terrain approved by Duke and committed with docs (how-it-works Terrain table, developer-reference links[],
+  player guide, server settings/setup, in-game terrain setting description, CHANGELOG).

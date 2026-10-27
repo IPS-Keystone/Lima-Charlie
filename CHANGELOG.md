@@ -10,6 +10,13 @@ Since 2.0.4.
   voices are shaped after walls and distance and before the room's echo, so the echo comes through the
   headset too; radio beeps are never touched. Neither mod needs the other. An older plugin ignores it, so
   the bridge protocol is unchanged (9). See docs/developer-reference.md, "Hearing hook for other mods".
+- **A new terrain model, much kinder to long range radios.** Each hill rising above the line between two
+  radios now takes a share of the radio's range that grows with its height (a 10 m hill 8%, 30 m 22%,
+  120 m 57%, 250 m 74%), and a second hill takes its share of what the first left, up to 90% in all. The
+  same hill costs a 20 km set the same share as a 2 km one. TFAR's model, used until now, counted a hill
+  near either end of the path as many times its real height and grew the penalty with distance, so a
+  20 km radio behind a 10 m ridge garbled from 3.5 km and was dead at 9.7 km; now it is clean to 6.4 km and
+  reaches 18.4 km. The server's terrain effect setting scales every hill's height as before.
 - **Radios are louder.** At full channel volume a radio voice is now about 18% louder than someone talking
   right beside you; it was half their level, because the radio band throws away the low end of a voice.
   Channels now start at 80% rather than 100%, a little under the person beside you. A shout on the net is

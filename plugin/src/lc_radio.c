@@ -62,22 +62,40 @@ int lc_radio_parse_announcement(const char* command, lc_radio_announcement* out)
     return out->frequency > 0 && out->range > 0.0f && isfinite(out->pos[0]) && isfinite(out->pos[1]) && isfinite(out->pos[2]);
 }
 
-float lc_radio_effective_distance(float distance, float clearance)
+float lc_radio_terrain_share(float height)
 {
-    if (clearance <= 0.0f)
-        return distance;
-    const float terrain = clearance * LC_RADIO_TERRAIN_COEFFICIENT;
-    return distance + terrain + terrain * (distance / 2000.0f);
+    if (!(height > 0.0f))
+        return 0.0f;
+    return LC_RADIO_TERRAIN_MAX_SHARE * (1.0f - (float)exp(-height / LC_RADIO_TERRAIN_SCALE_M));
 }
 
-float lc_radio_range_ratio(float distance, float clearance, float range)
+float lc_radio_terrain_loss(const float* hills, int count)
+{
+    float left = 1.0f;
+    for (int i = 0; hills && i < count; ++i)
+        left *= 1.0f - lc_radio_terrain_share(hills[i]);
+    const float loss = 1.0f - left;
+    return loss > LC_RADIO_TERRAIN_MAX_LOSS ? LC_RADIO_TERRAIN_MAX_LOSS : loss;
+}
+
+float lc_radio_effective_distance(float distance, float terrainLoss)
+{
+    if (!(terrainLoss > 0.0f))
+        return distance;
+    if (terrainLoss > LC_RADIO_TERRAIN_MAX_LOSS)
+        terrainLoss = LC_RADIO_TERRAIN_MAX_LOSS;
+    /* The range shrinking by the loss is the same as the distance growing by 1 / (1 - loss) */
+    return distance / (1.0f - terrainLoss);
+}
+
+float lc_radio_range_ratio(float distance, float terrainLoss, float range)
 {
     if (range <= 0.0f)
         return 2.0f;
-    return lc_radio_effective_distance(distance, clearance) / range;
+    return lc_radio_effective_distance(distance, terrainLoss) / range;
 }
 
-float lc_radio_quality(float distance, float clearance, float range, float cleanFraction)
+float lc_radio_quality(float distance, float terrainLoss, float range, float cleanFraction)
 {
     if (range <= 0.0f)
         return 0.0f;
@@ -85,7 +103,7 @@ float lc_radio_quality(float distance, float clearance, float range, float clean
         cleanFraction = LC_RADIO_CLEAN_FRACTION;
     else if (cleanFraction > LC_RADIO_MAX_CLEAN_FRACTION)
         cleanFraction = LC_RADIO_MAX_CLEAN_FRACTION;
-    const float ratio = lc_radio_range_ratio(distance, clearance, range);
+    const float ratio = lc_radio_range_ratio(distance, terrainLoss, range);
     if (ratio >= 1.0f)
         return 0.0f;
     if (ratio <= cleanFraction)

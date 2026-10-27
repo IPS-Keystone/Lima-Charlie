@@ -15,7 +15,7 @@ class LC_Settings
 	[Attribute(defvalue: "90", uiwidget: UIWidgets.Slider, params: "0 100 5", desc: "How far out you still hear the beeps at the start and end of someone else's transmission, as a percentage of radio range. Below 100 a transmission from the far edge arrives as speech with no beeps, so a beep means the signal is worth listening to. 0 silences other people's beeps entirely.")]
 	float m_fBeepRangePercent;
 
-	[Attribute(defvalue: "100", uiwidget: UIWidgets.Slider, params: "0 300 10", desc: "How strongly hills and ridges between two radios cut the signal, as a percentage. 100 is the TFAR model, 0 ignores terrain entirely so only distance matters, 200 makes a ridge twice as costly. Terrain shortens the real range as well as garbling sooner.")]
+	[Attribute(defvalue: "100", uiwidget: UIWidgets.Slider, params: "0 300 10", desc: "How strongly hills between two radios cut the signal, as a percentage: it scales every hill's height. At 100 a hill 30 m above the line between the radios takes about a fifth of a radio's range and one 120 m high more than half; a second hill takes its share of what is left. 0 ignores terrain entirely so only distance matters, 200 makes every hill count as twice its height. Terrain shortens the real range as well as garbling sooner.")]
 	float m_fTerrainEffectPercent;
 
 	[Attribute(desc: "Named frequencies. Each entry gives a frequency in MHz a name and a colour, shown beside it on the VON display whenever anyone transmits or receives on it. Empty by default; add an entry per net you want named.")]

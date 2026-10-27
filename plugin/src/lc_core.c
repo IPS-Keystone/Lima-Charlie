@@ -214,11 +214,12 @@ static const lc_radio_state* find_radio(const char* id)
     return NULL;
 }
 
-static int find_link(int playerId, float* clearance)
+/* The share of range the terrain to this transmitter takes, once the game has traced it */
+static int find_link(int playerId, float* terrainLoss)
 {
     for (int i = 0; i < g_game.linkCount; ++i) {
         if (g_game.links[i].playerId == playerId) {
-            *clearance = g_game.links[i].clearance;
+            *terrainLoss = lc_radio_terrain_loss(g_game.links[i].hills, g_game.links[i].hillCount);
             return 1;
         }
     }
@@ -692,11 +693,11 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                 continue;
 
             /* Until the game has traced the terrain, assume line of sight for the beeps but keep the voice silent. */
-            float     clearance = 0.0f;
-            const int waiting   = !find_link(tx->info.playerId, &clearance) && nowMs - tx->startMs < LC_LINK_WAIT_MS;
-            const float quality = lc_radio_quality(distance, clearance, range, g_game.cleanFraction);
+            float     terrainLoss = 0.0f;
+            const int waiting     = !find_link(tx->info.playerId, &terrainLoss) && nowMs - tx->startMs < LC_LINK_WAIT_MS;
+            const float quality   = lc_radio_quality(distance, terrainLoss, range, g_game.cleanFraction);
             /* Beeps stop short of the voice, so a transmission from the far edge is speech without beeps. */
-            const int beepsAudible = lc_radio_range_ratio(distance, clearance, range) <= g_game.beepFraction;
+            const int beepsAudible = lc_radio_range_ratio(distance, terrainLoss, range) <= g_game.beepFraction;
 
             float left  = 0.0f;
             float right = 0.0f;
