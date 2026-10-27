@@ -39,3 +39,9 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Evidence: `plugin\build.bat` clean at /W4, "All checks passed" incl. new parse + headset DSP tests;
   `reforger_check_enforce` clean; Workbench log 07:45 Game module OK (5697 files) with LC loaded.
 - Open: in-game test with a caller; tune with the OTAC side (High voice gain, drive amount).
+- Branch `radio-tuning` (on top of `hearing-hook`): radio gain 0.8 -> 1.85 with a soft limiter (a04a4ea).
+  Measured through lc_audio: full-volume radio was 5-6 dB under a talker beside you; now +2.1 dB at speech
+  level, +1.5 raised, level at a shout, no clipping. Tests pass. Not yet heard in game.
+- Survey written: docs/research/2026-10-28-terrain-autoconnect-vehicle-comms.md (terrain options A-D, CVON
+  3.0.1 auto-connect, vehicle radios/intercoms in CVON/TFAR/ACRE2). Waiting on Duke: terrain option, go for
+  auto-connect, vehicle comms scope.
