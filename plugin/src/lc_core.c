@@ -609,6 +609,32 @@ static lc_voice_target* find_target(lc_voice_target* targets, int count, anyID c
     return NULL;
 }
 
+static void format_hearing_path(char* out, size_t cap, const lc_hearing_path* path)
+{
+    if (path->gainDb == 0.0f && path->highPassHz == 0.0f && path->lowPassHz == 0.0f && path->drive == 0.0f)
+        _snprintf(out, cap, "unchanged");
+    else
+        _snprintf(out, cap, "gain %+.1f dB, high-pass %.0f Hz, low-pass %.0f Hz, drive %.2f", path->gainDb, path->highPassHz, path->lowPassHz, path->drive);
+    out[cap - 1] = '\0';
+}
+
+/* Once per change: what the listener's hearing profile (a headset another mod reports) is doing to each path */
+static void log_hearing(void)
+{
+    static lc_hearing_path loggedDirect;
+    static lc_hearing_path loggedRadio;
+    if (memcmp(&loggedDirect, &g_game.hearingDirect, sizeof(loggedDirect)) == 0 && memcmp(&loggedRadio, &g_game.hearingRadio, sizeof(loggedRadio)) == 0)
+        return;
+    loggedDirect = g_game.hearingDirect;
+    loggedRadio  = g_game.hearingRadio;
+
+    char direct[128];
+    char radio[128];
+    format_hearing_path(direct, sizeof(direct), &loggedDirect);
+    format_hearing_path(radio, sizeof(radio), &loggedRadio);
+    lc_logf(LC_LOG_INFO, "Hearing: direct %s; radio %s", direct, radio);
+}
+
 /* Who can be heard, and how, from the latest game state: direct speech from nearby peers plus radio
    transmissions on frequencies our radios are tuned to. Everyone else in TeamSpeak is silenced while in game. */
 static void publish_voice(int connected, int inGame, unsigned long long nowMs)
@@ -623,7 +649,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     if (!inGame || !connected) {
         update_receptions(NULL, 0, 0);
         lc_reverb_set_room(0.0f);
-        lc_audio_publish(0, NULL, 0);
+        lc_audio_publish(0, NULL, 0, NULL, NULL);
         return;
     }
 
@@ -732,7 +758,8 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
 
     update_receptions(receptions, receptionCount, 1);
     lc_reverb_set_room(g_game.roomVolume);
-    lc_audio_publish(1, targets, count);
+    log_hearing();
+    lc_audio_publish(1, targets, count, &g_game.hearingDirect, &g_game.hearingRadio);
     log_radio_levels(transmissions, transmissionCount, targets, count, nowMs);
 }
 
@@ -896,7 +923,7 @@ static DWORD WINAPI core_main(LPVOID param)
     release_capture();
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
-    lc_audio_publish(0, NULL, 0);
+    lc_audio_publish(0, NULL, 0, NULL, NULL);
     free(buf);
     free(parsed);
     return 0;

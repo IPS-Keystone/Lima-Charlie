@@ -85,6 +85,8 @@ Protocol 9.
             "txFrequency": 45000, "txRadio": "123:1", "voiceRange": 20,
             "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false,
             "roomVolume": 96, "beepVolume": 1,
+            "hearing": { "direct": { "gainDb": 4, "highPassHz": 200, "lowPassHz": 6000, "drive": 0.04 },
+                         "radio":  { "gainDb": 0, "highPassHz": 0, "lowPassHz": 0, "drive": 0 } },
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US",
                           "rx": true, "ear": 1, "volume": 0.8, "beep": "tfar_sw",
                           "halfDuplex": 0 } ],
@@ -114,6 +116,10 @@ Protocol 9.
 - `beepVolume` is the player's one beep volume for every channel, 0..1, clamped on the way in. The plugin
   multiplies it into `radios[].volume` wherever it plays a beep and nowhere else, so it never touches a
   voice. New in protocol 9.
+- `hearing` is optional and present only while another mod reports the local player's hearing through
+  `LC_Hearing` (see [Hearing hook for other mods](#hearing-hook-for-other-mods)). It is already combined
+  across mods and range-checked. 0 means unchanged in every field. New in 2.0.5 without a protocol bump:
+  an older plugin ignores it and plays voices as before, a newer plugin reads its absence as unchanged.
 - `players[].alive` follows the server's `unconsciousCanSpeak` setting: with it on, an unconscious player
   is still audible. Radios are refused while unconscious either way, by vanilla's own activation.
 
@@ -143,6 +149,48 @@ Read last, after the defaults, `Settings.conf` and the mission header, and it wi
 it is the only layer an operator can change without republishing. Applied key by key through
 `DoesKeyExist`, so a file with one key overrides one setting. Written out in full by `WriteTemplate()` the
 first session it is missing. See [server-settings.md](server-settings.md) for the key formats.
+
+## Hearing hook for other mods
+
+Lets another mod (an ear protection headset, earplugs) change how the local player hears Lima Charlie
+voices, without either mod depending on the other: a separate compat addon that depends on both calls it.
+Lima Charlie knows nothing about the other mod's modes; the compat turns each mode into effects.
+
+```c
+LC_HearingProfile profile = new LC_HearingProfile();   // every field 0 = unchanged
+profile.m_fDirectGainDb = 4;          // nearby voices, dB, -40 .. +12
+profile.m_fDirectHighPassHz = 200;    // 0 = no filter, else 20 .. 20000
+profile.m_fDirectLowPassHz = 6000;    // 0 = no filter, else 20 .. 20000
+profile.m_fDirectDrive = 0.04;        // soft clipper, 0 none .. 1 heavy
+// m_fRadioGainDb, m_fRadioHighPassHz, m_fRadioLowPassHz, m_fRadioDrive: the same for radio voices
+LC_Hearing.SetLocalProfile("MyMod_EarPro", profile);   // null clears this source only
+```
+
+- **Contract.** Classes and field names are frozen once released: fields may be added (defaulting to 0 =
+  unchanged), never renamed or removed. `SetLocalProfile` copies the values.
+- **Sources.** Each mod reports under its own stable key; clearing one never clears another.
+- **Expiry.** A source not refreshed within 1 s (`LC_Hearing.EXPIRY_MS`, measured on
+  `System.GetTickCount()`, the clock the bridge writer uses) is dropped, so refresh at least once a
+  second and clear explicitly on Off, no headset or teardown. The expiry is the fallback, not the plan.
+  A late `null` from a previous world clears the source until its next refresh.
+- **Ranges.** Each value is clamped on the way in and again by the plugin. 0 stays 0 before any clamp, so an
+  unset cut-off never turns into a 20 Hz filter. Anything not a finite number reads as 0.
+- **Combining sources.** Gains add (then clamp to -40 .. +12); filters stack in series, so the highest
+  high-pass and the lowest low-pass win; the strongest drive wins.
+- **Where it acts.** Nearby voices: after distance, panning and occlusion muffling, before the room reverb
+  send, so a room's tail is heard through the headset too. Radio voices: after the radio effect (band,
+  garble), before the ear the radio is set to. Radio beeps and UI sounds are never touched. Filters are
+  12 dB/octave (one biquad each, Q 0.707). Drive is a `tanh` soft clipper level matched at speech level,
+  multiplier `1 + 9 x drive`. Gain changes ramp across one audio buffer; cut-off changes keep the
+  filter's history; a filter coming in starts from silence.
+- **What it cannot do.** It is an approximation of a headset, not a copy of a game audio chain: no EQ bands,
+  resonance or compressor, and nothing a gunshot in the game could drive, since TeamSpeak never hears the
+  game.
+- **Seeing it work.** The game logs `[LC] Hearing {...}` whenever the combined profile changes and
+  `[LC] Hearing unchanged` when it ends; the plugin logs `Hearing: direct ...; radio ...` on each change
+  to the TeamSpeak log. With the server's troubleshooting setting on, it is in every logged `game_state`.
+- **Versions.** The classes exist from mod 2.0.5; the plugin acts on them from 2.0.5. An older plugin
+  silently leaves voices unchanged; the game logs the plugin's version as `[LC] Plugin <version>: ...`.
 
 ## Plugin commands
 
@@ -235,7 +283,7 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 | Session and settings | `LC_Session.c`, `LC_Settings.c`, `LC_ServerSettings.c`, `LC_MissionHeader.c`, `LC_PlayerController.c`, `LC_BaseGameMode.c` |
 | Radios | `LC_Radio.c`, `LC_RadioSettings.c`, `LC_RadioMode.c`, `LC_RadioLinks.c`, `LC_Terrain.c`, `LC_VONEntryRadio.c`, `LC_FrequencyInput.c` |
 | Channel names | `LC_ChannelLabel.c`, `LC_ChannelLabels.c` |
-| Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c`, `LC_Rooms.c` |
+| Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c`, `LC_Rooms.c`, `LC_Hearing.c` (hook for other mods) |
 | AI | `LC_AIHearing.c`, `LC_AIConfigComponent.c`, `LC_VoiceDangerEvent.c` |
 | UI | `LC_Hud.c`, `LC_VonDisplay.c`, `LC_VonDisplayFeed.c`, `LC_VONMenu.c`, `LC_VONEntryComponent.c` |
 

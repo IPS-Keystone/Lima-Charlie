@@ -31,17 +31,41 @@
 /* Dropouts last 20 to 80 ms. */
 #define LC_DROPOUT_MIN_SAMPLES 960
 #define LC_DROPOUT_EXTRA_SAMPLES 2880
+/* A headset's drive of 1 multiplies the signal by this much more going into its soft clipper */
+#define LC_HEADSET_DRIVE_RANGE 9.0f
+
+/* The listener's headset on one path, ready for the audio thread: a gain of 1 and zero cut-offs and drive
+   leave the voice as it was. */
+typedef struct {
+    float gain;
+    float highPassHz;
+    float lowPassHz;
+    float drive;
+    float driveNorm;
+} lc_headset;
 
 typedef struct {
     int              active;
     int              count;
     lc_voice_target targets[LC_AUDIO_MAX_TARGETS];
+    lc_headset      headsetDirect;
+    lc_headset      headsetRadio;
 } lc_audio_snapshot;
 
 typedef struct {
     float b0, b1, b2, a1, a2;
     float z1, z2;
 } lc_biquad;
+
+/* One voice's pass through the listener's headset on one path: the gain it last reached, and the cut-offs
+   its filters hold, 0 while that filter is out. */
+typedef struct {
+    float      gain;
+    float      highPassHz;
+    float      lowPassHz;
+    lc_biquad highPass;
+    lc_biquad lowPass;
+} lc_headset_state;
 
 typedef struct {
     anyID      client;
@@ -58,6 +82,9 @@ typedef struct {
     int          dropoutRemaining;
     float        noise;
     unsigned int rng;
+
+    lc_headset_state headsetDirect;
+    lc_headset_state headsetRadio;
 
     /* Sums of squares while on a radio, for lc_audio_take_levels */
     float levelIn;
@@ -108,7 +135,24 @@ static void apply_reset(void)
     g_resetSeen  = requested;
 }
 
-void lc_audio_publish(int active, const lc_voice_target* targets, int count)
+/* The drive is level matched at the radio's nominal speech amplitude, as the radio's own drive is, so
+   turning it up adds grit rather than loudness. */
+static void headset_setup(lc_headset* h, const lc_hearing_path* path)
+{
+    memset(h, 0, sizeof(*h));
+    h->gain = 1.0f;
+    if (!path)
+        return;
+    h->gain       = path->gainDb != 0.0f ? (float)pow(10.0, path->gainDb / 20.0) : 1.0f;
+    h->highPassHz = path->highPassHz;
+    h->lowPassHz  = path->lowPassHz;
+    if (path->drive > 0.0f) {
+        h->drive     = 1.0f + LC_HEADSET_DRIVE_RANGE * path->drive;
+        h->driveNorm = LC_DRIVE_REFERENCE / (float)tanh(h->drive * LC_DRIVE_REFERENCE);
+    }
+}
+
+void lc_audio_publish(int active, const lc_voice_target* targets, int count, const lc_hearing_path* hearingDirect, const lc_hearing_path* hearingRadio)
 {
     const LONG          writeIndex = g_readIndex ^ 1;
     lc_audio_snapshot* snapshot   = &g_snapshots[writeIndex];
@@ -118,6 +162,8 @@ void lc_audio_publish(int active, const lc_voice_target* targets, int count)
         memcpy(snapshot->targets, targets, sizeof(*targets) * (size_t)count);
     snapshot->count  = count;
     snapshot->active = active;
+    headset_setup(&snapshot->headsetDirect, hearingDirect);
+    headset_setup(&snapshot->headsetRadio, hearingRadio);
     InterlockedExchange(&g_readIndex, writeIndex);
 }
 
@@ -193,6 +239,40 @@ static float biquad_tick(lc_biquad* q, float x)
     return y;
 }
 
+/* Brings one voice's headset filters to the published cut-offs. A filter coming in starts from silence
+   rather than from whatever it last held, which could be minutes old. */
+static void headset_prepare(lc_headset_state* s, const lc_headset* h)
+{
+    if (h->highPassHz <= 0.0f) {
+        s->highPassHz = 0.0f;
+    } else if (s->highPassHz <= 0.0f || fabs(h->highPassHz - s->highPassHz) > s->highPassHz * 0.02f) {
+        if (s->highPassHz <= 0.0f)
+            s->highPass.z1 = s->highPass.z2 = 0.0f;
+        s->highPassHz = h->highPassHz;
+        biquad_set(&s->highPass, h->highPassHz, 1);
+    }
+
+    if (h->lowPassHz <= 0.0f) {
+        s->lowPassHz = 0.0f;
+    } else if (s->lowPassHz <= 0.0f || fabs(h->lowPassHz - s->lowPassHz) > s->lowPassHz * 0.02f) {
+        if (s->lowPassHz <= 0.0f)
+            s->lowPass.z1 = s->lowPass.z2 = 0.0f;
+        s->lowPassHz = h->lowPassHz;
+        biquad_set(&s->lowPass, h->lowPassHz, 0);
+    }
+}
+
+static float headset_tick(lc_headset_state* s, const lc_headset* h, float x, float gain)
+{
+    if (s->highPassHz > 0.0f)
+        x = biquad_tick(&s->highPass, x);
+    if (s->lowPassHz > 0.0f)
+        x = biquad_tick(&s->lowPass, x);
+    if (h->drive > 0.0f)
+        x = (float)tanh(x * h->drive) * h->driveNorm;
+    return x * gain;
+}
+
 static unsigned int next_random(unsigned int* state)
 {
     unsigned int x = *state;
@@ -223,6 +303,8 @@ static lc_voice_state* get_state(anyID client)
         biquad_set(&state->stages[i], state->cutoffHz, 0);
     for (int i = 0; i < LC_RADIO_FILTERS; ++i)
         biquad_set(&state->radioFilters[i], i < 2 ? LC_RADIO_HIGHPASS_HZ : LC_RADIO_LOWPASS_HZ, i < 2);
+    state->headsetDirect.gain = 1.0f;
+    state->headsetRadio.gain  = 1.0f;
     state->rng             = ((unsigned int)client * 2654435761u) | 1u;
     g_slotOfClient[client] = (unsigned short)++g_stateCount;
     return state;
@@ -327,6 +409,14 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     lc_garble garble;
     garble_setup(&garble, target ? target->radioQuality : 1.0f);
 
+    /* The listener's headset is the last thing each path goes through before their ear */
+    const lc_headset* headsetDirect = &snapshot->headsetDirect;
+    const lc_headset* headsetRadio  = &snapshot->headsetRadio;
+    headset_prepare(&state->headsetDirect, headsetDirect);
+    headset_prepare(&state->headsetRadio, headsetRadio);
+    const float startHeadsetDirect = state->headsetDirect.gain;
+    const float startHeadsetRadio  = state->headsetRadio.gain;
+
     int left, right;
     lc_audio_find_stereo(channels, channelSpeakerArray, &left, &right);
 
@@ -344,16 +434,21 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
         const int base = i * channels;
         float     x    = channels > 1 ? 0.5f * ((float)samples[base + left] + (float)samples[base + right]) : (float)samples[base];
         x /= 32768.0f;
+        const float t = (float)(i + 1) * step;
 
-        /* Both direct gains are zero unless useDirect, so the muffle filters would only shape silence. */
+        /* Both direct gains are zero unless useDirect, so the muffle filters would only shape silence.
+           The headset comes after them: the wall is between the speaker and the listener's ear, the
+           headset is on it. It comes before the room send too, so the room's tail is heard through it. */
         float direct = useDirect ? x : 0.0f;
         if (useDirect) {
             for (int s = 0; s < LC_FILTER_STAGES; ++s)
                 direct = biquad_tick(&state->stages[s], direct);
+            direct = headset_tick(&state->headsetDirect, headsetDirect, direct, startHeadsetDirect + (headsetDirect->gain - startHeadsetDirect) * t);
         }
-        const float radio = useRadio ? radio_tick(state, x, &garble) : 0.0f;
+        float radio = useRadio ? radio_tick(state, x, &garble) : 0.0f;
+        if (useRadio)
+            radio = headset_tick(&state->headsetRadio, headsetRadio, radio, startHeadsetRadio + (headsetRadio->gain - startHeadsetRadio) * t);
 
-        const float t          = (float)(i + 1) * step;
         const float directLeft = direct * (startLeft + (targetLeft - startLeft) * t);
         const float directRight = direct * (startRight + (targetRight - startRight) * t);
         const float outLeft  = directLeft + radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t);
@@ -389,4 +484,6 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     state->gainRight  = targetRight;
     state->radioLeft  = targetRadioLeft;
     state->radioRight = targetRadioRight;
+    state->headsetDirect.gain = headsetDirect->gain;
+    state->headsetRadio.gain  = headsetRadio->gain;
 }

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)
+
+Since 2.0.4.
+
+- **A hearing hook for other mods.** An ear protection headset or earplugs mod can now change how you hear
+  Lima Charlie voices, through a small compat addon that depends on both: `LC_Hearing.SetLocalProfile`
+  takes a gain, a high-pass, a low-pass and a drive for nearby voices and the same for radio voices. Nearby
+  voices are shaped after walls and distance and before the room's echo, so the echo comes through the
+  headset too; radio beeps are never touched. Neither mod needs the other. An older plugin ignores it, so
+  the bridge protocol is unchanged (9). See docs/developer-reference.md, "Hearing hook for other mods".
+
 ## 2.0.4 — mod 2.0.4, plugin 2.0.4
 
 Since 2.0.3.
