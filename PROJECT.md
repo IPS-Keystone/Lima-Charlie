@@ -33,7 +33,7 @@ Enfusion addon + a TS3 plugin (plain C), bridged by JSON files in `$profile:Lima
 - Prefer vanilla radio items (`BaseRadioComponent`/`RadioTransceiver`). No 506IRRU compatibility. No persistent client settings.
 - User dislikes `ShowCustomHint`; uses HUD (`LC_Hud`). Soft-compatible with Cupcake's Stance Indicator.
 - 3.0 comms expansion (manpacks, vehicle radios/intercom, EW/SATCOM) is on feature branch
-  `claude/gallant-knuth-zna9uk`; plan in `docs/design/3.0-comms-expansion.md`. Bugfixes ship from `main` meanwhile.
+  `feature/3.0-comms`; plan in `docs/design/3.0-comms-expansion.md`. Bugfixes ship from `main` meanwhile.
 - Wishlist not started: EW, simplex/duplex, vehicle intercom, babble languages, relays/satcom, EMP.
 
 ## Pointers

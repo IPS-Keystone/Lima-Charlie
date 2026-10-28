@@ -10,7 +10,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Verified in multiplayer earlier: attenuation, muffling, range switching (2-player test, 2026-09-14).
 
 ## To do
-- 3.0 comms expansion (feature branch `claude/gallant-knuth-zna9uk`): manpacks/speakers/handsets, vehicle
+- 3.0 comms expansion (feature branch `feature/3.0-comms`): manpacks/speakers/handsets, vehicle
   radios/infantry phone/intercom, EW/jamming/SATCOM. Plan + open questions: docs/design/3.0-comms-expansion.md.
   Order: shared foundation + vehicles first, then manpacks, then EW/relays/SATCOM. Testing local only.
   Next: survey vanilla vehicle radios and the VON entry add/remove API (needs References/ on Duke's PC);
@@ -26,6 +26,11 @@ session; update after each meaningful step and before ending one. Never rewrite 
 ---
 
 ## 2026-10-28
+- Duke's second round recorded (design doc, "Second round"): branch renamed to `feature/3.0-comms`, test
+  builds 3.0.N; any seat any intercom channel; jammers player-switchable/destroyable and jam transmissions
+  from inside their radius with noise; SATCOM no delay, forced half-duplex, duplicates your radios, Link
+  Radio action (non-exclusive, auto-unlink), jammer-immune, unlimited TX / normal RX; relays player + GM
+  placeable on the vanilla relay prop; direction finding is a stretch goal for another branch.
 - Duke's answers recorded in docs/design/3.0-comms-expansion.md (Decisions): local testing; foundation +
   vehicles first; owner keeps transmitting while a handset is borrowed; intercom on direct speech with a
   No Intercom option, as a 4-option cycling entry in the VON menu; jammers as GM props; SATCOM a placeable
