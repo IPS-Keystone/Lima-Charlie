@@ -57,6 +57,9 @@ Since 2.0.1. Plugin change; the mod is bumped only so both halves report the sam
   produce: the radio gain has no distance term, and every per-talker difference between those two cases is
   on the direct path. Two readings from a test — one speaker at the edge, one out of earshot — say whether the
   difference is in what arrives, in the radio path, or in neither.
+- **`server.json` always says what it did**: one log line a session, whether the file was generated, read and
+  overriding (naming the keys), read and overriding nothing, or found and unreadable. Two of those four
+  used to be silent. (Added to this entry afterwards; it shipped in 2.0.3 without a line here.)
 - Local voice is unchanged under the radio. Someone close enough to hear in person is heard both in the room
   and on the radio, as TFAR does. (A development build that removed the room voice during transmissions was
   never released.)

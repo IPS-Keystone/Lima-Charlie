@@ -56,3 +56,16 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Build + tests pass, Workbench compile OK 09:44. Awaiting Duke's OK on the numbers; docs still to do.
 - Terrain approved by Duke and committed with docs (how-it-works Terrain table, developer-reference links[],
   player guide, server settings/setup, in-game terrain setting description, CHANGELOG).
+
+## 2026-10-29
+- Duke is about to publish 2.0.5 (hearing hook + radio-tuning). Hook files unchanged since bb57f84; radio
+  path now ends in the radio soft limiter after channel volume.
+- OTAC handover revision 2 written for the OTAC side (outside the repo, Documents/Claude/
+  LC-OTAC-EarPro-Handover.md): final contract, answers to OTAC's 28 Oct review, example rewritten for
+  their static WriteSignals/UpdateLocalHearing (signatures to verify against their source), joint tests.
+
+## 2026-10-29
+- Release notes since 2.0.1: docs/release-notes-2.0.5.md; CHANGELOG 2.0.3 now lists the server.json log line.
+- Clean plugin build from radio-tuning 46a874e: plugin/build/LimaCharlie_2.0.5.ts3_plugin (package.ini 2.0.5,
+  DLL carries 2.0.5, vanilla beeps excluded), all checks passed. Not yet tested in game.
+- New on GitHub, not ours this session: feature/3.0-comms and claude/gallant-knuth-zna9uk (3.0 plan docs only).
