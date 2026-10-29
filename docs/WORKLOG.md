@@ -15,6 +15,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Order: shared foundation + vehicles first, then manpacks, then EW/relays/SATCOM. Testing local only.
   Next: survey vanilla vehicle radios and the VON entry add/remove API (needs References/ on Duke's PC);
   then the foundation (radio source/position, leases, one quality function).
+  Handover with current state, collisions (`radio-tuning`) and next steps: docs/design/3.0-handover.md.
 - Bugfixes keep shipping from `main` as 2.x.y; merge `main` into the feature branch after each release.
 - Not yet tested: retail game client with BattlEye.
 - Decide whether `WorkshopCoverPicture.*` and the new `PROJECT.md` / `docs/research/` / this file get committed.
@@ -24,6 +25,11 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Wishlist not started: simplex/duplex, vehicle intercom component, babble languages, relays/satcom, EMP.
 
 ---
+
+## 2026-10-29
+- Wrote docs/design/3.0-handover.md. Found Duke's `radio-tuning` branch (2.0.5, unmerged) rewrites the
+  terrain/quality code the groundwork touches and adds the same survey file: wait for it to reach `main`
+  and merge `main` here before the plugin-side groundwork.
 
 ## 2026-10-28
 - Duke's second round recorded (design doc, "Second round"): branch renamed to `feature/3.0-comms`, test
