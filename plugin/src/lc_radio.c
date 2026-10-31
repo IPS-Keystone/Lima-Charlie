@@ -113,3 +113,26 @@ float lc_radio_quality(float distance, float terrainLoss, float range, float cle
     const float t = (ratio - cleanFraction) / (1.0f - cleanFraction);
     return 1.0f - (1.0f - LC_RADIO_EDGE_QUALITY) * t;
 }
+
+void lc_radio_receive(const lc_rx_inputs* in, lc_rx_result* out)
+{
+    memset(out, 0, sizeof(*out));
+    /* A Game Master hears the whole map: the range everything is measured against is the only thing that
+       changes, so distance and terrain both shrink to nothing against it. */
+    out->range = in->unlimitedRx ? LC_RADIO_UNLIMITED_RANGE_M : in->range;
+    if (in->distance >= out->range)
+        return;
+    out->inRange = 1;
+
+    /* Until the game has traced the terrain, assume line of sight for the beeps but keep the voice silent. */
+    if (in->terrainKnown)
+        out->terrainLoss = lc_radio_terrain_loss(in->hills, in->hillCount);
+    out->voiceHeld = !in->terrainKnown && in->sinceStartMs < LC_RADIO_LINK_WAIT_MS;
+
+    out->quality    = lc_radio_quality(in->distance, out->terrainLoss, out->range, in->cleanFraction);
+    out->rangeRatio = lc_radio_range_ratio(in->distance, out->terrainLoss, out->range);
+    /* Beeps stop short of the voice, so a transmission from the far edge is speech without beeps. */
+    out->beepsAudible = out->rangeRatio <= in->beepFraction;
+
+    /* Jamming (both ends), relay paths and SATCOM land here; see lc_rx_inputs. */
+}

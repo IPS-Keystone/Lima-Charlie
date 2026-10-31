@@ -221,6 +221,83 @@ static void test_radio_quality(void)
     CHECK(lc_radio_quality(600.0f, 0.0f, 1000.0f, -1.0f) == mid);
 }
 
+/* The one received-signal function. Expected values were printed from the pre-refactor path in lc_core.c
+   (range or unlimited, out of range at distance >= range, lc_radio_terrain_loss of links[].hills, the 300 ms
+   line-of-sight wait, lc_radio_quality, lc_radio_range_ratio against beepFraction), so they pin that
+   behaviour exactly: compare with ==, not a tolerance. */
+typedef struct {
+    int   inRange;
+    float quality;
+    int   beeps;
+    int   held;
+    float loss;
+    float ratio;
+} rx_expect;
+
+static void check_rx(int line, float distance, float range, int unlimitedRx, int terrainKnown, const float* hills, int hillCount,
+                     unsigned long long sinceStartMs, float clean, float beep, rx_expect want)
+{
+    lc_rx_inputs in;
+    memset(&in, 0, sizeof(in));
+    in.distance      = distance;
+    in.range         = range;
+    in.unlimitedRx   = unlimitedRx;
+    in.terrainKnown  = terrainKnown;
+    in.hills         = hills;
+    in.hillCount     = hillCount;
+    in.sinceStartMs  = sinceStartMs;
+    in.cleanFraction = clean;
+    in.beepFraction  = beep;
+    lc_rx_result out;
+    lc_radio_receive(&in, &out);
+    const int ok = out.inRange == want.inRange &&
+                   (!want.inRange || (out.quality == want.quality && (out.beepsAudible != 0) == want.beeps && (out.voiceHeld != 0) == want.held &&
+                                      out.terrainLoss == want.loss && out.rangeRatio == want.ratio));
+    if (!ok) {
+        printf("FAIL %s:%d: lc_radio_receive gave in %d quality %.9g beeps %d held %d loss %.9g ratio %.9g\n", __FILE__, line, out.inRange,
+               out.quality, out.beepsAudible, out.voiceHeld, out.terrainLoss, out.rangeRatio);
+        ++g_failures;
+    }
+}
+
+static void test_radio_receive(void)
+{
+    const float one[]  = { 60.0f };
+    const float two[]  = { 60.0f, 30.0f };
+    const float many[] = { 200.0f, 150.0f, 120.0f, 100.0f, 80.0f };
+    const unsigned long long traced = 1000; /* terrain known, so the wait does not matter */
+
+    /* No terrain: clean inside the clean fraction, garbling through the band, beeps cut off before the voice. */
+    check_rx(__LINE__, 300.0f, 1000.0f, 0, 1, NULL, 0, traced, 0.35f, 0.9f, (rx_expect){1, 1.0f, 1, 0, 0.0f, 0.300000012f});
+    check_rx(__LINE__, 600.0f, 1000.0f, 0, 1, NULL, 0, traced, 0.35f, 0.9f, (rx_expect){1, 0.634615302f, 1, 0, 0.0f, 0.600000024f});
+    check_rx(__LINE__, 950.0f, 1000.0f, 0, 1, NULL, 0, traced, 0.35f, 0.9f, (rx_expect){1, 0.123076856f, 0, 0, 0.0f, 0.949999988f});
+    /* At and over range: not heard at all. A zero range is never in range. */
+    check_rx(__LINE__, 1000.0f, 1000.0f, 0, 1, NULL, 0, traced, 0.35f, 0.9f, (rx_expect){0, 0.0f, 0, 0, 0.0f, 0.0f});
+    check_rx(__LINE__, 1500.0f, 1000.0f, 0, 1, NULL, 0, traced, 0.35f, 0.9f, (rx_expect){0, 0.0f, 0, 0, 0.0f, 0.0f});
+    check_rx(__LINE__, 0.0f, 0.0f, 0, 1, NULL, 0, traced, 0.35f, 0.9f, (rx_expect){0, 0.0f, 0, 0, 0.0f, 0.0f});
+    /* One hill, two hills (each a share of what the other leaves). */
+    check_rx(__LINE__, 400.0f, 1000.0f, 0, 1, one, 1, traced, 0.35f, 0.9f, (rx_expect){1, 0.576753974f, 1, 0, 0.374598742f, 0.639589369f});
+    check_rx(__LINE__, 300.0f, 1000.0f, 0, 1, two, 2, traced, 0.35f, 0.9f, (rx_expect){1, 0.616574407f, 1, 0, 0.510079145f, 0.612343788f});
+    /* Many hills hit the 90% cap; past the shrunken range it is in range by distance but silent (quality 0). */
+    check_rx(__LINE__, 50.0f, 1000.0f, 0, 1, many, 5, traced, 0.35f, 0.9f, (rx_expect){1, 0.780769408f, 1, 0, 0.899999976f, 0.499999881f});
+    check_rx(__LINE__, 100.0f, 1000.0f, 0, 1, many, 5, traced, 0.35f, 0.9f, (rx_expect){1, 0.0500003695f, 0, 0, 0.899999976f, 0.999999762f});
+    check_rx(__LINE__, 120.0f, 1000.0f, 0, 1, many, 5, traced, 0.35f, 0.9f, (rx_expect){1, 0.0f, 0, 0, 0.899999976f, 1.19999981f});
+    /* TX1 long range against TX2 short range over the same hill and distance: only the announced range differs. */
+    check_rx(__LINE__, 250.0f, 3000.0f, 0, 1, one, 1, traced, 0.35f, 0.9f, (rx_expect){1, 1.0f, 1, 0, 0.374598742f, 0.133247778f});
+    check_rx(__LINE__, 250.0f, 300.0f, 0, 1, one, 1, traced, 0.35f, 0.9f, (rx_expect){1, 0.0f, 0, 0, 0.374598742f, 1.33247781f});
+    /* Game Master unlimited reception: far past the announced range and behind capped terrain, still clean. */
+    check_rx(__LINE__, 5000.0f, 1000.0f, 1, 1, many, 5, traced, 0.35f, 0.9f, (rx_expect){1, 1.0f, 1, 0, 0.899999976f, 0.0499999896f});
+    /* Terrain not traced yet: line of sight assumed, voice held for the first 300 ms only. Hills passed with
+       terrainKnown 0 are ignored. A clock that went backwards (huge unsigned difference) does not wait. */
+    check_rx(__LINE__, 600.0f, 1000.0f, 0, 0, NULL, 0, 100, 0.35f, 0.9f, (rx_expect){1, 0.634615302f, 1, 1, 0.0f, 0.600000024f});
+    check_rx(__LINE__, 600.0f, 1000.0f, 0, 0, many, 5, 100, 0.35f, 0.9f, (rx_expect){1, 0.634615302f, 1, 1, 0.0f, 0.600000024f});
+    check_rx(__LINE__, 600.0f, 1000.0f, 0, 0, NULL, 0, 300, 0.35f, 0.9f, (rx_expect){1, 0.634615302f, 1, 0, 0.0f, 0.600000024f});
+    check_rx(__LINE__, 600.0f, 1000.0f, 0, 0, NULL, 0, 0ULL - 100ULL, 0.35f, 0.9f, (rx_expect){1, 0.634615302f, 1, 0, 0.0f, 0.600000024f});
+    /* The game's clean and beep fractions; nonsense clean fraction falls back to the default. */
+    check_rx(__LINE__, 600.0f, 1000.0f, 0, 1, two, 2, traced, 0.8f, 0.5f, (rx_expect){1, 0.0f, 0, 0, 0.510079145f, 1.22468758f});
+    check_rx(__LINE__, 600.0f, 1000.0f, 0, 1, NULL, 0, traced, -1.0f, 0.9f, (rx_expect){1, 0.634615302f, 1, 0, 0.0f, 0.600000024f});
+}
+
 static void test_transmissions(void)
 {
     lc_transmissions_init();
@@ -502,6 +579,7 @@ int main(void)
     test_hello();
     test_radio_announcement();
     test_radio_quality();
+    test_radio_receive();
     test_transmissions();
     test_game_state();
     test_reverb();

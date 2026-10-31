@@ -260,7 +260,7 @@ Voices are unaffected and still go through `ts3plugin_onEditPostProcessVoiceData
 | Game state stale | 3000 ms | `lc_core.c` |
 | Game state grace | 300000 ms | `lc_core.c` |
 | Transmit stop debounce | 300 ms | `lc_core.c` |
-| Terrain link wait | 300 ms | `lc_core.c` |
+| Terrain link wait | 300 ms | `lc_radio.h` |
 | Transmission max age | 3500 ms | `lc_core.c` |
 | Occlusion refresh | 100 ms, 60 m | `LC_GameStateWriter.c` |
 | Terrain link refresh | 1000 ms, or 10 m of movement | `LC_RadioLinks.c` |

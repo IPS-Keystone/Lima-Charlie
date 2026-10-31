@@ -4,6 +4,7 @@ The running journal (`_Rules/PROJECT-DEFAULTS.md` → Working loop). Read the to
 session; update after each meaningful step and before ending one. Never rewrite or delete old entries.
 
 ## Done
+- 3.0 groundwork step 3 (2026-10-31, feature/3.0-comms): receive quality behind `lc_radio_receive` (`lc_rx_inputs` → `lc_rx_result`, lc_radio.h); placeholders for jam/relay/SATCOM are comments only. Behaviour unchanged; pinned by `test_radio_receive`.
 - 2.0.5 released 2026-10-29 (tag v2.0.5): hearing hook for ear-pro mods, louder radios + limiter, terrain as shares per hill. Protocol still 9.
 - 2.0.4 released (mod + plugin), protocol 9 (was mis-noted as 6); radio keys open the TeamSpeak mic, transmit-key picker (CHANGELOG.md).
 - Direct speech with voice levels, occlusion (room model + traces), room reverb, radios with garble and

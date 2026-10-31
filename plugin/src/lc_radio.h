@@ -68,3 +68,70 @@ float lc_radio_range_ratio(float distance, float terrainLoss, float range);
 /* 0 when out of range, otherwise signal quality in (0, 1], where 1 is a clean signal. cleanFraction is how
    much of the range stays perfectly clear before garbling starts. */
 float lc_radio_quality(float distance, float terrainLoss, float range, float cleanFraction);
+
+/* ---- Received signal: the one place that decides how a transmission reaches one receiver ----
+   Everything that changes what a radio transmission sounds like at the receiving end goes through
+   lc_radio_receive. New terms are new fields of lc_rx_inputs: a caller that zeroes the struct
+   (memset or "= {0}") and fills only what it knows keeps today's behaviour for every field it leaves at 0. */
+
+/* How long radio voice stays silent waiting for the game's terrain answer before assuming line of sight. */
+#define LC_RADIO_LINK_WAIT_MS 300
+
+typedef struct {
+    /* Metres from the receiver to the transmitter: the speaker's game position, or the RTX position when the
+       speaker's player is not in our game state. */
+    float distance;
+    /* The transmitter's range in metres as its RTX announced it. Which range that is (TX1 long range, TX2
+       short range, a Game Master's unlimited range) the transmitting side has already decided; the receiver
+       takes it as it comes. */
+    float range;
+    /* Non-zero while the local player is a Game Master with unlimited reception (game state unlimitedRx):
+       range is replaced by LC_RADIO_UNLIMITED_RANGE_M, so distance and terrain shrink to nothing against it. */
+    int unlimitedRx;
+    /* Non-zero once the game has traced the terrain to this transmitter (a links[] entry exists). While 0,
+       terrain is taken as line of sight. */
+    int terrainKnown;
+    /* links[].hills: the height in metres of every hill above the line of sight, highest first (the game
+       state parser turns an old game's single "clearance" into one hill). Ignored unless terrainKnown;
+       NULL / 0 is line of sight. Each hill takes lc_radio_terrain_share of what the others leave, capped at
+       LC_RADIO_TERRAIN_MAX_LOSS in total. */
+    const float* hills;
+    int          hillCount;
+    /* Milliseconds since this transmission started, as now - start in unsigned arithmetic (a clock that went
+       backwards reads huge, so it does not wait). Only matters while terrain is not known: under
+       LC_RADIO_LINK_WAIT_MS the voice is held back, beeps still play. */
+    unsigned long long sinceStartMs;
+    /* Game state cleanFraction: share of the range that stays perfectly clean. Out of 0 .. the max it falls
+       back as lc_radio_quality does. */
+    float cleanFraction;
+    /* Game state beepFraction: share of the range within which the start and end beeps are heard. */
+    float beepFraction;
+
+    /* Planned terms, NOT implemented — each is a field here and a term in lc_radio_receive when it lands:
+       - Jam level at the transmitter (EW): rides in RTX; noise added to the transmission for every receiver.
+       - Jam level at the receiver (EW): from game state jammers[] reaching us on this frequency band.
+       - Relay path (EW): best of direct and transmitter -> relay -> receiver, a relayed path's quality being
+         the worse of its two legs (each leg its own distance, range and terrain).
+       - SATCOM flag (EW): set from RTX; skips range, terrain and jamming entirely. */
+} lc_rx_inputs;
+
+typedef struct {
+    /* 0 when distance >= the range in use: the transmission is not heard, not reported and not traced. Every
+       other field is only meaningful when this is 1. */
+    int inRange;
+    /* Range the distance was measured against: the announced one, or LC_RADIO_UNLIMITED_RANGE_M. */
+    float range;
+    /* Share of range the terrain takes, 0 .. LC_RADIO_TERRAIN_MAX_LOSS (0 while terrain is not known). */
+    float terrainLoss;
+    /* Effective distance as a share of range (lc_radio_range_ratio). */
+    float rangeRatio;
+    /* lc_radio_quality: 0 when terrain puts it past range, otherwise (0, 1], 1 clean. Garbles the voice. */
+    float quality;
+    /* Non-zero when the start and end beeps are heard (rangeRatio within beepFraction). */
+    int beepsAudible;
+    /* Non-zero while the voice is held back waiting for the terrain trace. */
+    int voiceHeld;
+} lc_rx_result;
+
+/* Decides how one transmission reaches this receiver. Never fails; out is fully written. */
+void lc_radio_receive(const lc_rx_inputs* in, lc_rx_result* out);

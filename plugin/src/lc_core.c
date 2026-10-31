@@ -50,8 +50,6 @@
 #define LC_TX_STOP_DEBOUNCE_MS 300
 /* Announcements not refreshed for this long are dropped (lost stop, crashed sender). */
 #define LC_TRANSMISSION_MAX_AGE_MS 3500
-/* How long radio voice stays silent waiting for the game's terrain answer before assuming line of sight. */
-#define LC_LINK_WAIT_MS 300
 #define LC_MAX_RECEPTIONS 64
 /* Radio voice does not get quieter with distance, only more garbled. At full channel volume it is about 18%
    louder than someone talking right beside you (channels start at 80%, a little under them): the radio band
@@ -214,16 +212,14 @@ static const lc_radio_state* find_radio(const char* id)
     return NULL;
 }
 
-/* The share of range the terrain to this transmitter takes, once the game has traced it */
-static int find_link(int playerId, float* terrainLoss)
+/* The terrain to this transmitter, once the game has traced it */
+static const lc_link_state* find_link(int playerId)
 {
     for (int i = 0; i < g_game.linkCount; ++i) {
-        if (g_game.links[i].playerId == playerId) {
-            *terrainLoss = lc_radio_terrain_loss(g_game.links[i].hills, g_game.links[i].hillCount);
-            return 1;
-        }
+        if (g_game.links[i].playerId == playerId)
+            return &g_game.links[i];
     }
-    return 0;
+    return NULL;
 }
 
 static float distance3(const float a[3], const float b[3])
@@ -685,19 +681,26 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
             if (player && !player->alive)
                 continue;
             const float* speakerPos = player ? player->pos : tx->info.pos;
-            const float  distance   = distance3(g_game.pos, speakerPos);
-            /* A Game Master hears the whole map: the range everything is measured against is the only thing
-               that changes, so distance and terrain both shrink to nothing against it. */
-            const float range = g_game.unlimitedRx ? LC_RADIO_UNLIMITED_RANGE_M : tx->info.range;
-            if (distance >= range)
-                continue;
+            const lc_link_state* link = find_link(tx->info.playerId);
 
-            /* Until the game has traced the terrain, assume line of sight for the beeps but keep the voice silent. */
-            float     terrainLoss = 0.0f;
-            const int waiting     = !find_link(tx->info.playerId, &terrainLoss) && nowMs - tx->startMs < LC_LINK_WAIT_MS;
-            const float quality   = lc_radio_quality(distance, terrainLoss, range, g_game.cleanFraction);
-            /* Beeps stop short of the voice, so a transmission from the far edge is speech without beeps. */
-            const int beepsAudible = lc_radio_range_ratio(distance, terrainLoss, range) <= g_game.beepFraction;
+            lc_rx_inputs rxIn;
+            memset(&rxIn, 0, sizeof(rxIn));
+            rxIn.distance      = distance3(g_game.pos, speakerPos);
+            rxIn.range         = tx->info.range;
+            rxIn.unlimitedRx   = g_game.unlimitedRx;
+            rxIn.terrainKnown  = link != NULL;
+            rxIn.hills         = link ? link->hills : NULL;
+            rxIn.hillCount     = link ? link->hillCount : 0;
+            rxIn.sinceStartMs  = nowMs - tx->startMs;
+            rxIn.cleanFraction = g_game.cleanFraction;
+            rxIn.beepFraction  = g_game.beepFraction;
+            lc_rx_result rx;
+            lc_radio_receive(&rxIn, &rx);
+            if (!rx.inRange)
+                continue;
+            const float quality      = rx.quality;
+            const int   waiting      = rx.voiceHeld;
+            const int   beepsAudible = rx.beepsAudible;
 
             float left  = 0.0f;
             float right = 0.0f;
