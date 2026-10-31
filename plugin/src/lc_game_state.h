@@ -11,9 +11,11 @@
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US", "rx": true, "ear": 1, "volume": 0.8,
                           "beep": "tfar_sw", "halfDuplex": 0 } ],
             "beepVolume": 1,
+            "hearing": { "direct": { "gainDb": 4, "highPassHz": 200, "lowPassHz": 6000, "drive": 0.04 },
+                         "radio": { "gainDb": 0, "highPassHz": 0, "lowPassHz": 0, "drive": 0 } },
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
   "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6, "room": 0.35 } ],
-  "links": [ { "id": 2, "clearance": 35 } ]
+  "links": [ { "id": 2, "clearance": 35, "hills": [35, 12] } ]
 }
 self.pos/dir are the listener (camera); players carry no facing, as only the listener's matters.
 players[].pos is the speaker's head, and muffle (0 clear .. 1) is
@@ -29,18 +31,25 @@ transmissions are made unlimited by the game announcing a limitless range on rad
 nothing from the plugin.
 beepVolume is one setting for every channel, 0..1, which scales each radio's own volume wherever a beep is
 played; it does not touch the voice itself.
+hearing is optional: how the local player's own hearing changes what reaches them, as another mod set it
+through LC_Hearing (an ear protection headset, earplugs). "direct" shapes nearby voices at the listener's
+ear, after occlusion and before the room reverb send; "radio" shapes radio voices after the radio effect.
+In each, 0 means unchanged: gainDb is added, a 0 Hz cut-off is no filter, drive 0..1 is a soft clipper.
+An absent object or field reads as 0, so older games and older plugins simply do without it.
 radios[] are the local player's transceivers: rx is false when switched off or muted, ear is 0 both, 1 left,
 2 right, volume is 0..1 and beep names a sound set folder. halfDuplex marks a radio that cannot listen while
 it transmits: it is deaf for as long as it is the radio being transmitted on. "sounds" holds the most recent sounds the game asked
 for (UI tones, sample beeps) with increasing seq; the plugin plays each seq once. "players" holds only players near enough to matter for direct speech. "links"
-answers the plugin's radioRx requests with the TFAR-style terrain clearance in metres (0 = line of sight)
-between that transmitting player and the local player, already scaled by the server's terrain effect
-setting: the terrain penalty is linear in the clearance, so the game scales it there rather than sending
-the coefficient across. */
+answers the plugin's radioRx requests with the terrain between that transmitting player and the local
+player: "hills" is the height in metres of every hill rising above the line of sight between them, highest
+first, and "clearance" the highest of them (0 = line of sight). Both are already scaled by the server's
+terrain effect setting, so the plugin never needs the setting itself. */
 
 #define LC_GAME_STATE_MAX_PLAYERS 128
 #define LC_GAME_STATE_MAX_RADIOS 16
 #define LC_GAME_STATE_MAX_LINKS 64
+/* Matches LC_Terrain.MAX_HILLS in the game */
+#define LC_LINK_MAX_HILLS 8
 #define LC_TOKEN_CAP 64
 #define LC_RADIO_ID_CAP 32
 #define LC_RADIO_KEY_CAP 64
@@ -93,8 +102,20 @@ typedef struct {
 
 typedef struct {
     int   playerId;
+    /* The highest hill above the line of sight, in metres */
     float clearance;
+    /* Every hill above the line of sight, highest first; a game that sends only "clearance" gives one */
+    int   hillCount;
+    float hills[LC_LINK_MAX_HILLS];
 } lc_link_state;
+
+/* One path of the listener's hearing profile, already range-checked: 0 everywhere means unchanged. */
+typedef struct {
+    float gainDb;     /* -40 .. +12 */
+    float highPassHz; /* 0 none, else 20 .. 20000 */
+    float lowPassHz;  /* 0 none, else 20 .. 20000 */
+    float drive;      /* 0 none .. 1 heavy */
+} lc_hearing_path;
 
 typedef struct {
     long long seq;
@@ -121,6 +142,9 @@ typedef struct {
     float roomVolume;
     /* 0 .. 1, the player's beep volume for every channel, on top of each radio's own volume */
     float beepVolume;
+    /* The listener's own hearing, set by another mod; all zero when nothing has set it */
+    lc_hearing_path hearingDirect;
+    lc_hearing_path hearingRadio;
 
     int             radioCount;
     lc_radio_state radios[LC_GAME_STATE_MAX_RADIOS];

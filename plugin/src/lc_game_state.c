@@ -5,6 +5,7 @@
 #include "lc_radio.h"
 #include "lc_version.h"
 
+#include <math.h>
 #include <string.h>
 
 static void copy_string(const cJSON* obj, const char* name, char* dst, size_t cap)
@@ -106,6 +107,25 @@ static void parse_radios(const cJSON* self, lc_game_state* out)
     }
 }
 
+/* Out of range is clamped, but 0 stays 0 so an unset field never switches a filter on, and anything that
+   is not a finite number reads as unset. */
+static float get_hearing_value(const cJSON* obj, const char* name, float lowest, float highest)
+{
+    const float value = get_float(obj, name, 0.0f);
+    if (!isfinite(value) || value == 0.0f)
+        return 0.0f;
+    return value < lowest ? lowest : (value > highest ? highest : value);
+}
+
+static void parse_hearing_path(const cJSON* hearing, const char* name, lc_hearing_path* out)
+{
+    const cJSON* path = cJSON_GetObjectItemCaseSensitive(hearing, name);
+    out->gainDb       = get_hearing_value(path, "gainDb", -40.0f, 12.0f);
+    out->highPassHz   = get_hearing_value(path, "highPassHz", 20.0f, 20000.0f);
+    out->lowPassHz    = get_hearing_value(path, "lowPassHz", 20.0f, 20000.0f);
+    out->drive        = get_hearing_value(path, "drive", 0.0f, 1.0f);
+}
+
 int lc_game_state_parse(const char* json, lc_game_state* out)
 {
     cJSON* root = cJSON_Parse(json);
@@ -145,6 +165,9 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
             out->beepVolume = 0.0f;
         else if (out->beepVolume > 1.0f)
             out->beepVolume = 1.0f;
+        const cJSON* hearing = cJSON_GetObjectItemCaseSensitive(self, "hearing");
+        parse_hearing_path(hearing, "direct", &out->hearingDirect);
+        parse_hearing_path(hearing, "radio", &out->hearingRadio);
         parse_radios(self, out);
         parse_sounds(self, out);
 
@@ -176,6 +199,18 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
             lc_link_state* l = &out->links[out->linkCount++];
             l->playerId       = get_int(link, "id", 0);
             l->clearance      = get_float(link, "clearance", 0.0f);
+            const cJSON* hills = cJSON_GetObjectItemCaseSensitive(link, "hills");
+            const cJSON* hill;
+            cJSON_ArrayForEach(hill, hills)
+            {
+                if (l->hillCount >= LC_LINK_MAX_HILLS)
+                    break;
+                if (cJSON_IsNumber(hill) && hill->valuedouble > 0.0)
+                    l->hills[l->hillCount++] = (float)hill->valuedouble;
+            }
+            /* A game from before hills were counted separately sends only the highest */
+            if (!cJSON_IsArray(hills) && l->clearance > 0.0f)
+                l->hills[l->hillCount++] = l->clearance;
         }
         ok = 1;
     }

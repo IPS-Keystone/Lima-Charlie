@@ -74,7 +74,7 @@ than half-applied.
 | --- | --- | --- | --- |
 | `m_fCleanRangePercent` | 35 | 0–95 | Share of a radio's range that stays perfectly clear. Past it the signal garbles out to the edge. Never changes the range itself. |
 | `m_fBeepRangePercent` | 90 | 0–100 | How far out you hear other people's start and end beeps. 0 silences them entirely. |
-| `m_fTerrainEffectPercent` | 100 | 0–300 | How much hills cost. 100 is the TFAR model, 0 ignores terrain, 200 makes a ridge twice as expensive. |
+| `m_fTerrainEffectPercent` | 100 | 0–300 | How much hills cost, by scaling every hill's height. At 100 a 30 m hill takes about a fifth of a radio's range and a 120 m one more than half (see how-it-works.md, Terrain). 0 ignores terrain, 200 makes every hill count as twice its height. |
 | `m_aChannelLabels` | empty | — | Named frequencies. One entry per net you want labelled. |
 | `m_eChannelNaming` | `HYBRID` | — | Where channel names come from: `LC_ONLY`, `HYBRID`, `VANILLA_ONLY`. |
 | `m_bGameMasterUnlimitedRange` | on | — | Game Masters transmit and receive without range or terrain limits while the editor is open. |

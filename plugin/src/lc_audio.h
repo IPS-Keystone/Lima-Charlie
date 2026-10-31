@@ -4,6 +4,7 @@
    direct ear gains and muffle, plus radio ear gains and signal quality); the audio thread applies it without
    locking. */
 
+#include "lc_game_state.h"
 #include "lc_ts.h"
 
 #define LC_AUDIO_MAX_TARGETS 256
@@ -22,8 +23,9 @@ typedef struct {
 } lc_voice_target;
 
 /* Worker thread. While active, clients missing from targets are silenced; while inactive, TeamSpeak audio
-   is left untouched. */
-void lc_audio_publish(int active, const lc_voice_target* targets, int count);
+   is left untouched. hearingDirect and hearingRadio are the listener's own hearing (a headset another mod
+   reports), applied to every voice on that path; NULL leaves the path unchanged. */
+void lc_audio_publish(int active, const lc_voice_target* targets, int count, const lc_hearing_path* hearingDirect, const lc_hearing_path* hearingRadio);
 
 /* Worker thread. Asks the audio thread to forget every talker's filter state before its next buffer. */
 void lc_audio_reset(void);

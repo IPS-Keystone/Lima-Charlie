@@ -1,6 +1,7 @@
 /* Offline checks for the plugin's pure logic: spatial math, peer and radio messages, radio signal quality and
    game state parsing. Run build\lc_tests.exe; exit code is the number of failed checks. */
 
+#include "lc_audio.h"
 #include "lc_direct_voice.h"
 #include "lc_game_state.h"
 #include "lc_peers.h"
@@ -164,13 +165,33 @@ static void test_radio_quality(void)
     CHECK(lc_radio_quality(5000.0f, 0.0f, 1000.0f, clean) == 0.0f);
     CHECK(lc_radio_quality(10.0f, 0.0f, 0.0f, clean) == 0.0f);
 
-    /* Terrain adds distance the way TFAR does: d + h*7 + h*7*(d/2000). */
+    /* Terrain takes a share of the range: none for line of sight, growing with the height of the worst
+       ground above the path and never more than the maximum, however high the hill. */
+    CHECK(lc_radio_terrain_share(0.0f) == 0.0f && lc_radio_terrain_share(-5.0f) == 0.0f);
     CHECK(fabs(lc_radio_effective_distance(1000.0f, 0.0f) - 1000.0f) < 0.01f);
-    CHECK(fabs(lc_radio_effective_distance(1000.0f, 10.0f) - 1105.0f) < 0.01f);
-    CHECK(lc_radio_quality(500.0f, 20.0f, 1000.0f, clean) < lc_radio_quality(500.0f, 0.0f, 1000.0f, clean));
-    /* A big ridge cuts a link that would otherwise be clean. */
-    CHECK(lc_radio_quality(300.0f, 0.0f, 1000.0f, clean) == 1.0f);
-    CHECK(lc_radio_quality(300.0f, 120.0f, 1000.0f, clean) == 0.0f);
+    CHECK(fabs(lc_radio_terrain_share(LC_RADIO_TERRAIN_SCALE_M) - LC_RADIO_TERRAIN_MAX_SHARE * (1.0f - (float)exp(-1.0))) < 0.001f);
+    CHECK(lc_radio_terrain_share(10.0f) < lc_radio_terrain_share(30.0f) && lc_radio_terrain_share(30.0f) < lc_radio_terrain_share(250.0f));
+    CHECK(lc_radio_terrain_share(100000.0f) <= LC_RADIO_TERRAIN_MAX_SHARE);
+    const float small = lc_radio_terrain_share(20.0f);
+    const float big   = lc_radio_terrain_share(250.0f);
+    CHECK(lc_radio_quality(500.0f, small, 1000.0f, clean) < lc_radio_quality(500.0f, 0.0f, 1000.0f, clean));
+    /* A big ridge garbles a link that would otherwise be clean, but cannot cut one inside the share of the
+       range it leaves; past that, it does. */
+    CHECK(lc_radio_quality(150.0f, 0.0f, 1000.0f, clean) == 1.0f);
+    CHECK(lc_radio_quality(150.0f, big, 1000.0f, clean) < 1.0f && lc_radio_quality(150.0f, big, 1000.0f, clean) > 0.0f);
+    CHECK(lc_radio_quality(300.0f, big, 1000.0f, clean) == 0.0f);
+    /* The same hill costs a long range set the same share as a short one, not the same metres. */
+    CHECK(fabs(lc_radio_range_ratio(10000.0f, small, 20000.0f) - lc_radio_range_ratio(1000.0f, small, 2000.0f)) < 0.001f);
+    /* Several hills each take their share of what the others leave, and all of them together never take
+       more than the total cap. */
+    const float twoHills[] = {60.0f, 30.0f};
+    const float expected   = 1.0f - (1.0f - lc_radio_terrain_share(60.0f)) * (1.0f - lc_radio_terrain_share(30.0f));
+    CHECK(fabs(lc_radio_terrain_loss(twoHills, 2) - expected) < 0.0001f);
+    CHECK(lc_radio_terrain_loss(twoHills, 2) > lc_radio_terrain_share(60.0f));
+    CHECK(lc_radio_terrain_loss(NULL, 0) == 0.0f && lc_radio_terrain_loss(twoHills, 0) == 0.0f);
+    const float ridges[] = {250.0f, 250.0f, 250.0f, 250.0f, 250.0f};
+    CHECK(fabs(lc_radio_terrain_loss(ridges, 5) - LC_RADIO_TERRAIN_MAX_LOSS) < 0.0001f);
+    CHECK(lc_radio_effective_distance(100.0f, 5.0f) <= 100.0f / (1.0f - LC_RADIO_TERRAIN_MAX_LOSS) + 0.01f);
 
     /* Quality falls in a straight line across the garbled band: equal steps of distance, equal steps of
        quality. Halfway through the band is halfway between clean and the edge quality. */
@@ -184,7 +205,7 @@ static void test_radio_quality(void)
     /* Range ratio is what the beep cutoff is measured against: 1 exactly at the edge. */
     CHECK(fabs(lc_radio_range_ratio(500.0f, 0.0f, 1000.0f) - 0.5f) < 0.001f);
     CHECK(fabs(lc_radio_range_ratio(1000.0f, 0.0f, 1000.0f) - 1.0f) < 0.001f);
-    CHECK(lc_radio_range_ratio(500.0f, 20.0f, 1000.0f) > 0.5f);
+    CHECK(lc_radio_range_ratio(500.0f, lc_radio_terrain_share(20.0f), 1000.0f) > 0.5f);
     CHECK(lc_radio_range_ratio(10.0f, 0.0f, 0.0f) > 1.0f);
 
     /* The clean fraction only moves where garbling starts; range itself is untouched. */
@@ -240,9 +261,10 @@ static void test_game_state(void)
         "\"self\":{\"alive\":true,\"pos\":[1.5,2,3],\"dir\":[0,0,1],\"tx\":2,\"txFrequency\":45000,\"txRadio\":\"77:1\",\"voiceRange\":5,\"cleanFraction\":0.6,\"beepFraction\":0.8,\"unlimitedRx\":true,\"roomVolume\":96,"
         "\"radios\":[{\"id\":\"77:1\",\"freq\":45000,\"range\":1500,\"key\":\"US\",\"rx\":true,\"ear\":1,\"volume\":0.4,\"beep\":\"tfar_sw\",\"halfDuplex\":1},"
         "{\"id\":\"78:1\",\"freq\":60000,\"range\":16000,\"key\":\"US\",\"rx\":false,\"ear\":9,\"volume\":7,\"beep\":\"acre\"}],\"beepVolume\":0.7,"
+        "\"hearing\":{\"direct\":{\"gainDb\":4,\"highPassHz\":200,\"lowPassHz\":30000,\"drive\":0.04},\"radio\":{\"gainDb\":-99,\"highPassHz\":1e999,\"drive\":-1}},"
         "\"sounds\":[{\"seq\":4,\"set\":\"acre\",\"name\":\"local_start\",\"ear\":2,\"volume\":0.5},{\"seq\":5,\"set\":\"ui\",\"name\":\"deny\"}]},"
         "\"players\":[{\"id\":4,\"alive\":true,\"pos\":[4,5,6],\"dir\":[1,0,0],\"muffle\":0.6,\"room\":0.35},{\"id\":5,\"alive\":false,\"pos\":[0,0,0],\"dir\":[0,0,1]}],"
-        "\"links\":[{\"id\":4,\"clearance\":35}]}";
+        "\"links\":[{\"id\":4,\"clearance\":35,\"hills\":[35,12,-3]},{\"id\":6,\"clearance\":20}]}";
     static lc_game_state state;
     CHECK(lc_game_state_parse(json, &state));
     CHECK(state.inGame && state.seq == 12);
@@ -278,7 +300,17 @@ static void test_game_state(void)
     /* The room share scales the reverb send; a player entry without one is treated as in the room. */
     CHECK(fabs(state.players[0].room - 0.35f) < 0.01f);
     CHECK(state.players[1].room == 1.0f);
-    CHECK(state.linkCount == 1 && state.links[0].playerId == 4 && fabs(state.links[0].clearance - 35.0f) < 0.01f);
+    CHECK(state.linkCount == 2 && state.links[0].playerId == 4 && fabs(state.links[0].clearance - 35.0f) < 0.01f);
+    /* Every hill comes through, minus anything that is not above the line; a game that sends only the
+       highest gives one hill of that height. */
+    CHECK(state.links[0].hillCount == 2 && state.links[0].hills[0] == 35.0f && state.links[0].hills[1] == 12.0f);
+    CHECK(state.links[1].hillCount == 1 && state.links[1].hills[0] == 20.0f);
+    /* Hearing values are clamped to their ranges; a value that is not a finite number reads as unset, and
+       a field left out stays 0, which means unchanged rather than a filter at its lowest cut-off. */
+    CHECK(fabs(state.hearingDirect.gainDb - 4.0f) < 0.01f && fabs(state.hearingDirect.highPassHz - 200.0f) < 0.01f);
+    CHECK(state.hearingDirect.lowPassHz == 20000.0f && fabs(state.hearingDirect.drive - 0.04f) < 0.001f);
+    CHECK(state.hearingRadio.gainDb == -40.0f && state.hearingRadio.highPassHz == 0.0f);
+    CHECK(state.hearingRadio.lowPassHz == 0.0f && state.hearingRadio.drive == 0.0f);
 
     /* Half-written files and other protocol versions are rejected. */
     CHECK(!lc_game_state_parse("{\"v\":9,\"seq\":12,\"inGa", &state));
@@ -292,6 +324,109 @@ static void test_game_state(void)
     CHECK(state.beepVolume == 1.0f);
     /* Outdoors, and older states that never carried it, read as no room at all. */
     CHECK(state.roomVolume == 0.0f);
+    /* No other mod reporting a headset: hearing is unchanged on both paths. */
+    CHECK(state.hearingDirect.gainDb == 0.0f && state.hearingDirect.highPassHz == 0.0f && state.hearingDirect.drive == 0.0f);
+    CHECK(state.hearingRadio.gainDb == 0.0f && state.hearingRadio.lowPassHz == 0.0f);
+}
+
+/* RMS of the left channel over the last of 20 buffers of a tone through one talker, heard either directly
+   or on a radio, with the listener's hearing on each path (NULL = unchanged). */
+static double headset_rms(float toneHz, int onRadio, const lc_hearing_path* direct, const lc_hearing_path* radio)
+{
+    lc_voice_target target;
+    memset(&target, 0, sizeof(target));
+    target.client = 7;
+    if (onRadio) {
+        target.radioLeft    = 1.0f;
+        target.radioRight   = 1.0f;
+        target.radioQuality = 1.0f;
+    } else {
+        target.gainLeft  = 1.0f;
+        target.gainRight = 1.0f;
+    }
+    lc_audio_reset();
+    lc_audio_publish(1, &target, 1, direct, radio);
+
+    static short frames[960 * 2];
+    double       sum = 0;
+    for (int period = 0; period < 20; ++period) {
+        for (int i = 0; i < 960; ++i) {
+            const short v     = (short)(3000.0 * sin(2.0 * 3.14159265 * toneHz * (double)(period * 960 + i) / 48000.0));
+            frames[i * 2]     = v;
+            frames[i * 2 + 1] = v;
+        }
+        lc_audio_process(7, frames, 960, 2, NULL, NULL);
+        if (period == 19) {
+            for (int i = 0; i < 960; ++i)
+                sum += (double)frames[i * 2] * (double)frames[i * 2];
+        }
+    }
+    lc_audio_publish(0, NULL, 0, NULL, NULL);
+    return sqrt(sum / 960.0);
+}
+
+/* A full-scale shout on a radio at well above unity channel gain is rounded off, never clipped square. */
+static void test_radio_limit(void)
+{
+    lc_voice_target target;
+    memset(&target, 0, sizeof(target));
+    target.client       = 9;
+    target.radioLeft    = 2.0f;
+    target.radioRight   = 2.0f;
+    target.radioQuality = 1.0f;
+    lc_audio_reset();
+    lc_audio_publish(1, &target, 1, NULL, NULL);
+
+    static short frames[960 * 2];
+    int          clipped = 0;
+    int          peak    = 0;
+    for (int period = 0; period < 10; ++period) {
+        for (int i = 0; i < 960; ++i) {
+            const short v     = (short)(32000.0 * sin(2.0 * 3.14159265 * 700.0 * (double)(period * 960 + i) / 48000.0));
+            frames[i * 2]     = v;
+            frames[i * 2 + 1] = v;
+        }
+        lc_audio_process(9, frames, 960, 2, NULL, NULL);
+        for (int i = 0; i < 960 * 2; ++i) {
+            const int level = frames[i] < 0 ? -frames[i] : frames[i];
+            if (level >= 32767)
+                ++clipped;
+            if (level > peak)
+                peak = level;
+        }
+    }
+    lc_audio_publish(0, NULL, 0, NULL, NULL);
+    CHECK(clipped == 0);
+    /* Still loud: the limiter rounds the top off, it does not turn the radio down. */
+    CHECK(peak > 22000);
+}
+
+static void test_headset(void)
+{
+    const lc_hearing_path unset    = {0.0f, 0.0f, 0.0f, 0.0f};
+    const lc_hearing_path plus6    = {6.0f, 0.0f, 0.0f, 0.0f};
+    const lc_hearing_path highPass = {0.0f, 2000.0f, 0.0f, 0.0f};
+    const lc_hearing_path lowPass  = {0.0f, 0.0f, 500.0f, 0.0f};
+    const lc_hearing_path driven   = {0.0f, 0.0f, 0.0f, 1.0f};
+
+    const double direct = headset_rms(1000.0f, 0, NULL, NULL);
+    CHECK(direct > 100.0);
+    /* A profile of zeros is the same as no profile at all, bit for bit in level. */
+    CHECK(fabs(headset_rms(1000.0f, 0, &unset, &unset) / direct - 1.0) < 0.001);
+    /* +6 dB doubles the amplitude once the gain has ramped in. */
+    CHECK(fabs(headset_rms(1000.0f, 0, &plus6, NULL) / direct - 1.995) < 0.02);
+    /* The cut-offs take out what is outside the headset's band. */
+    CHECK(headset_rms(200.0f, 0, &highPass, NULL) < 0.1 * headset_rms(200.0f, 0, NULL, NULL));
+    CHECK(headset_rms(4000.0f, 0, &lowPass, NULL) < 0.1 * headset_rms(4000.0f, 0, NULL, NULL));
+    /* Drive adds grit, not loudness: level matched at speech amplitude, and never a NaN. */
+    const double drivenRms = headset_rms(1000.0f, 0, &driven, NULL);
+    CHECK(drivenRms == drivenRms && drivenRms > 0.5 * direct && drivenRms < 2.0 * direct);
+
+    /* A direct-only profile leaves radio voices exactly as they were, and the radio path has its own. */
+    const double radio = headset_rms(1000.0f, 1, NULL, NULL);
+    CHECK(radio > 100.0);
+    CHECK(fabs(headset_rms(1000.0f, 1, &plus6, NULL) / radio - 1.0) < 0.001);
+    CHECK(fabs(headset_rms(1000.0f, 1, NULL, &plus6) / radio - 1.995) < 0.05);
 }
 
 static void test_reverb(void)
@@ -370,6 +505,8 @@ int main(void)
     test_transmissions();
     test_game_state();
     test_reverb();
+    test_headset();
+    test_radio_limit();
     printf(g_failures ? "%d check(s) failed\n" : "All checks passed\n", g_failures);
     return g_failures;
 }

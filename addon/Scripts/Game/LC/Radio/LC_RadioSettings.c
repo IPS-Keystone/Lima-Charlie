@@ -13,6 +13,9 @@ class LC_RadioSettings
 	protected static const int BEEP_SET_SHORT_RANGE = 0;
 	protected static const int BEEP_SET_LONG_RANGE = 1;
 	protected static const float VOLUME_STEPS = 10;
+	//! Where every channel starts: full volume puts a radio somewhat above a voice right beside you, so the
+	//! default leaves room to turn it up
+	protected static const float DEFAULT_VOLUME = 0.8;
 
 	protected ref map<string, int> m_mEar = new map<string, int>();
 	protected ref map<string, int> m_mBeepSet = new map<string, int>();
@@ -52,7 +55,7 @@ class LC_RadioSettings
 		if (m_mVolume.Find(LC_Radio.GetId(entry), volume))
 			return volume;
 
-		return 1;
+		return DEFAULT_VOLUME;
 	}
 
 	//------------------------------------------------------------------------------------------------

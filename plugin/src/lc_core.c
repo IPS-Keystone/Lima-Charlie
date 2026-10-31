@@ -53,8 +53,11 @@
 /* How long radio voice stays silent waiting for the game's terrain answer before assuming line of sight. */
 #define LC_LINK_WAIT_MS 300
 #define LC_MAX_RECEPTIONS 64
-/* Radio voice does not get quieter with distance, only more garbled. */
-#define LC_RADIO_VOICE_GAIN 0.8f
+/* Radio voice does not get quieter with distance, only more garbled. At full channel volume it is about 18%
+   louder than someone talking right beside you (channels start at 80%, a little under them): the radio band
+   throws away the low end of a voice, which at the old 0.8 left it at half the level of the person next to
+   you. Loud speech is rounded off by the radio limiter in lc_audio.c rather than clipped. */
+#define LC_RADIO_VOICE_GAIN 1.72f
 /* While someone is being received on a radio, their levels go to the TeamSpeak log once a second: what
    arrived from TeamSpeak, what the direct and radio paths produced, and the radio's signal quality. Only
    during reception, so it is quiet the rest of the time. */
@@ -211,11 +214,12 @@ static const lc_radio_state* find_radio(const char* id)
     return NULL;
 }
 
-static int find_link(int playerId, float* clearance)
+/* The share of range the terrain to this transmitter takes, once the game has traced it */
+static int find_link(int playerId, float* terrainLoss)
 {
     for (int i = 0; i < g_game.linkCount; ++i) {
         if (g_game.links[i].playerId == playerId) {
-            *clearance = g_game.links[i].clearance;
+            *terrainLoss = lc_radio_terrain_loss(g_game.links[i].hills, g_game.links[i].hillCount);
             return 1;
         }
     }
@@ -609,6 +613,32 @@ static lc_voice_target* find_target(lc_voice_target* targets, int count, anyID c
     return NULL;
 }
 
+static void format_hearing_path(char* out, size_t cap, const lc_hearing_path* path)
+{
+    if (path->gainDb == 0.0f && path->highPassHz == 0.0f && path->lowPassHz == 0.0f && path->drive == 0.0f)
+        _snprintf(out, cap, "unchanged");
+    else
+        _snprintf(out, cap, "gain %+.1f dB, high-pass %.0f Hz, low-pass %.0f Hz, drive %.2f", path->gainDb, path->highPassHz, path->lowPassHz, path->drive);
+    out[cap - 1] = '\0';
+}
+
+/* Once per change: what the listener's hearing profile (a headset another mod reports) is doing to each path */
+static void log_hearing(void)
+{
+    static lc_hearing_path loggedDirect;
+    static lc_hearing_path loggedRadio;
+    if (memcmp(&loggedDirect, &g_game.hearingDirect, sizeof(loggedDirect)) == 0 && memcmp(&loggedRadio, &g_game.hearingRadio, sizeof(loggedRadio)) == 0)
+        return;
+    loggedDirect = g_game.hearingDirect;
+    loggedRadio  = g_game.hearingRadio;
+
+    char direct[128];
+    char radio[128];
+    format_hearing_path(direct, sizeof(direct), &loggedDirect);
+    format_hearing_path(radio, sizeof(radio), &loggedRadio);
+    lc_logf(LC_LOG_INFO, "Hearing: direct %s; radio %s", direct, radio);
+}
+
 /* Who can be heard, and how, from the latest game state: direct speech from nearby peers plus radio
    transmissions on frequencies our radios are tuned to. Everyone else in TeamSpeak is silenced while in game. */
 static void publish_voice(int connected, int inGame, unsigned long long nowMs)
@@ -623,7 +653,7 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
     if (!inGame || !connected) {
         update_receptions(NULL, 0, 0);
         lc_reverb_set_room(0.0f);
-        lc_audio_publish(0, NULL, 0);
+        lc_audio_publish(0, NULL, 0, NULL, NULL);
         return;
     }
 
@@ -663,11 +693,11 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                 continue;
 
             /* Until the game has traced the terrain, assume line of sight for the beeps but keep the voice silent. */
-            float     clearance = 0.0f;
-            const int waiting   = !find_link(tx->info.playerId, &clearance) && nowMs - tx->startMs < LC_LINK_WAIT_MS;
-            const float quality = lc_radio_quality(distance, clearance, range, g_game.cleanFraction);
+            float     terrainLoss = 0.0f;
+            const int waiting     = !find_link(tx->info.playerId, &terrainLoss) && nowMs - tx->startMs < LC_LINK_WAIT_MS;
+            const float quality   = lc_radio_quality(distance, terrainLoss, range, g_game.cleanFraction);
             /* Beeps stop short of the voice, so a transmission from the far edge is speech without beeps. */
-            const int beepsAudible = lc_radio_range_ratio(distance, clearance, range) <= g_game.beepFraction;
+            const int beepsAudible = lc_radio_range_ratio(distance, terrainLoss, range) <= g_game.beepFraction;
 
             float left  = 0.0f;
             float right = 0.0f;
@@ -732,7 +762,8 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
 
     update_receptions(receptions, receptionCount, 1);
     lc_reverb_set_room(g_game.roomVolume);
-    lc_audio_publish(1, targets, count);
+    log_hearing();
+    lc_audio_publish(1, targets, count, &g_game.hearingDirect, &g_game.hearingRadio);
     log_radio_levels(transmissions, transmissionCount, targets, count, nowMs);
 }
 
@@ -896,7 +927,7 @@ static DWORD WINAPI core_main(LPVOID param)
     release_capture();
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
-    lc_audio_publish(0, NULL, 0);
+    lc_audio_publish(0, NULL, 0, NULL, NULL);
     free(buf);
     free(parsed);
     return 0;
