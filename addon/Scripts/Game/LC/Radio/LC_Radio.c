@@ -1,4 +1,22 @@
 //------------------------------------------------------------------------------------------------
+//! Where a radio physically is, and so where its antenna is: "src" in game_state.json radios[], named as
+//! LC_Radio.GetSourceName gives it. Only HELD and PACK exist so far; the rest are named now so the bridge
+//! format does not change again when they land.
+enum LC_ERadioSource
+{
+	//! In the player's own inventory, not worn as the backpack
+	HELD,
+	//! Worn as the player's backpack (a manpack)
+	PACK,
+	//! Someone else's manpack, through its handset
+	BORROWED,
+	//! Mounted in a vehicle
+	VEHICLE,
+	//! A radio out loud through a speaker
+	SPEAKER
+}
+
+//------------------------------------------------------------------------------------------------
 //! The local player's radios as the plugin sees them: one per vanilla VON radio entry (transceiver)
 class LC_Radio
 {
@@ -53,6 +71,76 @@ class LC_Radio
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! The backpack the character is wearing, which is a manpack radio if one of its radios belongs to it
+	static IEntity GetWornBackpack(IEntity character)
+	{
+		if (!character)
+			return null;
+
+		EquipedLoadoutStorageComponent loadout = EquipedLoadoutStorageComponent.Cast(character.FindComponent(EquipedLoadoutStorageComponent));
+		if (!loadout)
+			return null;
+
+		return loadout.GetClothFromArea(LoadoutBackpackArea);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Where one of the local player's own radios is. Every radio in the VON list is on the player's body
+	//! today: worn as the backpack, or anywhere else in the inventory.
+	static LC_ERadioSource GetSource(notnull SCR_VONEntryRadio entry, IEntity wornBackpack)
+	{
+		BaseTransceiver transceiver = entry.GetTransceiver();
+		if (!wornBackpack || !transceiver || !transceiver.GetRadio())
+			return LC_ERadioSource.HELD;
+
+		if (transceiver.GetRadio().GetOwner() == wornBackpack)
+			return LC_ERadioSource.PACK;
+
+		return LC_ERadioSource.HELD;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Name of a source in the bridge, which the plugin and its RTX announcement share
+	static string GetSourceName(LC_ERadioSource source)
+	{
+		switch (source)
+		{
+			case LC_ERadioSource.PACK: return "pack";
+			case LC_ERadioSource.BORROWED: return "borrowed";
+			case LC_ERadioSource.VEHICLE: return "vehicle";
+			case LC_ERadioSource.SPEAKER: return "speaker";
+		}
+
+		return "held";
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! A name the plugin passed back; one this build does not know is held
+	static LC_ERadioSource ParseSource(string name)
+	{
+		if (name == "pack")
+			return LC_ERadioSource.PACK;
+
+		if (name == "borrowed")
+			return LC_ERadioSource.BORROWED;
+
+		if (name == "vehicle")
+			return LC_ERadioSource.VEHICLE;
+
+		if (name == "speaker")
+			return LC_ERadioSource.SPEAKER;
+
+		return LC_ERadioSource.HELD;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Held and worn radios are on the talker, whose head is then as good as the antenna position
+	static bool IsOnBody(LC_ERadioSource source)
+	{
+		return source == LC_ERadioSource.HELD || source == LC_ERadioSource.PACK;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	static bool IsLongRange(notnull SCR_VONEntryRadio entry)
 	{
 		return entry.GetGadget() && entry.IsLongRange();
@@ -79,10 +167,15 @@ class LC_Radio
 
 	//------------------------------------------------------------------------------------------------
 	//! "radios" array of game_state.json
+	//! \param character the local player's controlled entity, whose worn backpack tells a manpack from the rest
+	//! \param bodyPosition antenna of every radio on the body: the listener position the plugin used to announce
+	//! for every transmission, so that nothing changes for a held or worn radio
 	//! \param unlimitedRange announces every radio as having limitless reach, for a Game Master transmitting
 	//! from the editor camera. Only what we transmit is affected; what we hear still goes by the real range.
-	static string BuildJson(notnull array<SCR_VONEntryRadio> entries, notnull LC_RadioSettings settings, bool unlimitedRange = false)
+	static string BuildJson(notnull array<SCR_VONEntryRadio> entries, notnull LC_RadioSettings settings, IEntity character, vector bodyPosition, bool unlimitedRange = false)
 	{
+		IEntity wornBackpack = GetWornBackpack(character);
+		string bodyJson = LC_Json.Position(bodyPosition);
 		string json = "[";
 		bool first = true;
 		foreach (SCR_VONEntryRadio entry : entries)
@@ -112,7 +205,9 @@ class LC_Radio
 			json += ",\"volume\":" + settings.GetVolume(entry).ToString(-1, 2);
 			json += ",\"beep\":" + LC_Json.String(settings.GetBeepSet(entry));
 			int halfDuplex = GetRadioMode(entry) == LC_ERadioMode.HALF_DUPLEX;
-			json += ",\"halfDuplex\":" + halfDuplex.ToString() + "}";
+			json += ",\"halfDuplex\":" + halfDuplex.ToString();
+			json += ",\"src\":" + LC_Json.String(GetSourceName(GetSource(entry, wornBackpack)));
+			json += ",\"pos\":" + bodyJson + "}";
 		}
 
 		return json + "]";

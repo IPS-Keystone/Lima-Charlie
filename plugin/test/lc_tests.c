@@ -128,26 +128,133 @@ static void test_radio_announcement(void)
 {
     char        command[256];
     const float pos[3] = {1.5f, -2.0f, 3000.25f};
-    CHECK(lc_radio_format_announcement(command, sizeof(command), "tok-1", 7, 1, 45000, 1500.0f, pos, "US|X") > 0);
-    CHECK(strcmp(command, "LC1|RTX|tok-1|7|1|45000|1500|1.5|-2.0|3000.2|US_X") == 0 || strcmp(command, "LC1|RTX|tok-1|7|1|45000|1500|1.5|-2.0|3000.3|US_X") == 0);
+    CHECK(lc_radio_format_announcement(command, sizeof(command), "tok-1", 7, 1, 45000, 1500.0f, pos, "77:1", LC_RADIO_SRC_PACK, "US|X") > 0);
+    CHECK(strcmp(command, "LC1|RTX|tok-1|7|1|45000|1500|1.5|-2.0|3000.2|77:1|pack|US_X") == 0 || strcmp(command, "LC1|RTX|tok-1|7|1|45000|1500|1.5|-2.0|3000.3|77:1|pack|US_X") == 0);
 
+    /* Round trip: everything that went in comes back, the antenna position to the decimetre. */
     lc_radio_announcement parsed;
     CHECK(lc_radio_parse_announcement(command, &parsed));
     CHECK(strcmp(parsed.token, "tok-1") == 0);
     CHECK(parsed.playerId == 7 && parsed.on && parsed.frequency == 45000);
     CHECK(fabs(parsed.range - 1500.0f) < 0.5f);
     CHECK(fabs(parsed.pos[0] - 1.5f) < 0.01f && fabs(parsed.pos[1] + 2.0f) < 0.01f && fabs(parsed.pos[2] - 3000.25f) < 0.1f);
+    CHECK(strcmp(parsed.radioId, "77:1") == 0 && parsed.src == LC_RADIO_SRC_PACK);
     CHECK(strcmp(parsed.key, "US_X") == 0);
 
-    /* A stop without an encryption key is valid. */
-    CHECK(lc_radio_parse_announcement("LC1|RTX|tok|7|0|45000|1500|1|2|3|", &parsed));
-    CHECK(!parsed.on && parsed.key[0] == '\0');
+    /* Every source survives the trip by name. A radio id cannot smuggle in the separators of RTX or of the
+       game's radioRx. */
+    for (int src = LC_RADIO_SRC_HELD; src <= LC_RADIO_SRC_SPEAKER; ++src) {
+        CHECK(lc_radio_format_announcement(command, sizeof(command), "tok", 7, 1, 45000, 1500.0f, pos, "a|b,c;d", src, "US") > 0);
+        CHECK(lc_radio_parse_announcement(command, &parsed) && parsed.src == src && strcmp(parsed.radioId, "a_b_c_d") == 0);
+    }
+    CHECK(lc_radio_parse_announcement("LC1|RTX|tok|7|1|45000|1500|1|2|3|8,1;|held|US", &parsed) && strcmp(parsed.radioId, "8_1_") == 0);
 
-    CHECK(!lc_radio_parse_announcement("LC1|RTX|tok|0|1|45000|1500|1|2|3|US", &parsed));
+    /* A stop without an encryption key is valid, and so is a source this build does not know (held). */
+    CHECK(lc_radio_parse_announcement("LC1|RTX|tok|7|0|45000|1500|1|2|3|77:1|held|", &parsed));
+    CHECK(!parsed.on && parsed.key[0] == '\0');
+    CHECK(lc_radio_parse_announcement("LC1|RTX|tok|7|1|45000|1500|1|2|3|77:1|satellite|US", &parsed) && parsed.src == LC_RADIO_SRC_HELD);
+    /* The key keeps whatever follows the source. */
+    CHECK(lc_radio_parse_announcement("LC1|RTX|tok|7|1|45000|1500|1|2|3|77:1|vehicle|US|X", &parsed) && parsed.src == LC_RADIO_SRC_VEHICLE && strcmp(parsed.key, "US|X") == 0);
+
+    CHECK(!lc_radio_parse_announcement("LC1|RTX|tok|0|1|45000|1500|1|2|3|77:1|held|US", &parsed));
     CHECK(!lc_radio_parse_announcement("LC1|RTX|tok|7|1|45000", &parsed));
-    CHECK(!lc_radio_parse_announcement("LC1|RTX|tok|7|1|0|1500|1|2|3|US", &parsed));
-    CHECK(!lc_radio_parse_announcement("LC1|RTX||7|1|45000|1500|1|2|3|US", &parsed));
+    CHECK(!lc_radio_parse_announcement("LC1|RTX|tok|7|1|0|1500|1|2|3|77:1|held|US", &parsed));
+    CHECK(!lc_radio_parse_announcement("LC1|RTX||7|1|45000|1500|1|2|3|77:1|held|US", &parsed));
     CHECK(!lc_radio_parse_announcement("LC1|HELLO|tok|7|20.0", &parsed));
+    /* A protocol 9 announcement has no radio id or source; it is not heard rather than misread. */
+    CHECK(!lc_radio_parse_announcement("LC1|RTX|tok|7|1|45000|1500|1|2|3|US", &parsed));
+}
+
+/* Where a transmission is measured from: a radio on the talker's body follows their head while they are in
+   our game state, anything else stays at the antenna it announced. */
+static void test_transmitter_position(void)
+{
+    lc_radio_announcement info;
+    memset(&info, 0, sizeof(info));
+    info.pos[0] = 100.0f;
+    lc_player_state player;
+    memset(&player, 0, sizeof(player));
+    player.pos[0] = 5.0f;
+
+    info.src = LC_RADIO_SRC_HELD;
+    CHECK(lc_radio_transmitter_position(&info, &player) == player.pos);
+    CHECK(lc_radio_transmitter_position(&info, NULL) == info.pos);
+    info.src = LC_RADIO_SRC_PACK;
+    CHECK(lc_radio_transmitter_position(&info, &player) == player.pos);
+    info.src = LC_RADIO_SRC_VEHICLE;
+    CHECK(lc_radio_transmitter_position(&info, &player) == info.pos);
+    info.src = LC_RADIO_SRC_BORROWED;
+    CHECK(lc_radio_transmitter_position(&info, &player) == info.pos);
+    info.src = LC_RADIO_SRC_SPEAKER;
+    CHECK(lc_radio_transmitter_position(&info, &player) == info.pos);
+    CHECK(strcmp(lc_radio_source_name(LC_RADIO_SRC_VEHICLE), "vehicle") == 0 && strcmp(lc_radio_source_name(99), "held") == 0);
+    CHECK(lc_radio_source_parse(NULL) == LC_RADIO_SRC_HELD && lc_radio_source_parse("speaker") == LC_RADIO_SRC_SPEAKER);
+}
+
+/* Same as lc_core does it: what one transmission sounds like at a receiver */
+static void receive_from(const float receiver[3], const float from[3], const lc_link_state* link, float range, lc_rx_result* out)
+{
+    const float  dx = receiver[0] - from[0], dy = receiver[1] - from[1], dz = receiver[2] - from[2];
+    lc_rx_inputs in;
+    memset(&in, 0, sizeof(in));
+    in.distance      = (float)sqrt(dx * dx + dy * dy + dz * dz);
+    in.range         = range;
+    in.terrainKnown  = link != NULL;
+    in.hills         = link ? link->hills : NULL;
+    in.hillCount     = link ? link->hillCount : 0;
+    in.sinceStartMs  = 1000;
+    in.cleanFraction = LC_RADIO_CLEAN_FRACTION;
+    in.beepFraction  = LC_RADIO_BEEP_FRACTION;
+    lc_radio_receive(&in, out);
+}
+
+/* A held radio's antenna is the talker's own position, so everything a receiver works out from protocol 10 is
+   what protocol 9 gave: the transmitter announces the same position, the receiver measures from the same
+   point (the talker's head when near, the announcement when not) and finds the same terrain. */
+static void test_held_radio_unchanged(void)
+{
+    /* The transmitting side: its game state, with the antenna the game sends for a held radio. */
+    static const char txJson[] =
+        "{\"v\":10,\"seq\":1,\"inGame\":true,\"session\":{\"token\":\"tok\",\"playerId\":7},"
+        "\"self\":{\"alive\":true,\"pos\":[1200.5,40.2,-30.7],\"dir\":[0,0,1],\"tx\":2,\"txFrequency\":45000,\"txRadio\":\"77:1\","
+        "\"radios\":[{\"id\":\"77:1\",\"freq\":45000,\"range\":2000,\"key\":\"US\",\"rx\":true,\"src\":\"held\",\"pos\":[1200.5,40.2,-30.7]}]},"
+        "\"players\":[],\"links\":[]}";
+    static lc_game_state tx;
+    CHECK(lc_game_state_parse(txJson, &tx));
+    CHECK(tx.radioCount == 1 && memcmp(tx.radios[0].pos, tx.pos, sizeof(tx.pos)) == 0);
+
+    char newCommand[256];
+    char oldCommand[256];
+    CHECK(lc_radio_format_announcement(newCommand, sizeof(newCommand), tx.token, tx.playerId, 1, tx.radios[0].frequency, tx.radios[0].range, tx.radios[0].pos, tx.radios[0].id, tx.radios[0].src, tx.radios[0].key) > 0);
+    /* Protocol 9 sent the talker's self.pos in the same place, at the same precision */
+    CHECK(_snprintf(oldCommand, sizeof(oldCommand), "LC1|RTX|tok|7|1|45000|2000|%.1f|%.1f|%.1f|", tx.pos[0], tx.pos[1], tx.pos[2]) > 0);
+    CHECK(strncmp(newCommand, oldCommand, strlen(oldCommand)) == 0);
+
+    lc_radio_announcement info;
+    CHECK(lc_radio_parse_announcement(newCommand, &info));
+
+    /* The receiving side: terrain to that radio, and the talker either out of the game state or near. */
+    static const char rxJson[] =
+        "{\"v\":10,\"seq\":1,\"inGame\":true,\"session\":{\"token\":\"tok\",\"playerId\":3},"
+        "\"self\":{\"alive\":true,\"pos\":[0,10,0],\"dir\":[0,0,1]},"
+        "\"players\":[{\"id\":7,\"alive\":true,\"pos\":[30,11,40]}],"
+        "\"links\":[{\"id\":7,\"radio\":\"77:1\",\"clearance\":45,\"hills\":[45,10]}]}";
+    static lc_game_state rx;
+    CHECK(lc_game_state_parse(rxJson, &rx));
+    const lc_link_state* link = lc_game_state_find_link(&rx, info.playerId, info.radioId);
+    CHECK(link != NULL && link->hillCount == 2);
+
+    /* Far: no player entry, so both measure from the announcement. Protocol 9 found the link by player alone. */
+    lc_rx_result before, after;
+    receive_from(rx.pos, tx.pos, &rx.links[0], 2000.0f, &before);
+    receive_from(rx.pos, lc_radio_transmitter_position(&info, NULL), link, info.range, &after);
+    CHECK(before.inRange && memcmp(&before, &after, sizeof(before)) == 0);
+    /* Near: both measure from the talker's head in our own game state. */
+    receive_from(rx.pos, rx.players[0].pos, &rx.links[0], 2000.0f, &before);
+    receive_from(rx.pos, lc_radio_transmitter_position(&info, &rx.players[0]), link, info.range, &after);
+    CHECK(before.inRange && memcmp(&before, &after, sizeof(before)) == 0);
+    /* And the terrain made a difference, so the comparison is not of two clean signals. */
+    CHECK(after.terrainLoss > 0.0f);
 }
 
 static void test_radio_quality(void)
@@ -303,26 +410,29 @@ static void test_transmissions(void)
     lc_transmissions_init();
     lc_transmission list[4];
 
-    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|1|45000|1500|1|2|3|US", 1000));
+    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|1|45000|1500|1|2|3|77:1|held|US", 1000));
     CHECK(lc_transmissions_list("tok", list, 4) == 1);
     CHECK(list[0].client == 42 && list[0].info.playerId == 7 && list[0].startMs == 1000);
     CHECK(lc_transmissions_list("other", list, 4) == 0);
 
     /* Refreshes keep the start time; retuning restarts it. */
-    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|1|45000|1500|50|2|3|US", 2000));
+    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|1|45000|1500|50|2|3|77:1|held|US", 2000));
     CHECK(lc_transmissions_list("tok", list, 4) == 1 && list[0].startMs == 1000 && fabs(list[0].info.pos[0] - 50.0f) < 0.01f);
-    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|1|46000|1500|50|2|3|US", 2500));
+    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|1|46000|1500|50|2|3|77:1|held|US", 2500));
     CHECK(lc_transmissions_list("tok", list, 4) == 1 && list[0].startMs == 2500);
+    /* So does changing radio on the same frequency: the new antenna's terrain is not known yet. */
+    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|1|46000|1500|50|2|3|78:1|vehicle|US", 2700));
+    CHECK(lc_transmissions_list("tok", list, 4) == 1 && list[0].startMs == 2700 && strcmp(list[0].info.radioId, "78:1") == 0 && list[0].info.src == LC_RADIO_SRC_VEHICLE);
 
     /* Stop, expiry and leaving the channel remove it. */
-    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|0|46000|1500|50|2|3|US", 3000));
+    CHECK(lc_transmissions_handle_command(42, "LC1|RTX|tok|7|0|46000|1500|50|2|3|78:1|vehicle|US", 3000));
     CHECK(lc_transmissions_list("tok", list, 4) == 0);
-    CHECK(lc_transmissions_handle_command(43, "LC1|RTX|tok|8|1|45000|1500|1|2|3|US", 3000));
+    CHECK(lc_transmissions_handle_command(43, "LC1|RTX|tok|8|1|45000|1500|1|2|3|80:1|held|US", 3000));
     lc_transmissions_expire(5000, 3500);
     CHECK(lc_transmissions_list("tok", list, 4) == 1);
     lc_transmissions_expire(7000, 3500);
     CHECK(lc_transmissions_list("tok", list, 4) == 0);
-    CHECK(lc_transmissions_handle_command(44, "LC1|RTX|tok|9|1|45000|1500|1|2|3|US", 8000));
+    CHECK(lc_transmissions_handle_command(44, "LC1|RTX|tok|9|1|45000|1500|1|2|3|90:1|held|US", 8000));
     lc_transmissions_remove_client(44);
     CHECK(lc_transmissions_list("tok", list, 4) == 0);
 
@@ -333,15 +443,15 @@ static void test_transmissions(void)
 static void test_game_state(void)
 {
     static const char json[] =
-        "{\"v\":9,\"seq\":12,\"inGame\":true,"
+        "{\"v\":10,\"seq\":12,\"inGame\":true,"
         "\"session\":{\"token\":\"abc\",\"playerId\":3,\"playerName\":\"A \\\"quoted\\\" name\",\"tsServer\":\"\",\"tsChannel\":\"Squad 1\",\"tsChannelPassword\":\"pw\"},"
         "\"self\":{\"alive\":true,\"pos\":[1.5,2,3],\"dir\":[0,0,1],\"tx\":2,\"txFrequency\":45000,\"txRadio\":\"77:1\",\"voiceRange\":5,\"cleanFraction\":0.6,\"beepFraction\":0.8,\"unlimitedRx\":true,\"roomVolume\":96,"
-        "\"radios\":[{\"id\":\"77:1\",\"freq\":45000,\"range\":1500,\"key\":\"US\",\"rx\":true,\"ear\":1,\"volume\":0.4,\"beep\":\"tfar_sw\",\"halfDuplex\":1},"
+        "\"radios\":[{\"id\":\"77:1\",\"freq\":45000,\"range\":1500,\"key\":\"US\",\"rx\":true,\"ear\":1,\"volume\":0.4,\"beep\":\"tfar_sw\",\"halfDuplex\":1,\"src\":\"pack\",\"pos\":[7,8,9]},"
         "{\"id\":\"78:1\",\"freq\":60000,\"range\":16000,\"key\":\"US\",\"rx\":false,\"ear\":9,\"volume\":7,\"beep\":\"acre\"}],\"beepVolume\":0.7,"
         "\"hearing\":{\"direct\":{\"gainDb\":4,\"highPassHz\":200,\"lowPassHz\":30000,\"drive\":0.04},\"radio\":{\"gainDb\":-99,\"highPassHz\":1e999,\"drive\":-1}},"
         "\"sounds\":[{\"seq\":4,\"set\":\"acre\",\"name\":\"local_start\",\"ear\":2,\"volume\":0.5},{\"seq\":5,\"set\":\"ui\",\"name\":\"deny\"}]},"
         "\"players\":[{\"id\":4,\"alive\":true,\"pos\":[4,5,6],\"dir\":[1,0,0],\"muffle\":0.6,\"room\":0.35},{\"id\":5,\"alive\":false,\"pos\":[0,0,0],\"dir\":[0,0,1]}],"
-        "\"links\":[{\"id\":4,\"clearance\":35,\"hills\":[35,12,-3]},{\"id\":6,\"clearance\":20}]}";
+        "\"links\":[{\"id\":4,\"radio\":\"40:1\",\"clearance\":35,\"hills\":[35,12,-3]},{\"id\":6,\"clearance\":20},{\"id\":4,\"radio\":\"41:2\",\"clearance\":0,\"hills\":[]}]}";
     static lc_game_state state;
     CHECK(lc_game_state_parse(json, &state));
     CHECK(state.inGame && state.seq == 12);
@@ -370,6 +480,9 @@ static void test_game_state(void)
     CHECK(!state.radios[1].halfDuplex);
     CHECK(fabs(state.radios[0].volume - 0.4f) < 0.01f);
     CHECK(!state.radios[1].rx && state.radios[1].ear == LC_EAR_BOTH && state.radios[1].volume == 1.0f);
+    /* Source and antenna per radio; a radio that sends neither is held, with its antenna where we are. */
+    CHECK(state.radios[0].src == LC_RADIO_SRC_PACK && state.radios[0].pos[0] == 7.0f && state.radios[0].pos[1] == 8.0f && state.radios[0].pos[2] == 9.0f);
+    CHECK(state.radios[1].src == LC_RADIO_SRC_HELD && state.radios[1].pos[0] == 1.5f && state.radios[1].pos[1] == 2.0f && state.radios[1].pos[2] == 3.0f);
     CHECK(state.soundCount == 2);
     CHECK(state.sounds[0].seq == 4 && strcmp(state.sounds[0].set, "acre") == 0 && strcmp(state.sounds[0].name, "local_start") == 0);
     CHECK(state.sounds[0].ear == LC_EAR_RIGHT && fabs(state.sounds[0].volume - 0.5f) < 0.01f);
@@ -377,7 +490,15 @@ static void test_game_state(void)
     /* The room share scales the reverb send; a player entry without one is treated as in the room. */
     CHECK(fabs(state.players[0].room - 0.35f) < 0.01f);
     CHECK(state.players[1].room == 1.0f);
-    CHECK(state.linkCount == 2 && state.links[0].playerId == 4 && fabs(state.links[0].clearance - 35.0f) < 0.01f);
+    CHECK(state.linkCount == 3 && state.links[0].playerId == 4 && fabs(state.links[0].clearance - 35.0f) < 0.01f);
+    /* Links are per transmitting radio: two radios of one player have their own terrain, and a link with no
+       radio id only answers a transmission that announced none. */
+    CHECK(strcmp(state.links[0].radioId, "40:1") == 0 && state.links[1].radioId[0] == '\0');
+    CHECK(lc_game_state_find_link(&state, 4, "40:1") == &state.links[0]);
+    CHECK(lc_game_state_find_link(&state, 4, "41:2") == &state.links[2] && state.links[2].hillCount == 0);
+    CHECK(lc_game_state_find_link(&state, 4, "42:1") == NULL);
+    CHECK(lc_game_state_find_link(&state, 6, "40:1") == NULL && lc_game_state_find_link(&state, 6, "") == &state.links[1]);
+    CHECK(lc_game_state_find_link(&state, 5, "40:1") == NULL);
     /* Every hill comes through, minus anything that is not above the line; a game that sends only the
        highest gives one hill of that height. */
     CHECK(state.links[0].hillCount == 2 && state.links[0].hills[0] == 35.0f && state.links[0].hills[1] == 12.0f);
@@ -390,11 +511,11 @@ static void test_game_state(void)
     CHECK(state.hearingRadio.lowPassHz == 0.0f && state.hearingRadio.drive == 0.0f);
 
     /* Half-written files and other protocol versions are rejected. */
-    CHECK(!lc_game_state_parse("{\"v\":9,\"seq\":12,\"inGa", &state));
+    CHECK(!lc_game_state_parse("{\"v\":10,\"seq\":12,\"inGa", &state));
     CHECK(!lc_game_state_parse("{\"v\":1,\"seq\":1}", &state));
-    CHECK(!lc_game_state_parse("{\"v\":8,\"seq\":1}", &state));
-    CHECK(!lc_game_state_parse("{\"v\":10,\"seq\":1}", &state));
-    CHECK(lc_game_state_parse("{\"v\":9,\"seq\":13,\"inGame\":false}", &state) && !state.inGame && state.radioCount == 0);
+    CHECK(!lc_game_state_parse("{\"v\":9,\"seq\":1}", &state));
+    CHECK(!lc_game_state_parse("{\"v\":11,\"seq\":1}", &state));
+    CHECK(lc_game_state_parse("{\"v\":10,\"seq\":13,\"inGame\":false}", &state) && !state.inGame && state.radioCount == 0);
     /* An omitted beep range falls back to the default rather than silencing every beep. */
     CHECK(fabs(state.beepFraction - LC_RADIO_BEEP_FRACTION) < 0.01f);
     CHECK(!state.unlimitedRx);
@@ -578,6 +699,8 @@ int main(void)
     test_direct_voice();
     test_hello();
     test_radio_announcement();
+    test_transmitter_position();
+    test_held_radio_unchanged();
     test_radio_quality();
     test_radio_receive();
     test_transmissions();

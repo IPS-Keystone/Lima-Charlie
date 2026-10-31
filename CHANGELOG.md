@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 3.0.0
+
+- **Bridge protocol 10: radios have a position of their own.** A radio now says where it is (held, worn as a
+  pack, and later borrowed, vehicle or speaker) and where its antenna is; transmissions and terrain go by the
+  transmitting radio rather than the player. Nothing sounds different yet. Plugin and mod must both be 3.0
+  test builds (`3.0.0-test.1`).
+
 ## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)
 
 Since 2.0.4.

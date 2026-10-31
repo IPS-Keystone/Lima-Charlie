@@ -8,6 +8,18 @@ class LC_HeardTransmission
 }
 
 //------------------------------------------------------------------------------------------------
+//! One radio transmitter the plugin is receiving and needs the terrain to
+class LC_RadioRequest
+{
+	int m_iPlayerId;
+	//! The transmitting radio's id among that player's radios, as its RTX gave it
+	string m_sRadioId;
+	LC_ERadioSource m_eSource;
+	//! The antenna as announced, or the talker's head where the plugin knows it better
+	vector m_vPosition;
+}
+
+//------------------------------------------------------------------------------------------------
 //! Reads $profile:LimaCharlie/plugin_state.json, which the TeamSpeak plugin rewrites at least every 250 ms
 class LC_PluginStateReader
 {
@@ -33,8 +45,8 @@ class LC_PluginStateReader
 	//! TeamSpeak is holding the microphone shut: its local mute, its mute toggle, or a muted speaker
 	protected bool m_bMicMuted;
 	protected ref set<int> m_TalkingPlayers = new set<int>();
-	//! Transmitting player id -> position the plugin needs the terrain clearance from
-	protected ref map<int, vector> m_mRadioRequests = new map<int, vector>();
+	//! LC_RadioLinks.GetKey of each transmitting radio -> where the plugin needs the terrain clearance from
+	protected ref map<string, ref LC_RadioRequest> m_mRadioRequests = new map<string, ref LC_RadioRequest>();
 	//! Transmitting player id -> the radio we are hearing them on, for the VON display
 	protected ref map<int, ref LC_HeardTransmission> m_mHeard = new map<int, ref LC_HeardTransmission>();
 	protected ref array<string> m_aSplit = {};
@@ -133,25 +145,30 @@ class LC_PluginStateReader
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! "playerId,x,y,z;playerId,x,y,z;"
+	//! "playerId,radioId,source,x,y,z;playerId,radioId,source,x,y,z;"
 	protected void UpdateRadioRequests(string radioRx)
 	{
 		m_mRadioRequests.Clear();
 
 		m_aSplit.Clear();
 		radioRx.Split(";", m_aSplit, true);
-		foreach (string request : m_aSplit)
+		foreach (string entry : m_aSplit)
 		{
 			m_aFields.Clear();
-			request.Split(",", m_aFields, false);
-			if (m_aFields.Count() != 4)
+			entry.Split(",", m_aFields, false);
+			if (m_aFields.Count() != 6 || m_aFields[0].IsEmpty())
 				continue;
 
 			int playerId = m_aFields[0].ToInt();
 			if (playerId <= 0)
 				continue;
 
-			m_mRadioRequests.Set(playerId, Vector(m_aFields[1].ToFloat(), m_aFields[2].ToFloat(), m_aFields[3].ToFloat()));
+			LC_RadioRequest request = new LC_RadioRequest();
+			request.m_iPlayerId = playerId;
+			request.m_sRadioId = m_aFields[1];
+			request.m_eSource = LC_Radio.ParseSource(m_aFields[2]);
+			request.m_vPosition = Vector(m_aFields[3].ToFloat(), m_aFields[4].ToFloat(), m_aFields[5].ToFloat());
+			m_mRadioRequests.Set(LC_RadioLinks.GetKey(playerId, request.m_sRadioId), request);
 		}
 	}
 
@@ -258,8 +275,8 @@ class LC_PluginStateReader
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Radio transmitters the plugin is receiving and needs terrain clearance for
-	map<int, vector> GetRadioRequests()
+	//! Radio transmitters the plugin is receiving and needs terrain clearance for, by LC_RadioLinks.GetKey
+	map<string, ref LC_RadioRequest> GetRadioRequests()
 	{
 		return m_mRadioRequests;
 	}

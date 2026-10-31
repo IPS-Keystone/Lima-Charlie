@@ -116,3 +116,13 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Jammer strength decided: GM attribute 0-100%, default 100% (peak jam at the jammer). Only SATCOM factions open.
 - SATCOM factions: US and USSR arsenals for now; modded factions add it to their own. No open questions left.
 - Started groundwork 1 (radio source + antenna position in bridge, per-radio links, protocol 10).
+- Groundwork 1 landed (protocol 10, `3.0.0-test.1` both halves): `radios[]` gain `src` (held/pack/borrowed/
+  vehicle/speaker; pack = radio entity is the worn `LoadoutBackpackArea` cloth, vanilla precedent
+  SCR_RadioOperatorRoleCallsign) and `pos` (= self.pos for body radios, i.e. what RTX carried before). RTX
+  carries antenna pos + radio id + src; `radioRx` is `playerId,radioId,src,x,y,z;`; `links[]` gain `radio` and
+  are keyed per transmitting radio (game LC_RadioLinks + plugin `lc_game_state_find_link`). Head override
+  (plugin players[] / game EyePosition) kept only for held/pack. Radio change restarts the 300 ms terrain wait.
+  Evidence: build "All checks passed", 0 warnings (new tests: RTX round trip, per-radio links, held radio =
+  old result; mutation of `lc_radio_transmitter_position` caught by 3 checks); enforce_check clean (37 files);
+  Workbench compile `Module: Game; loaded 5697x files; 11156x classes` (logs_2026-10-31_18-38-44, no LC errors).
+  Not tested in game: Duke to run 2 clients on TeamSpeak (radio heard as before, terrain as before, manpack).

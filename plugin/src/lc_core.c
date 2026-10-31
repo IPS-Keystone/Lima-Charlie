@@ -119,7 +119,8 @@ static int           g_receptionCount;
 /* Newest game sound event already played; -1 until the first game state after entering a game. */
 static int g_lastSoundSeq = -1;
 
-/* "playerId,x,y,z;..." transmitters we need the terrain clearance to, reported to the game. */
+/* "playerId,radioId,source,x,y,z;..." transmitting radios we need the terrain clearance to, reported to the
+   game. The source tells it whether the antenna is on the talker, whose head it can then trace from instead. */
 static char g_radioRx[LC_RADIO_RX_CAP];
 
 /* "playerId,radioId,frequency,quality;..." the transmissions we can actually hear and the local radio each
@@ -208,16 +209,6 @@ static const lc_radio_state* find_radio(const char* id)
     for (int i = 0; i < g_game.radioCount; ++i) {
         if (strcmp(g_game.radios[i].id, id) == 0)
             return &g_game.radios[i];
-    }
-    return NULL;
-}
-
-/* The terrain to this transmitter, once the game has traced it */
-static const lc_link_state* find_link(int playerId)
-{
-    for (int i = 0; i < g_game.linkCount; ++i) {
-        if (g_game.links[i].playerId == playerId)
-            return &g_game.links[i];
     }
     return NULL;
 }
@@ -394,7 +385,7 @@ static void update_handshake(uint64 sch, int inGame, int haveChannel, uint64 cha
 static void send_radio_announcement(uint64 sch, int on)
 {
     char command[256];
-    if (!lc_plugin_id() || !lc_radio_format_announcement(command, sizeof(command), g_txToken, g_txPlayerId, on, g_txRadio.frequency, g_txRadio.range, g_txPos, g_txRadio.key))
+    if (!lc_plugin_id() || !lc_radio_format_announcement(command, sizeof(command), g_txToken, g_txPlayerId, on, g_txRadio.frequency, g_txRadio.range, g_txPos, g_txRadio.id, g_txRadio.src, g_txRadio.key))
         return;
     g_ts3.sendPluginCommand(sch, lc_plugin_id(), command, PluginCommandTarget_CURRENT_CHANNEL, NULL, NULL);
 }
@@ -490,7 +481,7 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
 
         const int started = !g_txActive || g_txSch != sch;
         const int changed = started || strcmp(radio->id, g_txRadio.id) != 0 || radio->frequency != g_txRadio.frequency || fabs(radio->range - g_txRadio.range) > 0.5f || strcmp(radio->key, g_txRadio.key) != 0 || strcmp(g_game.token, g_txToken) != 0;
-        const int moved   = distance3(g_game.pos, g_txPos) > LC_RADIO_MOVE_REFRESH_M;
+        const int moved   = distance3(radio->pos, g_txPos) > LC_RADIO_MOVE_REFRESH_M;
         if (started || resumed)
             lc_sounds_play(radio->beep, "local_start", radio->ear, beep_gain(radio->volume));
 
@@ -502,7 +493,8 @@ static void update_radio_tx(uint64 sch, int connected, int inGame, unsigned long
         strncpy(g_txToken, g_game.token, sizeof(g_txToken) - 1);
         g_txPlayerId = g_game.playerId;
         if (changed || moved || nowMs >= g_txNextRefreshMs) {
-            memcpy(g_txPos, g_game.pos, sizeof(g_txPos));
+            /* The radio's antenna, which for a radio on the body is where we are */
+            memcpy(g_txPos, radio->pos, sizeof(g_txPos));
             send_radio_announcement(sch, 1);
             g_txNextRefreshMs = nowMs + LC_RADIO_REFRESH_MS;
         }
@@ -680,8 +672,8 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
             const lc_player_state* player = find_player(tx->info.playerId);
             if (player && !player->alive)
                 continue;
-            const float* speakerPos = player ? player->pos : tx->info.pos;
-            const lc_link_state* link = find_link(tx->info.playerId);
+            const float* speakerPos = lc_radio_transmitter_position(&tx->info, player);
+            const lc_link_state* link = lc_game_state_find_link(&g_game, tx->info.playerId, tx->info.radioId);
 
             lc_rx_inputs rxIn;
             memset(&rxIn, 0, sizeof(rxIn));
@@ -741,8 +733,8 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                 }
             }
 
-            if (tuned && rxLen + 64 < sizeof(g_radioRx)) {
-                const int n = _snprintf(g_radioRx + rxLen, sizeof(g_radioRx) - rxLen, "%d,%.1f,%.1f,%.1f;", tx->info.playerId, speakerPos[0], speakerPos[1], speakerPos[2]);
+            if (tuned && rxLen + 128 < sizeof(g_radioRx)) {
+                const int n = _snprintf(g_radioRx + rxLen, sizeof(g_radioRx) - rxLen, "%d,%s,%s,%.1f,%.1f,%.1f;", tx->info.playerId, tx->info.radioId, lc_radio_source_name(tx->info.src), speakerPos[0], speakerPos[1], speakerPos[2]);
                 if (n > 0)
                     rxLen += (size_t)n;
             }

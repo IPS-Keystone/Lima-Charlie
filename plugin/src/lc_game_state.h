@@ -1,21 +1,21 @@
 #pragma once
 
-/* Parsed form of game_state.json, written by the game about 20 times a second (protocol 9):
+/* Parsed form of game_state.json, written by the game about 20 times a second (protocol 10):
 {
-  "v": 9, "seq": 42, "inGame": true,
+  "v": 10, "seq": 42, "inGame": true,
   "session": { "token": "1789377566-123-456-789", "playerId": 1, "playerName": "Name",
                "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
   "self": { "alive": true, "pos": [x, y, z], "dir": [x, y, z], "tx": 2, "txFrequency": 45000, "txRadio": "123:1",
             "voiceRange": 20, "cleanFraction": 0.35, "beepFraction": 0.9, "unlimitedRx": false, "roomVolume": 96,
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US", "rx": true, "ear": 1, "volume": 0.8,
-                          "beep": "tfar_sw", "halfDuplex": 0 } ],
+                          "beep": "tfar_sw", "halfDuplex": 0, "src": "held", "pos": [x, y, z] } ],
             "beepVolume": 1,
             "hearing": { "direct": { "gainDb": 4, "highPassHz": 200, "lowPassHz": 6000, "drive": 0.04 },
                          "radio": { "gainDb": 0, "highPassHz": 0, "lowPassHz": 0, "drive": 0 } },
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
   "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6, "room": 0.35 } ],
-  "links": [ { "id": 2, "clearance": 35, "hills": [35, 12] } ]
+  "links": [ { "id": 2, "radio": "88:1", "clearance": 35, "hills": [35, 12] } ]
 }
 self.pos/dir are the listener (camera); players carry no facing, as only the listener's matters.
 players[].pos is the speaker's head, and muffle (0 clear .. 1) is
@@ -38,10 +38,12 @@ In each, 0 means unchanged: gainDb is added, a 0 Hz cut-off is no filter, drive 
 An absent object or field reads as 0, so older games and older plugins simply do without it.
 radios[] are the local player's transceivers: rx is false when switched off or muted, ear is 0 both, 1 left,
 2 right, volume is 0..1 and beep names a sound set folder. halfDuplex marks a radio that cannot listen while
-it transmits: it is deaf for as long as it is the radio being transmitted on. "sounds" holds the most recent sounds the game asked
+it transmits: it is deaf for as long as it is the radio being transmitted on. src is where the radio
+physically is (lc_radio_source) and pos its antenna, which is what our RTX announces when we transmit on it:
+for a radio held or worn on the body that is self.pos, as before the antenna was its own field. "sounds" holds the most recent sounds the game asked
 for (UI tones, sample beeps) with increasing seq; the plugin plays each seq once. "players" holds only players near enough to matter for direct speech. "links"
-answers the plugin's radioRx requests with the terrain between that transmitting player and the local
-player: "hills" is the height in metres of every hill rising above the line of sight between them, highest
+answers the plugin's radioRx requests with the terrain between that transmitting radio ("id" its player,
+"radio" its id among that player's radios, as its RTX gave it) and the local player: "hills" is the height in metres of every hill rising above the line of sight between them, highest
 first, and "clearance" the highest of them (0 = line of sight). Both are already scaled by the server's
 terrain effect setting, so the plugin never needs the setting itself. */
 
@@ -70,6 +72,17 @@ enum lc_ear {
     LC_EAR_RIGHT
 };
 
+/* Where a radio physically is, and so where its antenna is: "src" in radios[] and in RTX. Only held and pack
+   exist so far; the rest are named now so the bridge does not change again when they land. A name this build
+   does not know reads as held. */
+enum lc_radio_source {
+    LC_RADIO_SRC_HELD,     /* in the player's inventory, not worn as the backpack */
+    LC_RADIO_SRC_PACK,     /* worn as the player's backpack (a manpack) */
+    LC_RADIO_SRC_BORROWED, /* someone else's manpack, through its handset */
+    LC_RADIO_SRC_VEHICLE,  /* mounted in a vehicle */
+    LC_RADIO_SRC_SPEAKER   /* a radio out loud through a speaker */
+};
+
 typedef struct {
     int   id;
     int   alive;
@@ -90,6 +103,8 @@ typedef struct {
     float volume;
     char  beep[LC_BEEP_SET_CAP];
     int   halfDuplex;
+    int   src;    /* lc_radio_source */
+    float pos[3]; /* antenna; self.pos when the game sends none */
 } lc_radio_state;
 
 typedef struct {
@@ -102,6 +117,8 @@ typedef struct {
 
 typedef struct {
     int   playerId;
+    /* Which of that player's radios the terrain is to: a player's radios need not all be in one place */
+    char  radioId[LC_RADIO_ID_CAP];
     /* The highest hill above the line of sight, in metres */
     float clearance;
     /* Every hill above the line of sight, highest first; a game that sends only "clearance" gives one */
@@ -161,3 +178,12 @@ typedef struct {
 
 /* Returns 1 if json is a complete game state of the supported protocol version. */
 int lc_game_state_parse(const char* json, lc_game_state* out);
+
+/* The terrain to one transmitting radio, once the game has traced it; NULL until then. */
+const lc_link_state* lc_game_state_find_link(const lc_game_state* state, int playerId, const char* radioId);
+
+/* "held", "pack", "borrowed", "vehicle", "speaker"; anything else is held. */
+const char* lc_radio_source_name(int source);
+int         lc_radio_source_parse(const char* name);
+/* Held and pack: the antenna is on the talker's body, so their head is as good as the antenna position. */
+int lc_radio_source_on_body(int source);

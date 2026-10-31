@@ -5,18 +5,27 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LC_RADIO_FIELDS 11
+#define LC_RADIO_FIELDS 13
 
-size_t lc_radio_format_announcement(char* out, size_t cap, const char* token, int playerId, int on, int frequency, float range, const float pos[3], const char* key)
+/* Copies text with every one of the separators in it replaced by '_' */
+static void copy_safe(char* out, size_t cap, const char* text, const char* separators)
 {
-    /* The key is the last field, so only a separator inside it could break parsing. */
-    char safeKey[LC_RADIO_KEY_CAP];
     size_t i = 0;
-    for (; key && key[i] && i + 1 < sizeof(safeKey); ++i)
-        safeKey[i] = key[i] == '|' ? '_' : key[i];
-    safeKey[i] = '\0';
+    for (; text && text[i] && i + 1 < cap; ++i)
+        out[i] = strchr(separators, text[i]) ? '_' : text[i];
+    out[i] = '\0';
+}
 
-    const int n = _snprintf(out, cap, LC_RADIO_COMMAND_PREFIX "%s|%d|%d|%d|%.0f|%.1f|%.1f|%.1f|%s", token, playerId, on ? 1 : 0, frequency, range, pos[0], pos[1], pos[2], safeKey);
+size_t lc_radio_format_announcement(char* out, size_t cap, const char* token, int playerId, int on, int frequency, float range, const float pos[3], const char* radioId, int src, const char* key)
+{
+    /* The key is the last field, so only a separator inside it could break parsing. The radio id also goes on
+       to the game in radioRx, so it must not carry that format's separators either. */
+    char safeKey[LC_RADIO_KEY_CAP];
+    char safeRadio[LC_RADIO_ID_CAP];
+    copy_safe(safeKey, sizeof(safeKey), key, "|");
+    copy_safe(safeRadio, sizeof(safeRadio), radioId, "|,;");
+
+    const int n = _snprintf(out, cap, LC_RADIO_COMMAND_PREFIX "%s|%d|%d|%d|%.0f|%.1f|%.1f|%.1f|%s|%s|%s", token, playerId, on ? 1 : 0, frequency, range, pos[0], pos[1], pos[2], safeRadio, lc_radio_source_name(src), safeKey);
     if (n <= 0 || (size_t)n >= cap)
         return 0;
     return (size_t)n;
@@ -32,7 +41,7 @@ int lc_radio_parse_announcement(const char* command, lc_radio_announcement* out)
     strncpy(buf, command + prefixLen, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
 
-    /* Split into the 9 fields after the prefix; the key keeps the remainder. */
+    /* Split into the 11 fields after the prefix; the key keeps the remainder. */
     char* fields[LC_RADIO_FIELDS - 2];
     int   count = 0;
     char* cursor = buf;
@@ -58,8 +67,15 @@ int lc_radio_parse_announcement(const char* command, lc_radio_announcement* out)
     out->range     = (float)atof(fields[4]);
     for (int i = 0; i < 3; ++i)
         out->pos[i] = (float)atof(fields[5 + i]);
-    strncpy(out->key, fields[8], sizeof(out->key) - 1);
+    copy_safe(out->radioId, sizeof(out->radioId), fields[8], ",;");
+    out->src = lc_radio_source_parse(fields[9]);
+    strncpy(out->key, fields[10], sizeof(out->key) - 1);
     return out->frequency > 0 && out->range > 0.0f && isfinite(out->pos[0]) && isfinite(out->pos[1]) && isfinite(out->pos[2]);
+}
+
+const float* lc_radio_transmitter_position(const lc_radio_announcement* info, const lc_player_state* player)
+{
+    return player && lc_radio_source_on_body(info->src) ? player->pos : info->pos;
 }
 
 float lc_radio_terrain_share(float height)

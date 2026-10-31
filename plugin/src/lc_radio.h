@@ -1,9 +1,12 @@
 #pragma once
 
 /* Radio reception maths and the transmission announcement exchanged between plugins. A transmitting plugin
-   sends "LC1|RTX|<session token>|<player id>|<on 1/0>|<frequency kHz>|<range m>|<x>|<y>|<z>|<encryption key>"
-   to its channel when it starts, changes radio or moves, every second while transmitting, and once more with
-   on=0 when it stops. Receiving plugins decide what they hear from their own radios (trust model as TFAR). */
+   sends "LC1|RTX|<session token>|<player id>|<on 1/0>|<frequency kHz>|<range m>|<x>|<y>|<z>|<radio id>|<source>|
+   <encryption key>" to its channel when it starts, changes radio or moves, every second while transmitting, and
+   once more with on=0 when it stops. x, y, z is the transmitting radio's antenna (radios[].pos), the radio id is
+   its radios[].id and the source its radios[].src by name (protocol 10; before it there were neither, and the
+   position was the talker's). Receiving plugins decide what they hear from their own radios (trust model as
+   TFAR). */
 
 #include "lc_game_state.h"
 
@@ -42,14 +45,21 @@ typedef struct {
     int   on;
     int   frequency;
     float range;
-    float pos[3];
+    float pos[3]; /* the transmitting radio's antenna */
+    char  radioId[LC_RADIO_ID_CAP];
+    int   src; /* lc_radio_source */
     char  key[LC_RADIO_KEY_CAP];
 } lc_radio_announcement;
 
-size_t lc_radio_format_announcement(char* out, size_t cap, const char* token, int playerId, int on, int frequency, float range, const float pos[3], const char* key);
+size_t lc_radio_format_announcement(char* out, size_t cap, const char* token, int playerId, int on, int frequency, float range, const float pos[3], const char* radioId, int src, const char* key);
 
 /* Returns 1 if command is a well-formed RTX announcement. */
 int lc_radio_parse_announcement(const char* command, lc_radio_announcement* out);
+
+/* Where a transmission comes from, for distance and terrain: the antenna it announced, except that a radio on
+   the talker's body uses the talker's head from our own game state when they are near enough to be in it,
+   which is more current than the last announcement. player may be NULL. */
+const float* lc_radio_transmitter_position(const lc_radio_announcement* info, const lc_player_state* player);
 
 /* Distance after terrain: clearance is the TFAR-style terrain height in metres (0 for line of sight). */
 /* Share of a radio's range that one hill this many metres above the line of sight takes,
@@ -78,8 +88,8 @@ float lc_radio_quality(float distance, float terrainLoss, float range, float cle
 #define LC_RADIO_LINK_WAIT_MS 300
 
 typedef struct {
-    /* Metres from the receiver to the transmitter: the speaker's game position, or the RTX position when the
-       speaker's player is not in our game state. */
+    /* Metres from the receiver to the transmitting antenna (lc_radio_transmitter_position): the RTX antenna
+       position, or for a radio on the talker's body their game position while they are in our game state. */
     float distance;
     /* The transmitter's range in metres as its RTX announced it. Which range that is (TX1 long range, TX2
        short range, a Game Master's unlimited range) the transmitting side has already decided; the receiver
@@ -88,8 +98,8 @@ typedef struct {
     /* Non-zero while the local player is a Game Master with unlimited reception (game state unlimitedRx):
        range is replaced by LC_RADIO_UNLIMITED_RANGE_M, so distance and terrain shrink to nothing against it. */
     int unlimitedRx;
-    /* Non-zero once the game has traced the terrain to this transmitter (a links[] entry exists). While 0,
-       terrain is taken as line of sight. */
+    /* Non-zero once the game has traced the terrain to this transmitting radio (a links[] entry for its player
+       and radio id exists). While 0, terrain is taken as line of sight. */
     int terrainKnown;
     /* links[].hills: the height in metres of every hill above the line of sight, highest first (the game
        state parser turns an old game's single "clearance" into one hill). Ignored unless terrainKnown;

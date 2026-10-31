@@ -73,11 +73,11 @@ Written at 20 Hz while anyone is talking, 10 Hz idle, and immediately on any cha
 voice range, terrain links or the sound queue. Radio state is rebuilt on the write itself rather than
 compared every frame, so a radio setting reaches the plugin at the next scheduled write — at most 100 ms,
 and in practice sooner, since the settings that change it all queue a sound, which forces a write.
-Protocol 9.
+Protocol 10 (3.0 test builds; 2.0.x is 9).
 
 ```json
 {
-  "v": 9, "seq": 42, "inGame": true,
+  "v": 10, "seq": 42, "inGame": true,
   "session": { "token": "...", "playerId": 1, "playerName": "Name",
                "tsChannel": "LimaCharlie", "tsChannelPassword": "",
                "modVersion": "1.0.0" },
@@ -89,10 +89,10 @@ Protocol 9.
                          "radio":  { "gainDb": 0, "highPassHz": 0, "lowPassHz": 0, "drive": 0 } },
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US",
                           "rx": true, "ear": 1, "volume": 0.8, "beep": "tfar_sw",
-                          "halfDuplex": 0 } ],
+                          "halfDuplex": 0, "src": "held", "pos": [x,y,z] } ],
             "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
   "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6, "room": 0.35 } ],
-  "links":   [ { "id": 2, "clearance": 35, "hills": [35, 12] } ]
+  "links":   [ { "id": 2, "radio": "88:1", "clearance": 35, "hills": [35, 12] } ]
 }
 ```
 
@@ -105,10 +105,19 @@ Protocol 9.
 - `tx` mirrors `EVONTransmitType`: 0 none, 1 direct, 2 channel, 3 long range.
 - `radios[].id` is `<radio RplId>:<transceiver number>`, unique among the player's own radios.
 - `radios[].range` is the announced range, which is 1000000 for a Game Master with the editor open.
+- `radios[].src` is where the radio physically is: `held` (in the inventory), `pack` (worn as the backpack:
+  its radio entity is the character's `LoadoutBackpackArea` cloth), `borrowed`, `vehicle` or `speaker`. Only
+  `held` and `pack` are sent so far; the rest are reserved for 3.0 manpack handsets, vehicle radios and
+  speakers. An unknown name reads as `held`. New in protocol 10.
+- `radios[].pos` is the radio's antenna, which is what the plugin announces in `RTX` when transmitting on
+  it. For a held or worn radio it is `self.pos`, the position every transmission came from before. A radio
+  with no `pos` is taken to be at `self.pos`. New in protocol 10.
 - `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed. `room` is how
   much of the listener's room that voice fills, which scales the reverb send only: 1 in the same room,
   0.35 elsewhere in the building, 0.1 from outdoors. New in protocol 8.
-- `links[]` answers the plugin's `radioRx` requests with the terrain to that transmitter: `hills` is every
+- `links[]` answers the plugin's `radioRx` requests with the terrain to that transmitting radio, `id` being
+  its player and `radio` its `radios[].id` on the transmitter's side (per radio since protocol 10, because
+  two radios of one player need not be in one place): `hills` is every
   hill above the line of sight, as its height in metres, highest first (up to 8), and `clearance` the
   highest. Both are already scaled by the server's terrain setting. `hills` is new in 2.0.5 without a
   protocol bump: a plugin that finds no `hills` treats `clearance` as one hill, and a 2.0.4 plugin reads only
@@ -140,7 +149,10 @@ Written atomically at 4 Hz or faster.
 - `micMuted` — TeamSpeak is holding the microphone shut, by its local mute, its mute toggle, or a muted
   speaker. Nothing here sets it; it is reported so the status notice can say why nobody can hear you.
 - `talking` — semicolon-delimited player ids currently speaking.
-- `radioRx` — `playerId,x,y,z;` requests for terrain clearance the game should answer.
+- `radioRx` — `playerId,radioId,src,x,y,z;` requests for terrain clearance the game should answer, one per
+  transmitting radio. `x,y,z` is the antenna from its `RTX`, or the talker's head where the plugin has them in
+  `players[]` and `src` is `held` or `pack`; the game likewise traces from a streamed-in talker's eyes only for
+  a radio on the body. `radioId` and `src` are new in protocol 10.
 - `radioHeard` — `playerId,radioId,frequency,quality;` for every transmission actually being heard.
 
 ### `server.json` — server overrides
@@ -202,12 +214,19 @@ Between plugins, over the TeamSpeak channel.
 
 ```
 LC1|HELLO|<token>|<playerId>|<voiceRange>|<pluginVersion>|<modVersion>
-LC1|RTX|<token>|<playerId>|<on>|<frequency>|<range>|<x>|<y>|<z>|<encryptionKey>
+LC1|RTX|<token>|<playerId>|<on>|<frequency>|<range>|<x>|<y>|<z>|<radioId>|<src>|<encryptionKey>
 ```
 
 `HELLO` re-broadcasts every 10 seconds and whenever a newcomer needs to learn us; peers expire after 35
 seconds. `RTX` refreshes every second while transmitting, on a move over 25 m, and once with `on=0` on
 release.
+
+`RTX` carries the transmitting radio's antenna (`radios[].pos`), its id (`radios[].id`, with `|`, `,` and `;`
+replaced by `_`) and its source (`radios[].src` by name); receivers measure distance and look up terrain
+from that radio, not from the player. Before protocol 10 there was no radio id or source and the position
+was the talker's own. A protocol 9 `RTX` is rejected by a 3.0 plugin, and a 2.0.x plugin reads a 3.0 one with
+a mismatched key, so mixed builds simply do not hear each other on the radio. A change of radio restarts the
+300 ms terrain wait, since the new antenna has not been traced.
 
 Every field after the player id is optional, parsed left to right and skipped if absent, so a build that
 sends a shorter `HELLO` is still understood — it just leaves those fields empty. The two versions exist for

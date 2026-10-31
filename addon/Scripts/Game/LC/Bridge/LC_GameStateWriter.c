@@ -22,7 +22,7 @@ class LC_GameStateWriter
 {
 	protected static const string DIRECTORY = "$profile:LimaCharlie";
 	protected static const string PATH = "$profile:LimaCharlie/game_state.json";
-	protected static const int PROTOCOL_VERSION = 9;
+	protected static const int PROTOCOL_VERSION = 10;
 	//! 20 Hz while anyone's voice is live; transmit, radio and terrain changes are written immediately
 	protected static const int INTERVAL_MS = 50;
 	//! 10 Hz when nobody is talking and we are not transmitting: positions still move, but nothing is audible
@@ -113,7 +113,6 @@ class LC_GameStateWriter
 
 		// A Game Master talks to the whole map from the camera, if the server allows it
 		bool unlimitedRange = client.GetGameMasterUnlimitedRange() && IsEditorOpen();
-		string radios = LC_Radio.BuildJson(client.GetRadioEntries(), client.GetRadioSettings(), unlimitedRange);
 
 		m_eLastTransmitType = transmitType;
 		m_fLastVoiceRange = voiceRange;
@@ -124,7 +123,7 @@ class LC_GameStateWriter
 
 		m_sRoomDiagnostic = string.Empty;
 		m_bRoomDiagnostics = client.GetRoomDiagnostics();
-		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, radios, now, unlimitedRange);
+		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, now, unlimitedRange);
 		WriteFile(json);
 		LogDiagnostic(now, json, client.GetDiagnosticLog());
 		LogRoomDiagnostic(now, client.GetRoomDiagnostics());
@@ -177,7 +176,7 @@ class LC_GameStateWriter
 	}
 
 	//------------------------------------------------------------------------------------------------
-	protected string BuildInGameJson(notnull LC_Client client, EVONTransmitType transmitType, float voiceRange, string transmitRadio, int transmitFrequency, string radios, int now, bool unlimitedRange)
+	protected string BuildInGameJson(notnull LC_Client client, EVONTransmitType transmitType, float voiceRange, string transmitRadio, int transmitFrequency, int now, bool unlimitedRange)
 	{
 		m_iSeq++;
 		PlayerManager playerManager = GetGame().GetPlayerManager();
@@ -227,7 +226,9 @@ class LC_GameStateWriter
 		json += ",\"cleanFraction\":" + client.GetCleanFraction().ToString(-1, 2);
 		json += ",\"beepFraction\":" + client.GetBeepFraction().ToString(-1, 2);
 		json += ",\"unlimitedRx\":" + LC_Json.Bool(unlimitedRange);
-		json += ",\"radios\":" + radios;
+		// Radios on the body transmit from where we listen, which is what every transmission came from before
+		// radios had an antenna position of their own
+		json += ",\"radios\":" + LC_Radio.BuildJson(client.GetRadioEntries(), client.GetRadioSettings(), localEntity, listenerPosition, unlimitedRange);
 		// One beep volume for every channel, scaling each channel's own volume where the plugin plays beeps
 		json += ",\"beepVolume\":" + client.GetRadioSettings().GetBeepVolume().ToString(-1, 2);
 		// Volume of the room the listener is in, 0 outdoors: the plugin sizes its reverb from it

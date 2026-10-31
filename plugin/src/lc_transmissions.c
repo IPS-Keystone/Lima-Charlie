@@ -59,7 +59,8 @@ int lc_transmissions_handle_command(anyID sender, const char* command, unsigned 
         }
         if (index >= 0) {
             lc_transmission* item = &g_items[index];
-            if (item->info.frequency != info.frequency || strcmp(item->info.token, info.token) != 0 || strcmp(item->info.key, info.key) != 0)
+            /* A different radio is a different antenna, whose terrain the game has not traced yet */
+            if (item->info.frequency != info.frequency || strcmp(item->info.token, info.token) != 0 || strcmp(item->info.key, info.key) != 0 || strcmp(item->info.radioId, info.radioId) != 0)
                 item->startMs = nowMs;
             item->info     = info;
             item->updateMs = nowMs;

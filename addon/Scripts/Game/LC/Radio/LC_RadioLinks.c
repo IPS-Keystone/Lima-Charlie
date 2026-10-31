@@ -1,6 +1,8 @@
 //------------------------------------------------------------------------------------------------
 class LC_RadioLink
 {
+	int m_iPlayerId;
+	string m_sRadioId;
 	vector m_vFrom;
 	vector m_vTo;
 	//! The highest hill above the line of sight, and every hill, highest first; both already scaled by the
@@ -14,6 +16,8 @@ class LC_RadioLink
 //------------------------------------------------------------------------------------------------
 //! Terrain clearance between the local player and the radio transmitters the plugin asks about
 //! (plugin_state.json "radioRx"), recomputed when either end moves. Sent back as game_state.json "links".
+//! Kept per transmitting radio rather than per player, since two radios of one player need not be in the
+//! same place.
 //!
 //! The server's terrain setting is applied here rather than in the plugin: the plugin takes a share of
 //! the radio's range for each hill that grows with its height, so scaling the heights makes every hill
@@ -27,29 +31,36 @@ class LC_RadioLinks
 	//! The plugin's requests change at most this often, and a 10 m move takes far longer than this
 	protected static const int UPDATE_MS = 50;
 
-	protected ref map<int, ref LC_RadioLink> m_mLinks = new map<int, ref LC_RadioLink>();
-	protected ref array<int> m_aStale = {};
+	protected ref map<string, ref LC_RadioLink> m_mLinks = new map<string, ref LC_RadioLink>();
+	protected ref array<string> m_aStale = {};
 	protected ref array<float> m_aHills = {};
 	protected int m_iRevision;
 	protected int m_iNextUpdateTick;
 
 	//------------------------------------------------------------------------------------------------
-	void Update(int now, notnull map<int, vector> requests, vector listenerPosition, float terrainFactor = 1)
+	//! One transmitting radio: its player and its id among that player's radios
+	static string GetKey(int playerId, string radioId)
+	{
+		return playerId.ToString() + "/" + radioId;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	void Update(int now, notnull map<string, ref LC_RadioRequest> requests, vector listenerPosition, float terrainFactor = 1)
 	{
 		if (now < m_iNextUpdateTick)
 			return;
 
 		m_iNextUpdateTick = now + UPDATE_MS;
 		m_aStale.Clear();
-		foreach (int playerId, LC_RadioLink link : m_mLinks)
+		foreach (string key, LC_RadioLink link : m_mLinks)
 		{
-			if (!requests.Contains(playerId) && now - link.m_iLastRequestedTick > STALE_MS)
-				m_aStale.Insert(playerId);
+			if (!requests.Contains(key) && now - link.m_iLastRequestedTick > STALE_MS)
+				m_aStale.Insert(key);
 		}
 
-		foreach (int playerId : m_aStale)
+		foreach (string key : m_aStale)
 		{
-			m_mLinks.Remove(playerId);
+			m_mLinks.Remove(key);
 		}
 
 		if (!m_aStale.IsEmpty())
@@ -57,15 +68,19 @@ class LC_RadioLinks
 
 		PlayerManager playerManager = GetGame().GetPlayerManager();
 		float moveSq = MOVE_REFRESH_M * MOVE_REFRESH_M;
-		foreach (int playerId, vector announcedPosition : requests)
+		foreach (string key, LC_RadioRequest request : requests)
 		{
-			// A streamed-in transmitter's head is more current than the position in its last announcement
-			vector from = announcedPosition;
-			ChimeraCharacter character = ChimeraCharacter.Cast(playerManager.GetPlayerControlledEntity(playerId));
-			if (character)
-				from = character.EyePosition();
+			// A streamed-in transmitter's head is more current than the position in its last announcement, for
+			// a radio they are carrying. Anywhere else the announced antenna is where the signal starts.
+			vector from = request.m_vPosition;
+			if (LC_Radio.IsOnBody(request.m_eSource))
+			{
+				ChimeraCharacter character = ChimeraCharacter.Cast(playerManager.GetPlayerControlledEntity(request.m_iPlayerId));
+				if (character)
+					from = character.EyePosition();
+			}
 
-			LC_RadioLink link = m_mLinks.Get(playerId);
+			LC_RadioLink link = m_mLinks.Get(key);
 			if (link)
 				link.m_iLastRequestedTick = now;
 
@@ -81,8 +96,10 @@ class LC_RadioLinks
 			if (!link)
 			{
 				link = new LC_RadioLink();
+				link.m_iPlayerId = request.m_iPlayerId;
+				link.m_sRadioId = request.m_sRadioId;
 				link.m_iLastRequestedTick = now;
-				m_mLinks.Set(playerId, link);
+				m_mLinks.Set(key, link);
 				m_iRevision++;
 			}
 			else if (HillsChanged(link.m_aHills, m_aHills))
@@ -126,13 +143,13 @@ class LC_RadioLinks
 	{
 		string json = "[";
 		bool first = true;
-		foreach (int playerId, LC_RadioLink link : m_mLinks)
+		foreach (string key, LC_RadioLink link : m_mLinks)
 		{
 			if (!first)
 				json += ",";
 
 			first = false;
-			json += "{\"id\":" + playerId.ToString() + ",\"clearance\":" + link.m_fClearance.ToString(-1, 0) + ",\"hills\":[";
+			json += "{\"id\":" + link.m_iPlayerId.ToString() + ",\"radio\":" + LC_Json.String(link.m_sRadioId) + ",\"clearance\":" + link.m_fClearance.ToString(-1, 0) + ",\"hills\":[";
 			for (int i = 0; i < link.m_aHills.Count(); i++)
 			{
 				if (i > 0)

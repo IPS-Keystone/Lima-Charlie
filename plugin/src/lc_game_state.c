@@ -84,6 +84,29 @@ static void parse_sounds(const cJSON* self, lc_game_state* out)
     }
 }
 
+static const char* const g_sourceNames[] = { "held", "pack", "borrowed", "vehicle", "speaker" };
+
+const char* lc_radio_source_name(int source)
+{
+    if (source < 0 || source >= (int)(sizeof(g_sourceNames) / sizeof(g_sourceNames[0])))
+        source = LC_RADIO_SRC_HELD;
+    return g_sourceNames[source];
+}
+
+int lc_radio_source_parse(const char* name)
+{
+    for (int i = 0; name && i < (int)(sizeof(g_sourceNames) / sizeof(g_sourceNames[0])); ++i) {
+        if (strcmp(name, g_sourceNames[i]) == 0)
+            return i;
+    }
+    return LC_RADIO_SRC_HELD;
+}
+
+int lc_radio_source_on_body(int source)
+{
+    return source == LC_RADIO_SRC_HELD || source == LC_RADIO_SRC_PACK;
+}
+
 static void parse_radios(const cJSON* self, lc_game_state* out)
 {
     const cJSON* radios = cJSON_GetObjectItemCaseSensitive(self, "radios");
@@ -104,6 +127,14 @@ static void parse_radios(const cJSON* self, lc_game_state* out)
         r->volume = get_volume(radio, "volume");
         copy_string(radio, "beep", r->beep, sizeof(r->beep));
         r->halfDuplex = get_bool(radio, "halfDuplex");
+        char src[16];
+        copy_string(radio, "src", src, sizeof(src));
+        r->src = lc_radio_source_parse(src);
+        /* A radio with no antenna of its own is where the player is */
+        if (cJSON_IsArray(cJSON_GetObjectItemCaseSensitive(radio, "pos")))
+            get_vec3(radio, "pos", r->pos);
+        else
+            memcpy(r->pos, out->pos, sizeof(r->pos));
     }
 }
 
@@ -198,6 +229,7 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
                 continue;
             lc_link_state* l = &out->links[out->linkCount++];
             l->playerId       = get_int(link, "id", 0);
+            copy_string(link, "radio", l->radioId, sizeof(l->radioId));
             l->clearance      = get_float(link, "clearance", 0.0f);
             const cJSON* hills = cJSON_GetObjectItemCaseSensitive(link, "hills");
             const cJSON* hill;
@@ -217,4 +249,13 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
 
     cJSON_Delete(root);
     return ok;
+}
+
+const lc_link_state* lc_game_state_find_link(const lc_game_state* state, int playerId, const char* radioId)
+{
+    for (int i = 0; i < state->linkCount; ++i) {
+        if (state->links[i].playerId == playerId && strcmp(state->links[i].radioId, radioId ? radioId : "") == 0)
+            return &state->links[i];
+    }
+    return NULL;
 }
