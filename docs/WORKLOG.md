@@ -109,3 +109,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Open for Workbench: two mods' overrides of one base prefab both survive; proxy tuning a vehicle-owned radio;
   compartment events on non-owner clients. Next: groundwork 1 (radio source/antenna in bridge, protocol 10)
   and 2 (server lease).
+- Duke's third round recorded in the plan: relays repeat a configurable band; SATCOM needs open sky (server
+  upward traces on deploy + every ~10 s, one replicated bool); release 3.0.0, tests now `3.0.0-test.N`;
+  infantry phone BTR-70/LAV-25 only, added to modded vehicles by one prefab override (component + action);
+  old branch deleted by Duke. Still open: SATCOM factions, jammer strength (explained, 0-100% recommended).
