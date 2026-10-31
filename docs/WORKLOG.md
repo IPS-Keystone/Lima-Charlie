@@ -23,6 +23,8 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Decide whether `WorkshopCoverPicture.*` and the new `PROJECT.md` / `docs/research/` / this file get committed.
 
 ## Touch-ups
+- 3.0: switching to another radio on the same frequency restarts the 300 ms terrain wait (links are per radio since `d00d805`); briefly clear until the answer lands.
+- 3.0: receiving side still measures from `self.pos`, not its own radio's antenna; needed for vehicle radios (B).
 - Terrain answers can be missed: plugin assumes line of sight after 300 ms without reporting it (docs/troubleshooting.md, Known fragilities).
 - Wishlist not started: simplex/duplex, vehicle intercom component, babble languages, relays/satcom, EMP.
 
@@ -126,3 +128,4 @@ session; update after each meaningful step and before ending one. Never rewrite 
   old result; mutation of `lc_radio_transmitter_position` caught by 3 checks); enforce_check clean (37 files);
   Workbench compile `Module: Game; loaded 5697x files; 11156x classes` (logs_2026-10-31_18-38-44, no LC errors).
   Not tested in game: Duke to run 2 clients on TeamSpeak (radio heard as before, terrain as before, manpack).
+- Verified groundwork 1 (`d00d805`) myself: plugin rebuild "All checks passed" (3.0.0-test.1 package), enforce_check 37 files clean, Workbench log 18:38 Game module 5697 files, no script errors. Needs Duke's 2-client test.
