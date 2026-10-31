@@ -189,12 +189,14 @@ A receiving plugin plays it if it has a radio switched on, tuned to that frequen
 encryption key, and the transmitter is in range. Quality then comes from one number:
 
 ```
-effective distance = d + h*7 + h*7*(d/2000)
-ratio              = effective distance / range
+share of one hill  = 0.8 * (1 - e^(-h / 95 m))
+terrain loss       = 1 - (1 - share of hill 1) * (1 - share of hill 2) * ...   (at most 0.9)
+ratio              = d / (range * (1 - terrain loss))
 ```
 
-`h` is the terrain clearance and 7 is TFAR's coefficient. Below the clean fraction, quality is 1. Above it,
-quality falls linearly to 0.05 at the edge. Beyond the edge, nothing is heard.
+`h` is a hill's height above the line of sight. Terrain shrinks the radio's range rather than adding
+distance, so the clean part and the garbled band shrink with it. Below the clean fraction, quality is 1.
+Above it, quality falls linearly to 0.05 at the edge. Beyond the edge, nothing is heard.
 
 Everything audible is driven off that single degradation figure:
 
@@ -216,12 +218,38 @@ distortion on peak amplitude instead made bad signals louder than good ones, whi
 The game computes clearance, not the plugin, because only the game can query terrain height. The plugin
 asks for the links it needs via `plugin_state.json`, and the game answers in `game_state.json`.
 
-Clearance is how far the midpoint of the path must rise for both halves to clear the ground, sampled every
-25 m up to 128 samples, ignoring the first and last 10 m so standing on a slope does not block your own
-radio. The result is 0 for line of sight, otherwise clamped to 10–250 m.
+The game samples the ground every 25 m (up to 128 samples) along the straight line between the two radios,
+ignoring the first and last 10 m so standing on a slope does not block your own radio. Every stretch where
+the ground rises above that line is one hill, and its height is the most it rises above it, up to 250 m.
+Ground dipping back below the line separates one hill from the next. The highest eight are sent.
 
-The server's terrain setting is applied when computing clearance rather than in the plugin. Scaling `h`
-scales the whole penalty exactly as scaling the coefficient would, and the bridge protocol stays fixed.
+Each hill takes a share of the radio's range, and several hills each take their share of what the others
+leave. The first metres of a hill count most, no single hill takes more than 80%, and all of them together
+never more than 90%, so a radio is never dead at point blank. Where a hill stands along the path does not
+matter, only how high it is:
+
+| Hills above line of sight | Range lost | 20 km radio: clean / dead |
+| --- | --- | --- |
+| none | 0% | 7.0 / 20.0 km |
+| 10 m | 8% | 6.4 / 18.4 km |
+| 30 m | 22% | 5.5 / 15.7 km |
+| 60 m | 37% | 4.4 / 12.5 km |
+| 120 m | 57% | 3.0 / 8.5 km |
+| 250 m | 74% | 1.8 / 5.2 km |
+| 30 m + 60 m | 51% | 3.4 / 9.8 km |
+| 60 m three times | 76% | 1.7 / 4.9 km |
+
+The same hill costs a 2 km set the same share as a 20 km one, not the same metres, so a long range set
+behind a ridge still reaches far.
+
+This replaced TFAR's model (`d + 7h + 7h*d/2000`, `h` being how far the middle of the path must rise) in
+2.0.5. That measure multiplied a hill near either end many times over: a ridge 100 m from you on a 10 km
+path counted 50 times its height, so almost any hill beside a long range radio took the whole penalty,
+and the `d/2000` term grew it with distance. A 20 km radio behind a 10 m ridge garbled from 3.5 km and
+was dead at 9.7 km.
+
+The server's terrain setting scales every hill's height when it is measured, rather than in the plugin,
+so the plugin never needs the setting: at 200% a 30 m hill counts as 60 m.
 
 **Known fragility:** the plugin waits 300 ms for a terrain answer before assuming line of sight. A missed
 answer degrades silently to "no terrain effect at all" for that transmission rather than failing loudly.

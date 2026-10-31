@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)
+
+Since 2.0.4.
+
+- **A hearing hook for other mods.** An ear protection headset or earplugs mod can now change how you hear
+  Lima Charlie voices, through a small compat addon that depends on both: `LC_Hearing.SetLocalProfile`
+  takes a gain, a high-pass, a low-pass and a drive for nearby voices and the same for radio voices. Nearby
+  voices are shaped after walls and distance and before the room's echo, so the echo comes through the
+  headset too; radio beeps are never touched. Neither mod needs the other. An older plugin ignores it, so
+  the bridge protocol is unchanged (9). See docs/developer-reference.md, "Hearing hook for other mods".
+- **A new terrain model, much kinder to long range radios.** Each hill rising above the line between two
+  radios now takes a share of the radio's range that grows with its height (a 10 m hill 8%, 30 m 22%,
+  120 m 57%, 250 m 74%), and a second hill takes its share of what the first left, up to 90% in all. The
+  same hill costs a 20 km set the same share as a 2 km one. TFAR's model, used until now, counted a hill
+  near either end of the path as many times its real height and grew the penalty with distance, so a
+  20 km radio behind a 10 m ridge garbled from 3.5 km and was dead at 9.7 km; now it is clean to 6.4 km and
+  reaches 18.4 km. The server's terrain effect setting scales every hill's height as before.
+- **Radios are louder.** At full channel volume a radio voice is now about 18% louder than someone talking
+  right beside you; it was half their level, because the radio band throws away the low end of a voice.
+  Channels now start at 80% rather than 100%, a little under the person beside you. A shout on the net is
+  rounded off by a limiter instead of clipping.
+
 ## 2.0.4 — mod 2.0.4, plugin 2.0.4
 
 Since 2.0.3.
@@ -35,6 +57,9 @@ Since 2.0.1. Plugin change; the mod is bumped only so both halves report the sam
   produce: the radio gain has no distance term, and every per-talker difference between those two cases is
   on the direct path. Two readings from a test — one speaker at the edge, one out of earshot — say whether the
   difference is in what arrives, in the radio path, or in neither.
+- **`server.json` always says what it did**: one log line a session, whether the file was generated, read and
+  overriding (naming the keys), read and overriding nothing, or found and unreadable. Two of those four
+  used to be silent. (Added to this entry afterwards; it shipped in 2.0.3 without a line here.)
 - Local voice is unchanged under the radio. Someone close enough to hear in person is heard both in the room
   and on the radio, as TFAR does. (A development build that removed the room voice during transmissions was
   never released.)

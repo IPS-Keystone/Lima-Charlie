@@ -232,6 +232,12 @@ class LC_GameStateWriter
 		json += ",\"beepVolume\":" + client.GetRadioSettings().GetBeepVolume().ToString(-1, 2);
 		// Volume of the room the listener is in, 0 outdoors: the plugin sizes its reverb from it
 		json += ",\"roomVolume\":" + m_ListenerRoom.m_fVolume.ToString(-1, 0);
+		// The listener's own hearing, while another mod reports one (an ear protection headset)
+		LC_HearingProfile hearing = LC_Hearing.GetCombined(now);
+		if (hearing)
+			json += ",\"hearing\":" + LC_Hearing.BuildJson(hearing);
+		else
+			LC_Hearing.LogUnchanged();
 		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson() + "}";
 
 		json += ",\"players\":[";

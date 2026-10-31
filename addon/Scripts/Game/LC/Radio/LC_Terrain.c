@@ -1,19 +1,27 @@
 //------------------------------------------------------------------------------------------------
-//! TFAR's terrain interception for radio signals, computed from terrain height queries
+//! How terrain blocks the path between two radios, computed from terrain height queries
 class LC_Terrain
 {
 	protected static const float SAMPLE_SPACING_M = 25;
 	protected static const int MAX_SAMPLES = 128;
 	//! Ground right next to either end is ignored, so standing on a slope does not block your own radio
 	protected static const float END_MARGIN_M = 10;
-	protected static const float MIN_CLEARANCE_M = 10;
-	protected static const float MAX_CLEARANCE_M = 250;
+	protected static const float MAX_HEIGHT_M = 250;
+	//! The highest this many are kept; more than that between two radios is beyond what matters
+	static const int MAX_HILLS = 8;
 
 	//------------------------------------------------------------------------------------------------
-	//! How far the middle of the path must rise for both halves to clear the terrain, like
-	//! TFAR_fnc_calcTerrainInterception: 0 with line of sight, otherwise 10 to 250 m.
-	static float Clearance(vector from, vector to)
+	//! Every hill that rises above the straight line between the two ends, as its peak height above that
+	//! line (up to 250 m), highest first. Ground dipping back below the line separates one hill from the
+	//! next. Returns the highest, 0 with line of sight.
+	//!
+	//! Heights are the obstacle's own wherever it stands. TFAR measured how far the middle of the path would
+	//! have to rise instead, which multiplies an obstacle near either end many times over: a ridge 100 m from
+	//! you on a 10 km path counted 50 times its height, so almost any hill beside a long range radio took
+	//! the whole penalty.
+	static float Hills(vector from, vector to, notnull array<float> hills)
 	{
+		hills.Clear();
 		BaseWorld world = GetGame().GetWorld();
 		if (!world)
 			return 0;
@@ -27,9 +35,8 @@ class LC_Terrain
 		int samples = Math.Ceil(distance / SAMPLE_SPACING_M);
 		samples = Math.ClampInt(samples, 2, MAX_SAMPLES);
 
-		float middleY = (from[1] + to[1]) * 0.5;
-		bool blocked;
-		float required = -MAX_CLEARANCE_M;
+		// Peak of the hill being crossed, 0 while the path is clear
+		float peak = 0;
 		for (int i = 1; i < samples; i++)
 		{
 			float t = i;
@@ -40,23 +47,31 @@ class LC_Terrain
 				continue;
 
 			float ground = world.GetSurfaceY(from[0] + dx * t, from[2] + dz * t);
-			if (ground > from[1] + (to[1] - from[1]) * t)
-				blocked = true;
+			float above = ground - (from[1] + (to[1] - from[1]) * t);
+			if (above > 0)
+			{
+				if (above > peak)
+					peak = above;
 
-			// Height the raised middle point needs so the half of the path over this sample clears it
-			float needed;
-			if (t <= 0.5)
-				needed = (ground - from[1]) / (2 * t) - (middleY - from[1]);
-			else
-				needed = (ground - to[1]) / (2 * (1 - t)) - (middleY - to[1]);
+				continue;
+			}
 
-			if (needed > required)
-				required = needed;
+			if (peak > 0)
+				hills.Insert(Math.Min(peak, MAX_HEIGHT_M));
+
+			peak = 0;
 		}
 
-		if (!blocked)
+		if (peak > 0)
+			hills.Insert(Math.Min(peak, MAX_HEIGHT_M));
+
+		if (hills.IsEmpty())
 			return 0;
 
-		return Math.Clamp(required, MIN_CLEARANCE_M, MAX_CLEARANCE_M);
+		hills.Sort(true);
+		if (hills.Count() > MAX_HILLS)
+			hills.Resize(MAX_HILLS);
+
+		return hills[0];
 	}
 }
