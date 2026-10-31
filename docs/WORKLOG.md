@@ -113,3 +113,4 @@ session; update after each meaningful step and before ending one. Never rewrite 
   upward traces on deploy + every ~10 s, one replicated bool); release 3.0.0, tests now `3.0.0-test.N`;
   infantry phone BTR-70/LAV-25 only, added to modded vehicles by one prefab override (component + action);
   old branch deleted by Duke. Still open: SATCOM factions, jammer strength (explained, 0-100% recommended).
+- Jammer strength decided: GM attribute 0-100%, default 100% (peak jam at the jammer). Only SATCOM factions open.
