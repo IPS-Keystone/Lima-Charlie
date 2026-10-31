@@ -114,3 +114,5 @@ session; update after each meaningful step and before ending one. Never rewrite 
   infantry phone BTR-70/LAV-25 only, added to modded vehicles by one prefab override (component + action);
   old branch deleted by Duke. Still open: SATCOM factions, jammer strength (explained, 0-100% recommended).
 - Jammer strength decided: GM attribute 0-100%, default 100% (peak jam at the jammer). Only SATCOM factions open.
+- SATCOM factions: US and USSR arsenals for now; modded factions add it to their own. No open questions left.
+- Started groundwork 1 (radio source + antenna position in bridge, per-radio links, protocol 10).
