@@ -97,3 +97,15 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Clean plugin build from radio-tuning 46a874e: plugin/build/LimaCharlie_2.0.5.ts3_plugin (package.ini 2.0.5,
   DLL carries 2.0.5, vanilla beeps excluded), all checks passed. Not yet tested in game.
 - New on GitHub, not ours this session: feature/3.0-comms and claude/gallant-knuth-zna9uk (3.0 plan docs only).
+
+## 2026-10-31
+- feature/3.0-comms: merged `main` 2.0.5 (`324d2e9`; only PROJECT.md/WORKLOG conflicts); handover updated.
+- Groundwork step 3 done (`100fb82`, `lc_radio_receive`): rebuilt here, "All checks passed".
+- Surveys of handover step 2 written from source: docs/research/2026-10-31-vehicle-prefabs-compartments.md,
+  -von-entry-api.md, -cvon-vehicle-radio-approach.md (CVON has no licence). Design they settle is in the plan
+  (B → Survey results): LC component via base-prefab delta overrides; vehicle radio = LC radio child entity
+  listed as a normal VON radio entry, tuned via server RPC; seat events + one client reconciler; intercom entry
+  never active (+ RadioToggle null fix); infantry phone on `push_rear` (BTR70, LAV25).
+- Open for Workbench: two mods' overrides of one base prefab both survive; proxy tuning a vehicle-owned radio;
+  compartment events on non-owner clients. Next: groundwork 1 (radio source/antenna in bridge, protocol 10)
+  and 2 (server lease).
