@@ -287,3 +287,6 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Wrote docs/design/3.0-test-plan.md: test list for the whole branch (start-up/versions, 2.0.5 regression,
   leases, vehicle radios, intercom, phone, mods alongside, expected behaviour). CHANGELOG gained the missing
   vehicle radios line.
+- Duke's fourth round (plan): handset and phone picked up by an interaction; phone action on the passenger door
+  for now (BTR-70, LAV-25) instead of `push_rear`; a visible black cable with slack from holder to vehicle/radio,
+  generic for the manpack handset too; check vanilla for rope/cable first. Handed to a fresh session.
