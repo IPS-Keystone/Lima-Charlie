@@ -10,7 +10,7 @@ class LC_InfantryPhoneComponentClass : ScriptComponentClass
 //! adds this component and LC_InfantryPhoneAction, no script.
 class LC_InfantryPhoneComponent : ScriptComponent
 {
-	[Attribute("push_rear", desc: "Action context (ContextName in the vehicle's ActionsManagerComponent) the phone hangs at. Put LC_InfantryPhoneAction in the same context; the cable is measured from here.", category: "Infantry phone")]
+	[Attribute("", desc: "Action context (ContextName in the vehicle's ActionsManagerComponent) the phone hangs at, e.g. an exterior door. Put LC_InfantryPhoneAction in the same context; the cable is measured and drawn from here. Empty or missing: the vehicle's origin.", category: "Infantry phone")]
 	protected string m_sContextName;
 
 	[Attribute("5", UIWidgets.Slider, "How far the holder may walk from the phone before it is hung up (m)", "1 30 0.5", category: "Infantry phone")]
@@ -18,6 +18,9 @@ class LC_InfantryPhoneComponent : ScriptComponent
 
 	[Attribute("1", UIWidgets.ComboBox, "Intercom channel the holder starts on (Crew, so the phone reaches the crew without them switching); they can pick another from the radio menu like any seat", "", ParamEnumArray.FromEnum(LC_EIntercomChannel), category: "Infantry phone")]
 	protected LC_EIntercomChannel m_eChannel;
+
+	[Attribute("{2F7C1A6D93B4E058}Prefabs/LC/Props/LC_InfantryPhoneHandset.et", UIWidgets.ResourcePickerThumbnail, "Prop put in the holder's hand while the phone is held (local, visual only; empty: none)", "et", category: "Infantry phone")]
+	protected ResourceName m_sHandsetPrefab;
 
 	//------------------------------------------------------------------------------------------------
 	//! The phone of the vehicle an entity belongs to, or null
@@ -59,6 +62,12 @@ class LC_InfantryPhoneComponent : ScriptComponent
 	}
 
 	//------------------------------------------------------------------------------------------------
+	ResourceName GetHandsetPrefab()
+	{
+		return m_sHandsetPrefab;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	string GetContextName()
 	{
 		return m_sContextName;
@@ -70,7 +79,7 @@ class LC_InfantryPhoneComponent : ScriptComponent
 	{
 		IEntity owner = GetOwner();
 		BaseActionsManagerComponent actions = BaseActionsManagerComponent.Cast(owner.FindComponent(BaseActionsManagerComponent));
-		if (actions)
+		if (actions && !m_sContextName.IsEmpty())
 		{
 			UserActionContext context = actions.GetContext(m_sContextName);
 			vector transform[4];

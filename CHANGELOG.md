@@ -13,9 +13,11 @@
   of the same vehicle hear each other clearly, whatever the noise, walls or voice level. Pick the channel on
   the new **Intercom** entry at the end of the radio menu (scroll to cycle; No Intercom turns it off).
   Driver, commander and gunner start on crew, everyone else on cargo. Protocol stays 10.
-- **Infantry phone.** The BTR-70 and LAV-25 have a phone at the rear: pick it up to talk to the crew over the
-  intercom (Crew channel) from outside, within about 5 m. Modded vehicles can add one with a single prefab
-  override and no script (docs/developer-reference.md, "Infantry phone").
+- **Infantry phone.** The BTR-70 and LAV-25 have a phone at the passenger door (BTR-70: right side door;
+  LAV-25: right rear door): pick it up to talk to the crew over the intercom (Crew channel) from outside,
+  within about 5 m. While you hold it, everyone near you sees the handset in your hand and a black cable
+  running from it to the door. Modded vehicles can add one with a single prefab override and no script
+  (docs/developer-reference.md, "Infantry phone").
 
 ## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)
 

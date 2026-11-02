@@ -261,11 +261,14 @@ reaches the far end of the vehicle: intercom ignores voice range.
 ## Infantry phone (3.0)
 
 A handset outside a vehicle that puts whoever holds it on the vehicle's intercom, so infantry can talk to
-the crew. Vanilla BTR-70 and LAV-25 have one at the rear (`push_rear`, where Push and Open Trunk already
-are). Any other vehicle gets one from **one prefab override and no script**.
+the crew. Vanilla BTR-70 and LAV-25 have one at the passenger door: the exterior door context that leads to
+the cargo seats, the right-hand one where there are two (BTR-70 `door_r01`: both side doors serve every
+cargo seat and the driver, and cargo seats list the right one first; LAV-25 `door_back_right`, the right rear
+door). Any other vehicle gets one from **one prefab override and no script**.
 
 - **Pieces** (`Vehicle/LC_InfantryPhone.c`): `LC_InfantryPhoneComponent` on the vehicle (attributes: action
-  context name, default `push_rear`; cable length, default 5 m; intercom channel, default Crew) and
+  context name, no default (empty = the vehicle's origin); cable length, default 5 m; intercom channel,
+  default Crew; handset prop, default `Prefabs/LC/Props/LC_InfantryPhoneHandset.et`) and
   `LC_InfantryPhoneAction` in the vehicle's `ActionsManagerComponent`, in that context. It needs
   `LC_VehicleCommsComponent` with its intercom on the same vehicle; every vanilla vehicle base already has
   it (a military-only intercom has no phone on a civilian vehicle either).
@@ -278,24 +281,39 @@ are). Any other vehicle gets one from **one prefab override and no script**.
   `players[].ic` and the server's membership check pick them up), and `LC_VehicleSeat.FindPhoneIntercom`
   gives the holder the Intercom entry in the radio menu, where they can pick another channel like any seat.
   Nothing new in the bridge or the plugin.
+- **Handset and cable** (`Radio/LC_HandsetCable.c`, generic; research in
+  `docs/research/2026-11-02-handset-cable.md`): while a phone is held, every client puts the handset prop
+  (the vanilla wall phone's handset model, no physics) on the holder's `LeftHandProp` bone and draws a thin
+  near-black cable from it to the phone point, sagging with slack (straight line x 1.15 + 0.5 m, capped at
+  the cable length) and kept above the terrain. Drawn locally from the replicated lease (`LC_HandsetCables`,
+  ticked by `LC_Client`), so nothing new is replicated; no physics. Hidden and not updated beyond 100 m of
+  the camera or while holder or vehicle is streamed out; gone when the lease ends. The mesh is rebuilt
+  (`MeshObject.Create`) only when an end moves more than 1 cm. For the manpack handset (A): add `BORROWED`
+  to `LC_HandsetCables.HasCable` and give `GetAnchor` / `GetLength` / `GetHandsetPrefab` its radio;
+  `LC_HandsetCable` itself needs no change.
 - **Adding it to a modded vehicle.** In your mod, override the vehicle's prefab (or its base) at its own
   path and GUID, holding only the new blocks. Reuse the vehicle's own `ActionsManagerComponent` block ID
   (find it in its prefab chain; vanilla vehicles inherit `{C97BE5489221AE18}`): a fresh ID would add a second
   actions manager instead of extending the first. The new component and action get fresh IDs. Pick an
-  exterior context the vehicle already has (a rear door, `push_rear`...) and name it in both places. The
-  worked example, `Prefabs/Vehicles/Wheeled/LAV25/LAV25_base.et` in this addon (the BTR-70's is the same):
+  exterior context the vehicle already has, preferably the door to its cargo seats (the door index in the
+  `CargoCompartmentSlot`s' `DoorInfoList` points into the vehicle's `CompartmentDoorInfo` list, which names
+  its `ContextName`), and name it in both places: `m_sContextName` on the component and the action's
+  `ParentContextList`. The phone's distance rule and its cable are measured from that context's position.
+  The worked example, `Prefabs/Vehicles/Wheeled/LAV25/LAV25_base.et` in this addon (the BTR-70's is the same
+  with `door_r01`):
 
   ```
   Vehicle : "{543A50BF3A42AD47}Prefabs/Vehicles/Core/Wheeled_APC_Base.et" {
    ID "BBCBA43A9778AE21"
    components {
     LC_InfantryPhoneComponent "{0A96636490FC9A7E}" {
+     m_sContextName "door_back_right"
     }
     ActionsManagerComponent "{C97BE5489221AE18}" {
      additionalActions {
       LC_InfantryPhoneAction "{F3A04750554AEE9D}" {
        ParentContextList {
-        "push_rear"
+        "door_back_right"
        }
        UIInfo SCR_ActionUIInfo "{5959B6D4C6644BB1}" {
         Name "Infantry Phone"
@@ -309,8 +327,8 @@ are). Any other vehicle gets one from **one prefab override and no script**.
 
   The first two lines are copied from the vehicle's own prefab (its parent and `ID`). Its `.meta` names the
   overridden resource (`{1B8EB269EECA2DF9}Prefabs/Vehicles/Wheeled/LAV25/LAV25_base.et`). A vehicle mod of
-  your own can instead add the two blocks in Workbench. Set `m_sContextName` on the component when the
-  context is not `push_rear`, and keep `ParentContextList` the same. Workbench needs a restart to register
+  your own can instead add the two blocks in Workbench. `m_sContextName` has no default: left out, the phone
+  hangs at the vehicle's origin. Workbench needs a restart to register
   new override files; check the result with the resolved prefab (one `ActionsManagerComponent`, the phone
   action beside the vehicle's own). The action's name comes from script (Pick Up / Hang Up Infantry Phone).
 
@@ -453,7 +471,7 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 | Bridge | `LC_GameStateWriter.c`, `LC_PluginStateReader.c`, `LC_Json.c`, `LC_SoundQueue.c` |
 | Session and settings | `LC_Session.c`, `LC_Settings.c`, `LC_ServerSettings.c`, `LC_MissionHeader.c`, `LC_PlayerController.c`, `LC_BaseGameMode.c` |
 | Radios | `LC_Radio.c`, `LC_RadioSettings.c`, `LC_RadioMode.c`, `LC_RadioLinks.c`, `LC_Terrain.c`, `LC_VONEntryRadio.c`, `LC_FrequencyInput.c` |
-| Radio leases | `LC_RadioLeases.c`, `LC_RadioLease.c` (kinds, refusals, rules), `LC_RadioLeaseDiag.c` (diag only) |
+| Radio leases | `LC_RadioLeases.c`, `LC_RadioLease.c` (kinds, refusals, rules), `LC_RadioLeaseDiag.c` (diag only), `LC_HandsetCable.c` (held handset prop + cable, drawn per client) |
 | Vehicles | `LC_VehicleCommsComponent.c`, `LC_VehicleSeat.c`, `LC_Intercom.c`, `LC_InfantryPhone.c`, `LC_VehicleRadioSeatCondition.c` |
 | Channel names | `LC_ChannelLabel.c`, `LC_ChannelLabels.c` |
 | Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c`, `LC_Rooms.c`, `LC_Hearing.c` (hook for other mods) |

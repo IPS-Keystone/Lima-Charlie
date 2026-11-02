@@ -43,6 +43,7 @@ class LC_Client
 	protected int m_iLeaseRevision = -1;
 	protected bool m_bLeaseEntriesStale;
 	protected ref LC_VehicleSeat m_VehicleSeat = new LC_VehicleSeat();
+	protected ref LC_HandsetCables m_HandsetCables = new LC_HandsetCables();
 #ifdef ENABLE_DIAG
 	protected ref LC_RadioLeaseDiag m_LeaseDiag = new LC_RadioLeaseDiag();
 #endif
@@ -125,6 +126,7 @@ class LC_Client
 		if (s_Instance.m_PlayerController)
 			s_Instance.m_VehicleSeat.Clear(s_Instance.GetVONController());
 
+		s_Instance.m_HandsetCables.Clear();
 		s_Instance.m_FrequencyInput.Close();
 		s_Instance.m_Hud.Release();
 		s_Instance.m_VonDisplay.Release();
@@ -219,6 +221,17 @@ class LC_Client
 		m_Hud.Update(elapsedMs / 1000);
 		m_VonDisplay.Update(this, now);
 		m_StatusNotice.Update(now, this);
+		UpdateHandsetCables();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Every held handset's cable near the camera, drawn here from the replicated leases
+	protected void UpdateHandsetCables()
+	{
+		vector viewer;
+		vector direction;
+		GetListenerTransform(viewer, direction);
+		m_HandsetCables.Update(viewer);
 	}
 
 	//------------------------------------------------------------------------------------------------

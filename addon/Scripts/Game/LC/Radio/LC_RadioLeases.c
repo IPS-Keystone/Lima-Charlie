@@ -220,6 +220,36 @@ class LC_RadioLeases
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! How many leases anyone holds, on any machine (with GetLeaseAt, for code that draws every holder)
+	int GetLeaseCount()
+	{
+		array<int> state = GetState();
+		if (!state)
+			return 0;
+
+		return state.Count() / STATE_STRIDE;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! One lease of GetLeaseCount's, in the order the server keeps them
+	void GetLeaseAt(int index, out RplId radioId, out int playerId, out LC_ERadioLeaseKind kind)
+	{
+		array<int> state = GetState();
+		int first = index * STATE_STRIDE;
+		if (!state || index < 0 || first + STATE_STRIDE > state.Count())
+		{
+			radioId = RplId.Invalid();
+			playerId = 0;
+			kind = -1;
+			return;
+		}
+
+		radioId = state[first];
+		playerId = state[first + 1];
+		kind = state[first + 2];
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! The local player's leased radios and their kinds, in the order they were granted
 	void GetOwnLeases(notnull array<RplId> radios, array<int> kinds = null)
 	{

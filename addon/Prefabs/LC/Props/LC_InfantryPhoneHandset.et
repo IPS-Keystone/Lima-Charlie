@@ -1,0 +1,18 @@
+GenericEntity {
+ ID "4B2DA053DF8872E8"
+ components {
+  MeshObject "{F396183245745C8E}" {
+   Object "{250531EE76AD8C09}Assets/Props/Services/PhoneWall_01/dst/PhoneWall_01_dst_02.xob"
+   Materials {
+    MaterialAssignClass "{8A23695E043E4561}" {
+     SourceMaterial "PhoneWall_01"
+     AssignedMaterial "{07F889D3A570D5DC}Assets/Props/Services/PhoneWall_01/Data/PhoneWall_01_blue.emat"
+    }
+    MaterialAssignClass "{8A23695E043E4562}" {
+     SourceMaterial "PhoneWall_01_MLOD"
+     AssignedMaterial "{81888689C183D170}Assets/Props/Services/PhoneWall_01/Data/PhoneWall_01_blue_MLOD.emat"
+    }
+   }
+  }
+ }
+}

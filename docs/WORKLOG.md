@@ -290,3 +290,34 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Duke's fourth round (plan): handset and phone picked up by an interaction; phone action on the passenger door
   for now (BTR-70, LAV-25) instead of `push_rear`; a visible black cable with slack from holder to vehicle/radio,
   generic for the manpack handset too; check vanilla for rope/cable first. Handed to a fresh session.
+- 2026-11-02 (fourth-round session): **phone moved to the passenger door; handset in hand and a cable.**
+  - Door: BTR-70 cargo seats use `door_l01` (DoorInfoList 0) and `door_r01` (1), listing `{1 0}` (right first);
+    LAV-25 cargo seats use `door_back_left` (2) / `door_back_right` (3); `door_side_left` (1) is not cargo.
+    Picked the right-hand one on both: `door_r01`, `door_back_right` (Duke: right-hand if two). Overrides now set
+    `m_sContextName` and the action's `ParentContextList` to it; the component's context default is now empty
+    (= vehicle origin), so a modded vehicle names its context explicitly. Distance rule unchanged (it already
+    measures from `GetPhonePosition`, now the door).
+  - Research (docs/research/2026-11-02-handset-cable.md): vanilla has no rope/cable simulation; it builds meshes
+    from script (`MeshObject.Create` + `UpdateVerts`/`UpdateIndices` + `SetObject`, rebuilt on move in
+    `SCR_BaseAreaMeshComponent`); RHS's tow cable draws its visual the same way (approach only). Loiter
+    animations attach local props to hand bones (`SpawnEntityPrefabLocal` + `AddChild(bone)`).
+  - Built `Radio/LC_HandsetCable.c`: `LC_HandsetCable` (handset prop on `LeftHandProp` + 4-sided 16-segment tube,
+    parabolic sag from slack, terrain clamp, rebuilt only when an end moves > 1 cm, local entity at the hand end)
+    and `LC_HandsetCables` (per client, per frame from `LC_Client.Tick`: one cable per lease of a cable kind,
+    PHONE now; hidden beyond 100 m of the camera or when streamed out). `LC_RadioLeases` gained
+    `GetLeaseCount` / `GetLeaseAt` (all leases, any player). Material: vanilla gantry crane cable emat.
+  - Duke (in this session): the vanilla `PhoneWall_01_dst_02_blue` handset in the holder's hand. Built
+    `Prefabs/LC/Props/LC_InfantryPhoneHandset.et` ({2F7C1A6D93B4E058}) from its model `PhoneWall_01_dst_02.xob`
+    with the blue materials and no RigidBody (the vanilla debris prefab has a static model-geometry body that
+    must not ride on a character); `LC_InfantryPhoneComponent.m_sHandsetPrefab` points at it. A local visual
+    prop, not an inventory item: an item would need replication and would take the hands from the weapon.
+  - Evidence: enforce_check 48 files clean. Workbench (ClaudeDevTools, restarted with Duke's OK after closing
+    his 20:37 instance) logs_2026-11-02_20-50-48 `20:50:55.419 Module: Game; loaded 5708x files; 11191x classes`,
+    0 `SCRIPT (E)`. Play mode: entered on testWorld; the player was being created when Workbench stopped on a
+    "Script Authorization Required" dialog (vanilla `SCR_ArsenalManagerComponent.c:1101` wants
+    `BaseContainerTools.LoadContainer`). Left unanswered (security prompt; Duke was in another game, so no focus
+    taken). **NOT verified: anything at runtime** (cable, handset placement, door action position).
+  - Open for Duke's look (test plan §6): tube winding, handset offset/rotation on `LeftHandProp` (all zero:
+    `HANDSET_OFFSET` / `HANDSET_ANGLES` / `CORD_EXIT` constants in LC_HandsetCable.c), colour, no hold
+    animation (the hand keeps the weapon pose). That Workbench instance is still open in play mode behind the
+    dialog.

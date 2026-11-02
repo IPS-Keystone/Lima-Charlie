@@ -145,10 +145,12 @@ they talk, as well as normally. You talk on it with your normal voice key; there
   No Intercom, Crew, Cargo, Misc. Any seat can pick any channel, so a commander in the back can talk to
   the pilot.
 - One channel at a time. No Intercom takes you off it entirely.
-- **Infantry phone:** the BTR-70 and LAV-25 have one at the rear. **Pick Up Infantry Phone** there puts you on
+- **Infantry phone:** the BTR-70 and LAV-25 have one at the passenger door (BTR-70: the right side door;
+  LAV-25: the right rear door), among the door's own actions. **Pick Up Infantry Phone** there puts you on
   the vehicle's intercom (Crew channel to start with, so the crew hear you straight away; the Intercom entry appears in your radio menu) so you
-  can talk to the crew from outside. It hangs up when you walk more than about 5 m away, use the action
-  again, get into a vehicle or die.
+  can talk to the crew from outside. While you hold it, the handset is in your hand and a black cable runs
+  from it to the door, so everyone can see who is on the phone. It hangs up when you walk more than about
+  5 m away, use the action again, get into a vehicle or die.
 
 ## Radios
 
