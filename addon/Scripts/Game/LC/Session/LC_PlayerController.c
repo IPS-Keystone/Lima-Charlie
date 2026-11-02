@@ -92,6 +92,27 @@ modded class SCR_PlayerController
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Client picks a vehicle intercom channel. \param channel LC_EIntercomChannel, or -1 for the seat's own
+	void LC_SetIntercomChannel(RplId vehicle, int channel)
+	{
+		Rpc(RpcAsk_LC_SetIntercomChannel, vehicle, channel);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The comms component refuses a player who is not on that vehicle's intercom
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcAsk_LC_SetIntercomChannel(RplId vehicle, int channel)
+	{
+		IEntity entity = LC_RadioLeases.FindRadio(vehicle);
+		if (!entity)
+			return;
+
+		LC_VehicleCommsComponent comms = LC_VehicleCommsComponent.Cast(entity.FindComponent(LC_VehicleCommsComponent));
+		if (comms)
+			comms.ServerSetIntercomChoice(GetPlayerId(), channel);
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Client tunes a radio it holds by lease (a vehicle radio): the server owns that radio, so the change is
 	//! made there and replicates to everyone sharing it. transceiver is the 0-based index on the radio.
 	void LC_TuneLeasedRadio(RplId radio, int transceiver, int frequency)

@@ -15,6 +15,8 @@
 #define LC_BEHIND_ATTENUATION 0.25f
 /* Attenuation at full muffle; the plugin's low-pass filter does the rest. */
 #define LC_MUFFLE_ATTENUATION_DB -9.0f
+/* A voice on the intercom, about as loud as someone talking at arm's length */
+#define LC_INTERCOM_GAIN 0.9f
 
 static float clamp01(float value)
 {
@@ -79,4 +81,9 @@ int lc_direct_voice_compute(const float listenerPos[3], const float listenerDir[
     *gainLeft         = left > 1.0f ? 1.0f : left;
     *gainRight        = right > 1.0f ? 1.0f : right;
     return 1;
+}
+
+float lc_intercom_gain(int listenerChannels, int speakerChannels)
+{
+    return (listenerChannels & speakerChannels & LC_INTERCOM_ALL) ? LC_INTERCOM_GAIN : 0.0f;
 }

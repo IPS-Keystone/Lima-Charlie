@@ -658,7 +658,10 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                 continue;
             lc_voice_target* target = &targets[count];
             memset(target, 0, sizeof(*target));
-            if (!lc_direct_voice_compute(g_game.pos, g_game.dir, player->pos, peers[i].voiceRange, player->muffle, &target->gainLeft, &target->gainRight))
+            /* On the intercom a whisper from the far end of the vehicle is still heard, out of voice range */
+            const int inRange = lc_direct_voice_compute(g_game.pos, g_game.dir, player->pos, peers[i].voiceRange, player->muffle, &target->gainLeft, &target->gainRight);
+            target->intercom  = lc_intercom_gain(g_game.intercom, player->intercom);
+            if (!inRange && target->intercom <= 0.0f)
                 continue;
             target->client = peers[i].client;
             target->muffle = player->muffle;

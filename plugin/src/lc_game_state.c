@@ -192,6 +192,7 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
         out->unlimitedRx   = get_bool(self, "unlimitedRx");
         out->roomVolume    = get_float(self, "roomVolume", 0.0f);
         out->beepVolume    = get_float(self, "beepVolume", 1.0f);
+        out->intercom      = get_int(self, "ic", 0) & LC_INTERCOM_ALL;
         if (out->beepVolume < 0.0f)
             out->beepVolume = 0.0f;
         else if (out->beepVolume > 1.0f)
@@ -217,6 +218,7 @@ int lc_game_state_parse(const char* json, lc_game_state* out)
             p->muffle = get_float(player, "muffle", 0.0f);
             /* How much of the listener's room this voice fills, for the reverb send */
             p->room = get_float(player, "room", 1.0f);
+            p->intercom = get_int(player, "ic", 0) & LC_INTERCOM_ALL;
         }
 
         const cJSON* links = cJSON_GetObjectItemCaseSensitive(root, "links");

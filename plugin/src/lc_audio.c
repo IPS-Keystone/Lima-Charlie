@@ -20,6 +20,11 @@
 #define LC_RADIO_HIGHPASS_HZ 300.0f
 #define LC_RADIO_LOWPASS_HZ 3400.0f
 #define LC_RADIO_FILTERS 4
+/* Intercom voice band: one high-pass and one low-pass stage, wider than a radio's and with no garble, so it
+   sounds like a headset rather than a radio */
+#define LC_INTERCOM_HIGHPASS_HZ 250.0f
+#define LC_INTERCOM_LOWPASS_HZ 5000.0f
+#define LC_INTERCOM_FILTERS 2
 /* Drive of a clean radio signal, and the speech amplitude the drive stage is level matched at. */
 #define LC_DRIVE_CLEAN 1.5f
 #define LC_DRIVE_REFERENCE 0.2f
@@ -79,6 +84,8 @@ typedef struct {
     float        radioLeft;
     float        radioRight;
     lc_biquad   radioFilters[LC_RADIO_FILTERS];
+    float        intercom;
+    lc_biquad   intercomFilters[LC_INTERCOM_FILTERS];
     float        heldSample;
     int          holdCount;
     int          dropoutRemaining;
@@ -87,6 +94,8 @@ typedef struct {
 
     lc_headset_state headsetDirect;
     lc_headset_state headsetRadio;
+    /* The intercom has its own pass through the radio headset settings: filters hold one signal's history */
+    lc_headset_state headsetIntercom;
 
     /* Sums of squares while on a radio, for lc_audio_take_levels */
     float levelIn;
@@ -305,8 +314,11 @@ static lc_voice_state* get_state(anyID client)
         biquad_set(&state->stages[i], state->cutoffHz, 0);
     for (int i = 0; i < LC_RADIO_FILTERS; ++i)
         biquad_set(&state->radioFilters[i], i < 2 ? LC_RADIO_HIGHPASS_HZ : LC_RADIO_LOWPASS_HZ, i < 2);
-    state->headsetDirect.gain = 1.0f;
-    state->headsetRadio.gain  = 1.0f;
+    biquad_set(&state->intercomFilters[0], LC_INTERCOM_HIGHPASS_HZ, 1);
+    biquad_set(&state->intercomFilters[1], LC_INTERCOM_LOWPASS_HZ, 0);
+    state->headsetDirect.gain   = 1.0f;
+    state->headsetRadio.gain    = 1.0f;
+    state->headsetIntercom.gain = 1.0f;
     state->rng             = ((unsigned int)client * 2654435761u) | 1u;
     g_slotOfClient[client] = (unsigned short)++g_stateCount;
     return state;
@@ -405,10 +417,12 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     const float      targetRadioRight = target ? target->radioRight : 0.0f;
     const int        useDirect        = targetLeft > 0.0f || targetRight > 0.0f || (state && (state->gainLeft > 0.0f || state->gainRight > 0.0f));
     const int        useRadio         = targetRadioLeft > 0.0f || targetRadioRight > 0.0f || (state && (state->radioLeft > 0.0f || state->radioRight > 0.0f));
-    if (!state || (!useDirect && !useRadio)) {
+    const float      targetIntercom   = target ? target->intercom : 0.0f;
+    const int        useIntercom      = targetIntercom > 0.0f || (state && state->intercom > 0.0f);
+    if (!state || (!useDirect && !useRadio && !useIntercom)) {
         memset(samples, 0, sizeof(short) * (size_t)sampleCount * (size_t)channels);
         if (state)
-            state->gainLeft = state->gainRight = state->radioLeft = state->radioRight = 0.0f;
+            state->gainLeft = state->gainRight = state->radioLeft = state->radioRight = state->intercom = 0.0f;
         return;
     }
 
@@ -428,8 +442,10 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     const lc_headset* headsetRadio  = &snapshot->headsetRadio;
     headset_prepare(&state->headsetDirect, headsetDirect);
     headset_prepare(&state->headsetRadio, headsetRadio);
-    const float startHeadsetDirect = state->headsetDirect.gain;
-    const float startHeadsetRadio  = state->headsetRadio.gain;
+    headset_prepare(&state->headsetIntercom, headsetRadio);
+    const float startHeadsetDirect   = state->headsetDirect.gain;
+    const float startHeadsetRadio    = state->headsetRadio.gain;
+    const float startHeadsetIntercom = state->headsetIntercom.gain;
 
     int left, right;
     lc_audio_find_stereo(channels, channelSpeakerArray, &left, &right);
@@ -439,6 +455,7 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     const float startRight      = state->gainRight;
     const float startRadioLeft  = state->radioLeft;
     const float startRadioRight = state->radioRight;
+    const float startIntercom   = state->intercom;
     const float step            = 1.0f / (float)sampleCount;
     /* This voice's direct part on its own, for the room's shared reverb send. Muffling has already shaped
        it, so a voice from the next room reverberates as dully as it arrives. Radio never goes to the room. */
@@ -463,16 +480,26 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
         if (useRadio)
             radio = headset_tick(&state->headsetRadio, headsetRadio, radio, startHeadsetRadio + (headsetRadio->gain - startHeadsetRadio) * t);
 
+        /* The intercom is the same voice again, clear and centred: no muffle, distance or room, never garbled */
+        float intercom = 0.0f;
+        if (useIntercom) {
+            intercom = x;
+            for (int s = 0; s < LC_INTERCOM_FILTERS; ++s)
+                intercom = biquad_tick(&state->intercomFilters[s], intercom);
+            intercom = headset_tick(&state->headsetIntercom, headsetRadio, intercom, startHeadsetIntercom + (headsetRadio->gain - startHeadsetIntercom) * t);
+            intercom = radio_limit(intercom * (startIntercom + (targetIntercom - startIntercom) * t));
+        }
+
         const float directLeft = direct * (startLeft + (targetLeft - startLeft) * t);
         const float directRight = direct * (startRight + (targetRight - startRight) * t);
-        const float outLeft  = directLeft + radio_limit(radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t));
-        const float outRight = directRight + radio_limit(radio * (startRadioRight + (targetRadioRight - startRadioRight) * t));
+        const float outLeft  = directLeft + intercom + radio_limit(radio * (startRadioLeft + (targetRadioLeft - startRadioLeft) * t));
+        const float outRight = directRight + intercom + radio_limit(radio * (startRadioRight + (targetRadioRight - startRadioRight) * t));
         if (i < sendFrames)
             g_send[i] = roomShare * 0.5f * (directLeft + directRight);
 
         if (useRadio) {
             const float directMid = 0.5f * (directLeft + directRight);
-            const float radioMid  = 0.5f * (outLeft + outRight) - directMid;
+            const float radioMid  = 0.5f * (outLeft + outRight) - directMid - intercom;
             state->levelIn     += x * x;
             state->levelDirect += directMid * directMid;
             state->levelRadio  += radioMid * radioMid;
@@ -498,6 +525,8 @@ void lc_audio_process(anyID client, short* samples, int sampleCount, int channel
     state->gainRight  = targetRight;
     state->radioLeft  = targetRadioLeft;
     state->radioRight = targetRadioRight;
-    state->headsetDirect.gain = headsetDirect->gain;
-    state->headsetRadio.gain  = headsetRadio->gain;
+    state->intercom   = targetIntercom;
+    state->headsetDirect.gain   = headsetDirect->gain;
+    state->headsetRadio.gain    = headsetRadio->gain;
+    state->headsetIntercom.gain = headsetRadio->gain;
 }

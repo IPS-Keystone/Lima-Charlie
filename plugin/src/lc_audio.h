@@ -20,11 +20,13 @@ typedef struct {
     float radioLeft;
     float radioRight;
     float radioQuality; /* 1 clean .. near 0 barely readable; garbles the radio path, not its volume */
+    float intercom;     /* 0 none, else the gain in both ears of this voice on the vehicle intercom */
 } lc_voice_target;
 
 /* Worker thread. While active, clients missing from targets are silenced; while inactive, TeamSpeak audio
    is left untouched. hearingDirect and hearingRadio are the listener's own hearing (a headset another mod
-   reports), applied to every voice on that path; NULL leaves the path unchanged. */
+   reports), applied to every voice on that path; NULL leaves the path unchanged. The intercom path goes
+   through hearingRadio: it reaches the ear through a headset's electronics, as a radio does. */
 void lc_audio_publish(int active, const lc_voice_target* targets, int count, const lc_hearing_path* hearingDirect, const lc_hearing_path* hearingRadio);
 
 /* Worker thread. Asks the audio thread to forget every talker's filter state before its next buffer. */

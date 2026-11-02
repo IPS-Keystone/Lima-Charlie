@@ -6,6 +6,10 @@
   pack, and later borrowed, vehicle or speaker) and where its antenna is; transmissions and terrain go by the
   transmitting radio rather than the player. Nothing sounds different yet. Plugin and mod must both be 3.0
   test builds (`3.0.0-test.1`).
+- **Vehicle intercom.** Crew, cargo and misc channels in every military vehicle; players on the same channel
+  of the same vehicle hear each other clearly, whatever the noise, walls or voice level. Pick the channel on
+  the new **Intercom** entry at the end of the radio menu (scroll to cycle; No Intercom turns it off).
+  Driver, commander and gunner start on crew, everyone else on cargo. Protocol stays 10.
 
 ## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)
 

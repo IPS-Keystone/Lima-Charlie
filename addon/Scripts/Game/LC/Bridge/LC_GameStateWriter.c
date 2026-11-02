@@ -239,7 +239,11 @@ class LC_GameStateWriter
 			json += ",\"hearing\":" + LC_Hearing.BuildJson(hearing);
 		else
 			LC_Hearing.LogUnchanged();
-		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson() + "}";
+		json += ",\"sounds\":" + client.GetSoundQueue().BuildJson();
+		// The vehicle intercom channel we are on (LC_EIntercomChannel bits, 0 none)
+		LC_VehicleSeat vehicleSeat = client.GetVehicleSeat();
+		int intercom = vehicleSeat.GetIntercomChannel();
+		json += ",\"ic\":" + intercom.ToString() + "}";
 
 		json += ",\"players\":[";
 		m_aPlayerIds.Clear();
@@ -277,7 +281,12 @@ class LC_GameStateWriter
 			json += ",\"alive\":" + LC_Json.Bool(LC_Life.CanSpeak(entity));
 			json += ",\"pos\":" + LC_Json.Position(position);
 			json += ",\"muffle\":" + muffle.ToString(-1, 2);
-			json += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2) + "}";
+			json += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2);
+			// Their channel on our vehicle's intercom; 0 when they are not on it, so the plugin only compares bits
+			int playerIntercom = vehicleSeat.GetPlayerIntercomChannel(playerId, entity);
+			if (playerIntercom != 0)
+				json += ",\"ic\":" + playerIntercom.ToString();
+			json += "}";
 		}
 
 		json += "],\"links\":" + client.GetRadioLinks().BuildJson() + "}";

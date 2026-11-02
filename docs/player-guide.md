@@ -134,6 +134,18 @@ when one of you retunes it or switches it off, it changes for all of them.
   which loads your faction's key for the whole crew. A vehicle with no side at all takes the key of the
   first crew member to sit in it.
 
+### Intercom
+
+Military vehicles have an intercom with three channels: **Crew**, **Cargo** and **Misc**. Everyone on the
+same channel of the same vehicle hears each other clearly over the engine and the walls, however quietly
+they talk, as well as normally. You talk on it with your normal voice key; there is no separate key.
+
+- The driver, commander and gunner start on Crew; everyone else starts on Cargo.
+- The **Intercom** entry at the end of the radio menu shows your channel. Scroll over it to change it:
+  No Intercom, Crew, Cargo, Misc. Any seat can pick any channel, so a commander in the back can talk to
+  the pilot.
+- One channel at a time. No Intercom takes you off it entirely.
+
 ## Radios
 
 Each radio you carry appears in the vanilla VON radial menu, one entry per transceiver. The extra line on

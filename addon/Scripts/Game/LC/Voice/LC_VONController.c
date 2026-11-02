@@ -108,6 +108,24 @@ modded class SCR_VONController
 	}
 
 	//------------------------------------------------------------------------------------------------
+	bool LC_IsLastEntry(SCR_VONEntry entry)
+	{
+		return entry && !m_aEntries.IsEmpty() && m_aEntries[m_aEntries.Count() - 1] == entry;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The intercom entry is never the active one: it has no transmit key, and active it would turn the radio
+	//! key into a second direct speech key. This covers picking it in the menu, AddEntry activating the first
+	//! entry, and the server's channel RPC.
+	override void SetEntryActive(SCR_VONEntry entry, bool setFromMenu = false)
+	{
+		if (LC_VONEntryIntercom.Cast(entry))
+			return;
+
+		super.SetEntryActive(entry, setFromMenu);
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Whether Lima Charlie push-to-talk may transmit on this entry, by the same rules as vanilla activation
 	bool LC_CanTransmitOn(notnull SCR_VONEntryRadio entry)
 	{

@@ -208,3 +208,32 @@ session; update after each meaningful step and before ending one. Never rewrite 
   - In-game tests for Duke: capture an enemy vehicle (or GM-place one), sit in a crew seat, try to transmit on its
     radio (blocked hint), hover it, press Y, transmit again (works; the other crew member can too). Two crew: one
     mutes the vehicle radio with M; the other still hears it.
+- 2026-11-02 (B parts 3-4 session, started from the 3.0 lead session):
+  - **Step 0, vehicle radio spawn in play mode: NOT verified.** My Workbench (ClaudeDevTools, testWorld auto-opened
+    on launch) crashed when my `wb_open_resource worlds/testWorld.ent` reloaded the world while it was already
+    loading ("Resources are leaking!" assert, then `ENGINE (F): Crashed`, logs_2026-11-02_17-08-47). Lesson: a
+    ClaudeDevTools launch reopens the last world by itself; wait for it rather than opening it again. Duke then
+    had the League client up, so I did not take window focus for a play session. Left a `LogLevel.DEBUG` line
+    `[LC] Vehicle radio mounted on <vehicle> (<rplId>)` in `LC_VehicleCommsComponent.SpawnRadio` for Duke's test.
+  - **Part 3, intercom, landed.** Bridge: `self.ic` + `players[].ic` (crew 1 / cargo 2 / misc 4), both optional,
+    so **protocol stays 10** (older plugin ignores them, older game sends none). Plugin: `lc_intercom_gain`
+    (lc_direct_voice.c) + a third audio path in `lc_audio.c` (`lc_voice_target.intercom`): same voice again,
+    centred, no distance/muffle/room, band-pass 250 Hz-5 kHz, radio-path headset, soft limit; heard even out of
+    voice range. Game: `LC_EIntercomChannel` + `LC_VONEntryIntercom` (Vehicle/LC_Intercom.c); comms component
+    gains `m_bIntercom`, `m_iIntercomCrewSeats` (default pilot+commander+gunner = crew, rest cargo),
+    `[RplProp] m_aIntercomChoices` (player, channel) pairs of picks that differ from the seat's start, written
+    only by the server (`ServerSetIntercomChoice` via `LC_SetIntercomChannel` RPC, refuses non-members, prunes
+    leavers). Membership is computed on every machine from seat occupancy (phone: lease, part 4 hook
+    `GetPhoneChannel` / `FindPhoneIntercom`). `LC_VehicleSeat.Update` split into UpdateRadio + UpdateIntercom:
+    lists the entry last (moves it back behind radio entries added later), holds the local pick. Patches:
+    `SetEntryActive` refuses the entry, `RadioToggle` null-checked (Radio/LC_RadioToggle.c), `OnAdjustEntry`
+    cycles it without the frequency table. Docs: developer-reference "Vehicle intercom (3.0)", player-guide
+    "Intercom", CHANGELOG.
+  - Evidence: plugin build "All checks passed", no warnings (new `test_intercom`: gain bits, `ic` parsing incl.
+    absent = 0, audio heard with zero direct gain under full muffle, band-pass, headset); mutation (intercom path
+    off) caught by 5 checks, rebuilt clean. enforce_check 46 files clean. Workbench compile logs_2026-11-02_17-24-28
+    `17:24:36.503 Module: Game; loaded 5706x files; 11182x classes`, 0 `SCRIPT (E)`.
+  - NOT verified in game: anything. Open questions for Duke's MP test: is `GetCompartment()` set on proxies
+    (other players' seats; membership depends on it), does the radial centre label follow the new name on
+    scroll (only `SetName` + `UpdateEntries`), does moving the entry back to last close an open menu (vanilla
+    `RemoveEntry` does; should only happen once, just after a lease grant).

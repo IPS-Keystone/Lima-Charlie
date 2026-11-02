@@ -90,8 +90,8 @@ Protocol 10 (3.0 test builds; 2.0.x is 9).
             "radios": [ { "id": "123:1", "freq": 45000, "range": 1500, "key": "US",
                           "rx": true, "ear": 1, "volume": 0.8, "beep": "tfar_sw",
                           "halfDuplex": 0, "src": "held", "pos": [x,y,z] } ],
-            "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
-  "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6, "room": 0.35 } ],
+            "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ], "ic": 1 },
+  "players": [ { "id": 2, "alive": true, "pos": [x,y,z], "muffle": 0.6, "room": 0.35, "ic": 1 } ],
   "links":   [ { "id": 2, "radio": "88:1", "clearance": 35, "hills": [35, 12] } ]
 }
 ```
@@ -116,6 +116,10 @@ Protocol 10 (3.0 test builds; 2.0.x is 9).
 - `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed. `room` is how
   much of the listener's room that voice fills, which scales the reverb send only: 1 in the same room,
   0.35 elsewhere in the building, 0.1 from outdoors. New in protocol 8.
+- `self.ic` is the vehicle intercom channel the listener is on (crew 1, cargo 2, misc 4; 0 none) and
+  `players[].ic` that player's channel on the listener's own vehicle intercom, left out (0) for anyone not on
+  it. The game decides who shares a vehicle; the plugin only compares bits. Both are optional, so the
+  protocol stayed 10 for them: an older plugin ignores them, an older game sends none. See "Vehicle intercom".
 - `links[]` answers the plugin's `radioRx` requests with the terrain to that transmitting radio, `id` being
   its player and `radio` its `radios[].id` on the transmitter's side (per radio since protocol 10, because
   two radios of one player need not be in one place): `hills` is every
@@ -218,6 +222,35 @@ never needs a lease.
   → *Lima Charlie* → *Lease nearest radio* (nearest radio entity within 4 m that is not yours, including a
   manpack someone nearby wears) or *Lease this vehicle's radio* (the vehicle's own radio or its first radio
   child). Unticking either releases all your leases. Results are in the log.
+
+## Vehicle intercom (3.0)
+
+Crew / cargo / misc channels per vehicle. Direct speech from a player on your channel of your vehicle is
+heard a second time, through the intercom: clear and centred, no distance, direction, muffling or room, a
+light band-pass (250 Hz - 5 kHz, `lc_audio.c` `LC_INTERCOM_*`) and the listener's radio-path hearing profile
+(a headset mod). The normal direct path is untouched, so the person beside you is heard both ways. A whisper
+reaches the far end of the vehicle: intercom ignores voice range.
+
+- **Where it is:** `LC_VehicleCommsComponent` (`Vehicle/`, already on every vanilla vehicle base through the
+  prefab overrides) has `m_bIntercom` (default on; `m_bMilitaryOnly` covers it too, so civilian cars and
+  trucks have none) and `m_iIntercomCrewSeats` (`LC_ERadioLeaseSeat` flags, default pilot + commander +
+  gunner): those seats start on crew, every other seat on cargo. `GetSeatChannel(slot)` is the override point.
+- **Who is on it:** every machine works it out for itself, from replicated seat occupancy (and, for the
+  infantry phone, the replicated lease). Only channel *choices* are replicated: `[RplProp] m_aIntercomChoices`
+  on the comms component, (player id, channel) pairs for players who picked something other than their seat's
+  start. The server writes it (`ServerSetIntercomChoice`, via `SCR_PlayerController.LC_SetIntercomChannel`,
+  refused for players not on that intercom), dropping pairs of players who have since left. Entering a
+  vehicle that still holds an old pick of yours resets it to the seat's.
+- **Client:** `LC_VehicleSeat` (the vehicle reconciler) lists `LC_VONEntryIntercom` last in the VON menu
+  while you are on an intercom and holds your pick (heard locally at once, before the server confirms).
+  `LC_GameStateWriter` writes `self.ic` from it and `players[].ic` from `GetPlayerIntercomChannel`.
+- **The entry** (`Vehicle/LC_Intercom.c`): an `SCR_VONEntry` on vanilla's VON entry layout; scroll, the
+  cycle-channel key or the action key cycle No Intercom -> Crew -> Cargo -> Misc. It never becomes the active
+  entry and has no transmit key. Three patches make a non-radio entry safe in the VON list:
+  `SCR_VONController.SetEntryActive` refuses it (`Voice/LC_VONController.c`; otherwise picking it turns the
+  radio key into direct speech), `SCR_RadioComponent.RadioToggle` null-checks the radio entry cast
+  (`Radio/LC_RadioToggle.c`, vanilla body otherwise), and `SCR_VONMenu.OnAdjustEntry` cycles it without the
+  squad/platoon frequency table (`Radio/LC_VONMenu.c`).
 
 ## Hearing hook for other mods
 

@@ -13,8 +13,8 @@
             "beepVolume": 1,
             "hearing": { "direct": { "gainDb": 4, "highPassHz": 200, "lowPassHz": 6000, "drive": 0.04 },
                          "radio": { "gainDb": 0, "highPassHz": 0, "lowPassHz": 0, "drive": 0 } },
-            "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ] },
-  "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6, "room": 0.35 } ],
+            "sounds": [ { "seq": 3, "set": "ui", "name": "deny", "ear": 0, "volume": 1 } ], "ic": 1 },
+  "players": [ { "id": 2, "alive": true, "pos": [x, y, z], "muffle": 0.6, "room": 0.35, "ic": 1 } ],
   "links": [ { "id": 2, "radio": "88:1", "clearance": 35, "hills": [35, 12] } ]
 }
 self.pos/dir are the listener (camera); players carry no facing, as only the listener's matters.
@@ -45,7 +45,12 @@ for (UI tones, sample beeps) with increasing seq; the plugin plays each seq once
 answers the plugin's radioRx requests with the terrain between that transmitting radio ("id" its player,
 "radio" its id among that player's radios, as its RTX gave it) and the local player: "hills" is the height in metres of every hill rising above the line of sight between them, highest
 first, and "clearance" the highest of them (0 = line of sight). Both are already scaled by the server's
-terrain effect setting, so the plugin never needs the setting itself. */
+terrain effect setting, so the plugin never needs the setting itself.
+self.ic is the vehicle intercom channel the listener is on (LC_INTERCOM_CREW 1, CARGO 2, MISC 4; 0 none),
+and players[].ic the channel of a player on the listener's own vehicle intercom, 0 for anyone else: the game
+decides who shares a vehicle, so the plugin only compares bits. Direct speech from a player sharing a bit is
+heard on the intercom as well as in the room (lc_intercom_gain). Absent reads as 0, so a game or plugin from
+before the intercom simply has none; the protocol did not change for it. */
 
 #define LC_GAME_STATE_MAX_PLAYERS 128
 #define LC_GAME_STATE_MAX_RADIOS 16
@@ -91,6 +96,8 @@ typedef struct {
     /* 0 .. 1, how much of the listener's room this voice fills: all of it from inside the same room, a
        little from elsewhere in the building, next to none from outdoors. Scales the reverb send only. */
     float room;
+    /* Intercom channel bits on the listener's vehicle, 0 when not on it */
+    int intercom;
 } lc_player_state;
 
 typedef struct {
@@ -162,6 +169,8 @@ typedef struct {
     /* The listener's own hearing, set by another mod; all zero when nothing has set it */
     lc_hearing_path hearingDirect;
     lc_hearing_path hearingRadio;
+    /* The listener's intercom channel bits, 0 when on none */
+    int intercom;
 
     int             radioCount;
     lc_radio_state radios[LC_GAME_STATE_MAX_RADIOS];

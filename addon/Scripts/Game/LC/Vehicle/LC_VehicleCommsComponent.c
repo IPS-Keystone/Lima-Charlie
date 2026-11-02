@@ -24,8 +24,14 @@ class LC_VehicleCommsComponent : ScriptComponent
 	[Attribute("7", UIWidgets.Flags, "Seats that reach the radio", "", ParamEnumArray.FromEnum(LC_ERadioLeaseSeat), category: "Radio")]
 	protected int m_iRadioSeats;
 
-	[Attribute("0", desc: "Only mount the radio when the vehicle's default faction is military (civilian cars and trucks get none)", category: "Radio")]
+	[Attribute("0", desc: "Only mount the radio and fit the intercom when the vehicle's default faction is military (civilian cars and trucks get neither)", category: "Radio")]
 	protected bool m_bMilitaryOnly;
+
+	[Attribute("1", desc: "Fit a crew / cargo / misc intercom: direct speech between players on the same channel of this vehicle is heard clear, whatever the distance or walls", category: "Intercom")]
+	protected bool m_bIntercom;
+
+	[Attribute("7", UIWidgets.Flags, "Seats that start on the crew channel; every other seat starts on cargo. Any seat may then pick any channel.", "", ParamEnumArray.FromEnum(LC_ERadioLeaseSeat), category: "Intercom")]
+	protected int m_iIntercomCrewSeats;
 
 	//! The radio entity, for every machine; invalid while there is none
 	[RplProp()]
@@ -36,6 +42,13 @@ class LC_VehicleCommsComponent : ScriptComponent
 	//! and the key the plugin is told agree everywhere.
 	[RplProp(onRplName: "OnRadioKeyChanged")]
 	protected string m_sRadioKey;
+
+	//! Intercom channels players picked that differ from where their seat starts them, as (player id,
+	//! LC_EIntercomChannel) pairs. Only the server writes it; every client reads it to tell the plugin who is on
+	//! which channel. Whether a player is on this intercom at all every machine works out for itself, from
+	//! their seat (or, for the infantry phone, their lease), so a stale pair of someone who got out is ignored.
+	[RplProp()]
+	protected ref array<int> m_aIntercomChoices = {};
 
 	//! Weak: the vehicle owns it as a child
 	protected IEntity m_Radio;
@@ -118,6 +131,121 @@ class LC_VehicleCommsComponent : ScriptComponent
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Whether this vehicle has an intercom. The same on every machine: it comes from prefab data alone.
+	bool HasIntercom()
+	{
+		if (!m_bIntercom)
+			return false;
+
+		if (!m_bMilitaryOnly)
+			return true;
+
+		SCR_Faction faction = GetDefaultFaction(GetOwner());
+		return faction && faction.IsMilitary();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The channel a seat starts on. Override point, like IsRadioSeat, for vehicles whose seats do not follow
+	//! vanilla's naming.
+	LC_EIntercomChannel GetSeatChannel(notnull BaseCompartmentSlot slot)
+	{
+		if (LC_RadioLeaseSeatRule.GetSeat(slot) & m_iIntercomCrewSeats)
+			return LC_EIntercomChannel.CREW;
+
+		return LC_EIntercomChannel.CARGO;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The channel a player picked on this intercom, if they picked one
+	bool GetIntercomChoice(int playerId, out LC_EIntercomChannel channel)
+	{
+		for (int i = 0; i + 1 < m_aIntercomChoices.Count(); i += 2)
+		{
+			if (m_aIntercomChoices[i] == playerId)
+			{
+				channel = m_aIntercomChoices[i + 1];
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The channel a player starts on here: their seat's, or the phone's while they hold it. -1 when they are
+	//! not on this intercom.
+	int GetDefaultChannel(int playerId, IEntity character)
+	{
+		if (!character || !HasIntercom())
+			return -1;
+
+		ChimeraCharacter chimera = ChimeraCharacter.Cast(character);
+		if (chimera && chimera.GetCompartmentAccessComponent())
+		{
+			BaseCompartmentSlot slot = chimera.GetCompartmentAccessComponent().GetCompartment();
+			if (slot && LC_RadioLeaseSeatRule.FindVehicle(slot.GetVehicle()) == GetOwner())
+				return GetSeatChannel(slot);
+		}
+
+		return GetPhoneChannel(playerId);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The channel a player is on here, LC_EIntercomChannel.NONE when they are not on this intercom (or chose
+	//! No Intercom): what game_state.json's players[].ic carries
+	LC_EIntercomChannel GetPlayerChannel(int playerId, IEntity character)
+	{
+		int channel = GetDefaultChannel(playerId, character);
+		if (channel < 0 || !LC_Life.CanSpeak(character))
+			return LC_EIntercomChannel.NONE;
+
+		LC_EIntercomChannel chosen;
+		if (GetIntercomChoice(playerId, chosen))
+			return chosen;
+
+		return channel;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The channel a player on the infantry phone is put on; -1 when they do not hold it. Part 4 fills this in.
+	protected int GetPhoneChannel(int playerId)
+	{
+		return -1;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Server: records a player's pick, or forgets it (channel -1, back to where their seat starts them).
+	//! Refused for players not on this intercom; pairs of players who have since left are dropped on the way.
+	void ServerSetIntercomChoice(int playerId, int channel)
+	{
+		if (!Replication.IsServer() || (channel != -1 && !LC_Intercom.IsChannel(channel)))
+			return;
+
+		PlayerManager playerManager = GetGame().GetPlayerManager();
+		IEntity character = playerManager.GetPlayerControlledEntity(playerId);
+		if (GetDefaultChannel(playerId, character) < 0)
+			return;
+
+		for (int i = m_aIntercomChoices.Count() - 2; i >= 0; i -= 2)
+		{
+			int other = m_aIntercomChoices[i];
+			if (other == playerId || GetDefaultChannel(other, playerManager.GetPlayerControlledEntity(other)) < 0)
+			{
+				m_aIntercomChoices.RemoveOrdered(i + 1);
+				m_aIntercomChoices.RemoveOrdered(i);
+			}
+		}
+
+		if (channel >= 0)
+		{
+			m_aIntercomChoices.Insert(playerId);
+			m_aIntercomChoices.Insert(channel);
+		}
+
+		Replication.BumpMe();
+	}
+
+	//------------------------------------------------------------------------------------------------
 	override void OnPostInit(IEntity owner)
 	{
 		super.OnPostInit(owner);
@@ -175,6 +303,7 @@ class LC_VehicleCommsComponent : ScriptComponent
 			return;
 
 		owner.AddChild(radio, -1, EAddChildFlags.AUTO_TRANSFORM);
+		Print(string.Format("[LC] Vehicle radio mounted on %1 (%2)", owner, LC_RadioLeases.GetRadioId(radio)), LogLevel.DEBUG);
 		m_Radio = radio;
 		m_RadioId = LC_RadioLeases.GetRadioId(radio);
 		if (faction)

@@ -662,6 +662,76 @@ static void test_headset(void)
     CHECK(fabs(headset_rms(1000.0f, 1, NULL, &plus6) / radio - 1.995) < 0.05);
 }
 
+/* RMS of the left channel over the last of 20 buffers of a tone through one talker heard only on the intercom
+   (no direct gain at all, as from out of voice range), muffled as hard as a wall would. */
+static double intercom_rms(float toneHz, float intercom, const lc_hearing_path* radio)
+{
+    lc_voice_target target;
+    memset(&target, 0, sizeof(target));
+    target.client   = 11;
+    target.muffle   = 1.0f;
+    target.intercom = intercom;
+    lc_audio_reset();
+    lc_audio_publish(1, &target, 1, NULL, radio);
+
+    static short frames[960 * 2];
+    double       sum = 0;
+    for (int period = 0; period < 20; ++period) {
+        for (int i = 0; i < 960; ++i) {
+            const short v     = (short)(3000.0 * sin(2.0 * 3.14159265 * toneHz * (double)(period * 960 + i) / 48000.0));
+            frames[i * 2]     = v;
+            frames[i * 2 + 1] = v;
+        }
+        lc_audio_process(11, frames, 960, 2, NULL, NULL);
+        if (period == 19) {
+            for (int i = 0; i < 960; ++i)
+                sum += (double)frames[i * 2] * (double)frames[i * 2];
+        }
+    }
+    lc_audio_publish(0, NULL, 0, NULL, NULL);
+    return sqrt(sum / 960.0);
+}
+
+static void test_intercom(void)
+{
+    /* Heard only when the two share a channel; no intercom on either side is nothing. */
+    CHECK(lc_intercom_gain(LC_INTERCOM_CREW, LC_INTERCOM_CREW) > 0.0f);
+    CHECK(lc_intercom_gain(LC_INTERCOM_CREW, LC_INTERCOM_CARGO) == 0.0f);
+    CHECK(lc_intercom_gain(LC_INTERCOM_MISC, LC_INTERCOM_ALL) > 0.0f);
+    CHECK(lc_intercom_gain(0, LC_INTERCOM_ALL) == 0.0f);
+    CHECK(lc_intercom_gain(LC_INTERCOM_ALL, 0) == 0.0f);
+    /* Bits the bridge does not define are ignored, not taken as a channel. */
+    CHECK(lc_intercom_gain(8, 8) == 0.0f);
+
+    static const char json[] =
+        "{\"v\":10,\"seq\":1,\"inGame\":true,\"session\":{\"token\":\"t\",\"playerId\":1},"
+        "\"self\":{\"alive\":true,\"pos\":[0,0,0],\"dir\":[0,0,1],\"radios\":[],\"ic\":2},"
+        "\"players\":[{\"id\":2,\"alive\":true,\"pos\":[1,0,0],\"ic\":3},{\"id\":3,\"alive\":true,\"pos\":[2,0,0],\"ic\":9},"
+        "{\"id\":4,\"alive\":true,\"pos\":[3,0,0]}],\"links\":[]}";
+    static lc_game_state state;
+    CHECK(lc_game_state_parse(json, &state));
+    CHECK(state.intercom == LC_INTERCOM_CARGO);
+    CHECK(state.playerCount == 3);
+    CHECK(state.players[0].intercom == (LC_INTERCOM_CREW | LC_INTERCOM_CARGO));
+    CHECK(state.players[1].intercom == LC_INTERCOM_CREW);
+    /* A game from before the intercom sends no "ic": no channel. */
+    CHECK(state.players[2].intercom == 0);
+    CHECK(lc_intercom_gain(state.intercom, state.players[0].intercom) > 0.0f);
+    CHECK(lc_intercom_gain(state.intercom, state.players[1].intercom) == 0.0f);
+
+    /* Clear: a muffled voice with no direct gain is plainly heard on the intercom, and not on a gain of 0. */
+    const double heard = intercom_rms(1000.0f, 0.9f, NULL);
+    CHECK(heard > 1000.0);
+    CHECK(intercom_rms(1000.0f, 0.0f, NULL) < 1.0);
+    /* A light band-pass: speech passes, rumble and hiss are taken down, nothing like a radio's narrow band. */
+    CHECK(intercom_rms(3400.0f, 0.9f, NULL) > 0.7 * heard);
+    CHECK(intercom_rms(60.0f, 0.9f, NULL) < 0.2 * heard);
+    CHECK(intercom_rms(15000.0f, 0.9f, NULL) < 0.2 * heard);
+    /* It reaches the ear through the listener's headset, on the radio path's settings. */
+    const lc_hearing_path plus6 = {6.0f, 0.0f, 0.0f, 0.0f};
+    CHECK(fabs(intercom_rms(1000.0f, 0.9f, &plus6) / heard - 1.995) < 0.05);
+}
+
 static void test_reverb(void)
 {
     float wet, decay;
@@ -744,6 +814,7 @@ int main(void)
     test_reverb();
     test_headset();
     test_radio_limit();
+    test_intercom();
     printf(g_failures ? "%d check(s) failed\n" : "All checks passed\n", g_failures);
     return g_failures;
 }
