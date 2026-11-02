@@ -71,7 +71,15 @@ modded class SCR_PlayerController
 
 		LC_ERadioLeaseRefusal refusal = leases.ServerRequest(GetPlayerId(), radio, kind);
 		if (refusal != LC_ERadioLeaseRefusal.NONE)
+		{
 			Rpc(RpcDo_LC_RadioLeaseRefused, radio, refusal);
+			return;
+		}
+
+		// A vehicle radio with no key at all (no default faction) takes its first crew member's
+		LC_VehicleCommsComponent comms = LC_VehicleCommsComponent.Find(LC_RadioLeases.FindRadio(radio));
+		if (comms && comms.GetRadioKey().IsEmpty())
+			LC_LoadPlayerKey(comms);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -95,6 +103,14 @@ modded class SCR_PlayerController
 	void LC_PowerLeasedRadio(RplId radio, bool powered)
 	{
 		Rpc(RpcAsk_LC_PowerLeasedRadio, radio, powered);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Key fill: loads this player's faction encryption key into a vehicle radio they hold by lease, so the
+	//! crew of a captured vehicle can transmit on its radio
+	void LC_LoadKeyLeasedRadio(RplId radio)
+	{
+		Rpc(RpcAsk_LC_LoadKeyLeasedRadio, radio);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -132,6 +148,27 @@ modded class SCR_PlayerController
 		BaseRadioComponent radioComponent = LC_GetLeasedRadio(radio);
 		if (radioComponent)
 			radioComponent.SetPower(powered);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcAsk_LC_LoadKeyLeasedRadio(RplId radio)
+	{
+		BaseRadioComponent radioComponent = LC_GetLeasedRadio(radio);
+		if (radioComponent)
+			LC_LoadPlayerKey(LC_VehicleCommsComponent.Find(radioComponent.GetOwner()));
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Server: gives a vehicle's radio this player's faction key
+	protected void LC_LoadPlayerKey(LC_VehicleCommsComponent comms)
+	{
+		if (!comms)
+			return;
+
+		Faction faction = SCR_FactionManager.SGetPlayerFaction(GetPlayerId());
+		if (faction)
+			comms.SetRadioKey(faction.GetFactionRadioEncryptionKey());
 	}
 
 	//------------------------------------------------------------------------------------------------

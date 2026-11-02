@@ -2,7 +2,8 @@
 //! VON menu entry for one transceiver of a vehicle's radio, listed by LC_VehicleSeat while the player holds
 //! the radio's VEHICLE lease. Everything else about it is an ordinary radio entry. The server owns the radio,
 //! so frequency and power changes are also sent to it (LC_PlayerController), which checks the lease and
-//! makes the change for the whole crew; the local change vanilla makes is only a preview until then.
+//! makes the change for the whole crew; the local change vanilla makes is only a preview until then. Mute
+//! is the exception: it is each player's own.
 class LC_VONEntryVehicleRadio : SCR_VONEntryRadio
 {
 	//------------------------------------------------------------------------------------------------
@@ -38,6 +39,41 @@ class LC_VONEntryVehicleRadio : SCR_VONEntryRadio
 	{
 		super.LC_SetFrequency(frequency);
 		LC_SendFrequency();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Muting is the listener's own choice, so it stays on this entry. Vanilla mutes the transceiver, which
+	//! here is the one the whole crew shares; whether the engine replicates that is not documented, and a
+	//! client's change to a radio the server owns may not even hold.
+	override bool ToggleMuteEntry()
+	{
+		if (!m_RadioTransceiver)
+			return false;
+
+		SetMuted(!m_bIsMuted);
+		return m_bIsMuted;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	override bool GetIsMuted()
+	{
+		if (!m_RadioTransceiver)
+			return true;
+
+		return m_bIsMuted;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Key fill: asks the server to load the player's own faction key into this radio
+	bool LC_LoadKey()
+	{
+		SCR_PlayerController playerController = SCR_PlayerController.Cast(GetGame().GetPlayerController());
+		RplId radioId = LC_GetRadioId();
+		if (!playerController || !radioId.IsValid())
+			return false;
+
+		playerController.LC_LoadKeyLeasedRadio(radioId);
+		return true;
 	}
 
 	//------------------------------------------------------------------------------------------------

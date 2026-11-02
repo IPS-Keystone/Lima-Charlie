@@ -12,6 +12,7 @@
 | Cycle beep set | `K` | Changes the transmission tones, per radio |
 | Cycle volume | `L` | Steps down 10%, wrapping from 0% back to 100% |
 | Cycle beep volume | `O` | The same steps, for beeps on every channel at once |
+| Load radio key | `Y` | In a vehicle: loads your faction's key into the hovered vehicle radio |
 | Adjust volume | `Ctrl` + scroll | On the hovered channel in the radio menu |
 
 **The four transmit keys ship unbound on purpose.** Bind them in Options → Keybinds → Lima Charlie;
@@ -120,6 +121,18 @@ between the two of you:
   no longer muffles your voice, which it used to.
 
 A car with its windows up will muffle, because the glass really is in the way.
+
+### Vehicle radios
+
+Military vehicles carry a radio. From the driver's, commander's or gunner's seat it appears at the end of
+your radio list, like a radio of your own; passengers do not get it. Everyone in those seats shares it:
+when one of you retunes it or switches it off, it changes for all of them.
+
+- **Muting is yours alone.** Muting the vehicle radio (`M` in the radio menu) only stops *you* hearing it.
+- **It starts on its own side's key.** A vehicle you capture still speaks the enemy's key, so you cannot
+  transmit on it until one of the crew hovers it in the radio menu and presses **Load radio key** (`Y`),
+  which loads your faction's key for the whole crew. A vehicle with no side at all takes the key of the
+  first crew member to sit in it.
 
 ## Radios
 

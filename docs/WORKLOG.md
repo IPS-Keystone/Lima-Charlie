@@ -186,3 +186,25 @@ session; update after each meaningful step and before ending one. Never rewrite 
   - Terrain links still measure from the listener's eye, not the receiving radio (fine seated; touch-up).
   - Left for the next session: part 3 intercom, part 4 infantry phone (see hand-over note in the side-session notes
     folder and the plan B section).
+- 2026-11-02 (B part 2 follow-up, Duke's asks): **key fill + per-player mute on vehicle radios.**
+  - Key fill: VON-menu input `LC_RadioKeyFill` (default `Y`, "Load Radio Key"; control hint only while the local
+    player's seat reaches a vehicle radio, `LC_VehicleRadioSeatCondition`) on a hovered `LC_VONEntryVehicleRadio`
+    -> `LC_LoadKeyLeasedRadio` RPC -> server checks the lease and sets the player's faction key. The key is an
+    `[RplProp] m_sRadioKey` on `LC_VehicleCommsComponent`, applied to each machine's own copy of the radio (on
+    change and when the radio resolves), because nothing documents that `SetEncryptionKey` replicates and both
+    vanilla's pre-transmit key check and the key sent to the plugin read the local copy. A radio with no key
+    (vehicle with no default faction) takes the first crew member's key when their lease is granted.
+  - Mute recheck: vanilla `SCR_VONEntryRadio.ToggleMuteEntry` calls `BaseTransceiver.SetMuteState` on the
+    transceiver, and `GetIsMuted` reads it back from there (`SCR_VONEntryRadio.c:234-260`). The engine API documents
+    neither replication nor ownership for it (unlike `SetFrequency` "supports proxies and server" and `SetRange`
+    "owner only"). On a shared, server-owned vehicle radio that is either one player's mute silencing the crew,
+    or a change that does not hold on a proxy. `LC_VONEntryVehicleRadio` now overrides both to keep mute on the
+    entry only (m_bIsMuted; the menu's mute icon already reads that). `LC_Radio.CanReceive` honours it via
+    `GetIsMuted`. Mute resets when the entry is rebuilt (seat change). Carried radios unchanged (owner = holder).
+  - Evidence: enforce_check 44 files clean; Workbench compile in logs_2026-11-02_17-08-47 at 17:09:51
+    `5704 files / 11178 classes` (the +1 is the new condition class), no LC errors. That instance belongs to the
+    intercom session; it crashed afterwards on "Resources are leaking" while reloading scripts mid-play, which is
+    not this change. NOT verified in game: key fill, mute, the hint.
+  - In-game tests for Duke: capture an enemy vehicle (or GM-place one), sit in a crew seat, try to transmit on its
+    radio (blocked hint), hover it, press Y, transmit again (works; the other crew member can too). Two crew: one
+    mutes the vehicle radio with M; the other still hears it.

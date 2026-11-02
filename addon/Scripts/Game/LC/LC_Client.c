@@ -8,6 +8,7 @@ class LC_Client
 	protected static const string ACTION_RADIO_PTT = "LC_RadioPTT";
 	protected static const string ACTION_RADIO_KEY_ASSIGN = "LC_RadioKeyAssign";
 	protected static const string ACTION_RADIO_EAR_CYCLE = "LC_RadioEarCycle";
+	protected static const string ACTION_RADIO_KEY_FILL = "LC_RadioKeyFill";
 	protected static const string ACTION_RADIO_BEEP_CYCLE = "LC_RadioBeepCycle";
 	//! Radio setting actions below live in VONMenuContext, so they only work with the VON radial menu open
 	protected static const string ACTION_RADIO_VOLUME = "LC_RadioVolume";
@@ -148,6 +149,7 @@ class LC_Client
 			inputManager.AddActionListener(LC_VoiceLevel.ACTION_CYCLE, EActionTrigger.DOWN, OnVoiceLevelCycle);
 			inputManager.AddActionListener(ACTION_RADIO_KEY_ASSIGN, EActionTrigger.DOWN, OnRadioKeyAssign);
 			inputManager.AddActionListener(ACTION_RADIO_EAR_CYCLE, EActionTrigger.DOWN, OnRadioEarCycle);
+			inputManager.AddActionListener(ACTION_RADIO_KEY_FILL, EActionTrigger.DOWN, OnRadioKeyFill);
 			inputManager.AddActionListener(ACTION_RADIO_BEEP_CYCLE, EActionTrigger.DOWN, OnRadioBeepCycle);
 			inputManager.AddActionListener(ACTION_RADIO_VOLUME_CYCLE, EActionTrigger.DOWN, OnRadioVolumeCycle);
 			inputManager.AddActionListener(ACTION_BEEP_VOLUME_CYCLE, EActionTrigger.DOWN, OnBeepVolumeCycle);
@@ -166,6 +168,7 @@ class LC_Client
 		inputManager.RemoveActionListener(LC_VoiceLevel.ACTION_CYCLE, EActionTrigger.DOWN, OnVoiceLevelCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_KEY_ASSIGN, EActionTrigger.DOWN, OnRadioKeyAssign);
 		inputManager.RemoveActionListener(ACTION_RADIO_EAR_CYCLE, EActionTrigger.DOWN, OnRadioEarCycle);
+		inputManager.RemoveActionListener(ACTION_RADIO_KEY_FILL, EActionTrigger.DOWN, OnRadioKeyFill);
 		inputManager.RemoveActionListener(ACTION_RADIO_BEEP_CYCLE, EActionTrigger.DOWN, OnRadioBeepCycle);
 		inputManager.RemoveActionListener(ACTION_RADIO_VOLUME_CYCLE, EActionTrigger.DOWN, OnRadioVolumeCycle);
 		inputManager.RemoveActionListener(ACTION_BEEP_VOLUME_CYCLE, EActionTrigger.DOWN, OnBeepVolumeCycle);
@@ -490,6 +493,21 @@ class LC_Client
 		m_RadioSettings.CycleEar(entry);
 		RefreshRadioMenu();
 		PlaySampleBeep(entry);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Key fill: loads our own faction key into the hovered vehicle radio (a captured vehicle's radio keeps
+	//! its old faction's key until someone does)
+	protected void OnRadioKeyFill(float value = 0.0, EActionTrigger reason = 0)
+	{
+		LC_VONEntryVehicleRadio entry = LC_VONEntryVehicleRadio.Cast(GetHoveredRadioEntry());
+		if (!entry || !entry.LC_LoadKey())
+		{
+			PlayUiSound("deny");
+			return;
+		}
+
+		PlayUiSound("confirm");
 	}
 
 	//------------------------------------------------------------------------------------------------

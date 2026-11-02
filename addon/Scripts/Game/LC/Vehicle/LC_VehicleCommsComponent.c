@@ -31,6 +31,12 @@ class LC_VehicleCommsComponent : ScriptComponent
 	[RplProp()]
 	protected RplId m_RadioId = RplId.Invalid();
 
+	//! The radio's encryption key. The server sets it (the vehicle faction's key, or a crew member's on key
+	//! fill) and every machine applies it to its own copy of the radio, so the key check before transmitting
+	//! and the key the plugin is told agree everywhere.
+	[RplProp(onRplName: "OnRadioKeyChanged")]
+	protected string m_sRadioKey;
+
 	//! Weak: the vehicle owns it as a child
 	protected IEntity m_Radio;
 
@@ -50,9 +56,50 @@ class LC_VehicleCommsComponent : ScriptComponent
 	IEntity GetRadio()
 	{
 		if (!m_Radio && m_RadioId.IsValid())
+		{
 			m_Radio = LC_RadioLeases.FindRadio(m_RadioId);
+			if (m_Radio)
+				ApplyRadioKey(m_Radio);
+		}
 
 		return m_Radio;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	string GetRadioKey()
+	{
+		return m_sRadioKey;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Server: loads a key into the radio for everyone
+	void SetRadioKey(string key)
+	{
+		if (!Replication.IsServer() || key == m_sRadioKey)
+			return;
+
+		m_sRadioKey = key;
+		Replication.BumpMe();
+
+		IEntity radio = GetRadio();
+		if (radio)
+			ApplyRadioKey(radio);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected void OnRadioKeyChanged()
+	{
+		IEntity radio = GetRadio();
+		if (radio)
+			ApplyRadioKey(radio);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected void ApplyRadioKey(notnull IEntity radio)
+	{
+		BaseRadioComponent radioComponent = BaseRadioComponent.Cast(radio.FindComponent(BaseRadioComponent));
+		if (radioComponent && radioComponent.GetEncryptionKey() != m_sRadioKey)
+			radioComponent.SetEncryptionKey(m_sRadioKey);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -131,20 +178,23 @@ class LC_VehicleCommsComponent : ScriptComponent
 		m_Radio = radio;
 		m_RadioId = LC_RadioLeases.GetRadioId(radio);
 		if (faction)
+		{
+			m_sRadioKey = faction.GetFactionRadioEncryptionKey();
 			TuneToFaction(radio, faction);
+		}
 
+		ApplyRadioKey(radio);
 		Replication.BumpMe();
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! A new vehicle radio speaks its faction's key on the platoon frequency, as a carried radio would
+	//! A new vehicle radio starts on its faction's platoon frequency, as a carried radio would
 	protected void TuneToFaction(notnull IEntity radio, notnull SCR_Faction faction)
 	{
 		BaseRadioComponent radioComponent = BaseRadioComponent.Cast(radio.FindComponent(BaseRadioComponent));
 		if (!radioComponent)
 			return;
 
-		radioComponent.SetEncryptionKey(faction.GetFactionRadioEncryptionKey());
 		int frequency = faction.GetFactionRadioFrequency();
 		if (frequency <= 0)
 			return;
