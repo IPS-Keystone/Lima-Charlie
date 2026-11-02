@@ -237,3 +237,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
     (other players' seats; membership depends on it), does the radial centre label follow the new name on
     scroll (only `SetName` + `UpdateEntries`), does moving the entry back to last close an open menu (vanilla
     `RemoveEntry` does; should only happen once, just after a lease grant).
+  - **Part 4 (infantry phone) not started**: stopped at the context limit. Hooks are in place
+    (`LC_VehicleCommsComponent.GetPhoneChannel`, `LC_VehicleSeat.FindPhoneIntercom`); a step-by-step hand-over
+    (PHONE lease kind, phone-point distance rule, component, action, BTR-70/LAV-25 overrides reusing vanilla block
+    IDs, docs) is in the side-session notes folder, `workstream-B-part4-handover.md`.
