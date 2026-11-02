@@ -6,6 +6,9 @@
   pack, and later borrowed, vehicle or speaker) and where its antenna is; transmissions and terrain go by the
   transmitting radio rather than the player. Nothing sounds different yet. Plugin and mod must both be 3.0
   test builds (`3.0.0-test.1`).
+- **Vehicle radios.** Military vehicles (APCs, tracked vehicles, helicopters, military cars and trucks)
+  carry a radio. Driver/pilot, commander and gunner use it from their seats; the crew share its frequency,
+  and transmissions and range go from the vehicle. Load your key with Y on a captured vehicle.
 - **Vehicle intercom.** Crew, cargo and misc channels in every military vehicle; players on the same channel
   of the same vehicle hear each other clearly, whatever the noise, walls or voice level. Pick the channel on
   the new **Intercom** entry at the end of the radio menu (scroll to cycle; No Intercom turns it off).

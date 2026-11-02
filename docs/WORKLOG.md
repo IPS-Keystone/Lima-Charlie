@@ -284,3 +284,6 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - 2026-11-02 (Duke): **phone default channel Crew, not Misc.** `LC_InfantryPhoneComponent.m_eChannel` default 1
   (Crew); a misconfigured NONE now falls back to Crew. Docs, CHANGELOG, plan (decision), test list updated
   (item 6 above already reads Crew). The prefab overrides set no channel, so they follow the default.
+- Wrote docs/design/3.0-test-plan.md: test list for the whole branch (start-up/versions, 2.0.5 regression,
+  leases, vehicle radios, intercom, phone, mods alongside, expected behaviour). CHANGELOG gained the missing
+  vehicle radios line.
