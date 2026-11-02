@@ -675,9 +675,10 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
             const float* speakerPos = lc_radio_transmitter_position(&tx->info, player);
             const lc_link_state* link = lc_game_state_find_link(&g_game, tx->info.playerId, tx->info.radioId);
 
+            /* Everything but the distance is the same for each of our radios; the distance is measured from
+               each receiving radio's own antenna (a vehicle radio hears from the vehicle, not from us). */
             lc_rx_inputs rxIn;
             memset(&rxIn, 0, sizeof(rxIn));
-            rxIn.distance      = distance3(g_game.pos, speakerPos);
             rxIn.range         = tx->info.range;
             rxIn.unlimitedRx   = g_game.unlimitedRx;
             rxIn.terrainKnown  = link != NULL;
@@ -686,17 +687,12 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
             rxIn.sinceStartMs  = nowMs - tx->startMs;
             rxIn.cleanFraction = g_game.cleanFraction;
             rxIn.beepFraction  = g_game.beepFraction;
-            lc_rx_result rx;
-            lc_radio_receive(&rxIn, &rx);
-            if (!rx.inRange)
-                continue;
-            const float quality      = rx.quality;
-            const int   waiting      = rx.voiceHeld;
-            const int   beepsAudible = rx.beepsAudible;
 
-            float left  = 0.0f;
-            float right = 0.0f;
-            int   tuned = 0;
+            float left    = 0.0f;
+            float right   = 0.0f;
+            float quality = 0.0f;
+            int   waiting = 0;
+            int   tuned   = 0;
             int   heardRecorded = 0;
             for (int r = 0; r < g_game.radioCount; ++r) {
                 const lc_radio_state* radio = &g_game.radios[r];
@@ -706,24 +702,34 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                    carry on the same frequency still hears the traffic. */
                 if (radio->halfDuplex && g_game.tx != LC_TX_NONE && strcmp(radio->id, g_game.txRadio) == 0)
                     continue;
-                tuned = 1;
-                if (quality <= 0.0f)
+                rxIn.distance = lc_radio_receiver_distance(radio, speakerPos);
+                lc_rx_result rx;
+                lc_radio_receive(&rxIn, &rx);
+                /* Out of this radio's reach: not heard, not reported and not traced */
+                if (!rx.inRange)
                     continue;
-                /* Several radios on the frequency: each ear takes the loudest. */
+                tuned = 1;
+                if (rx.voiceHeld)
+                    waiting = 1;
+                if (rx.quality <= 0.0f)
+                    continue;
+                /* Several radios on the frequency: each ear takes the loudest, the voice the cleanest. */
                 const float gain = LC_RADIO_VOICE_GAIN * radio->volume;
                 if (radio->ear != LC_EAR_RIGHT && gain > left)
                     left = gain;
                 if (radio->ear != LC_EAR_LEFT && gain > right)
                     right = gain;
+                if (rx.quality > quality)
+                    quality = rx.quality;
                 if (!heardRecorded) {
                     heardRecorded = 1;
-                    const int n   = _snprintf(g_radioHeard + heardLen, sizeof(g_radioHeard) - heardLen, "%d,%s,%d,%.2f;", tx->info.playerId, radio->id, radio->frequency, quality);
+                    const int n   = _snprintf(g_radioHeard + heardLen, sizeof(g_radioHeard) - heardLen, "%d,%s,%d,%.2f;", tx->info.playerId, radio->id, radio->frequency, rx.quality);
                     if (n > 0 && heardLen + (size_t)n < sizeof(g_radioHeard))
                         heardLen += (size_t)n;
                     else
                         g_radioHeard[heardLen] = '\0';
                 }
-                if (beepsAudible && receptionCount < LC_MAX_RECEPTIONS) {
+                if (rx.beepsAudible && receptionCount < LC_MAX_RECEPTIONS) {
                     lc_reception* reception = &receptions[receptionCount++];
                     reception->client        = tx->client;
                     reception->ear           = radio->ear;

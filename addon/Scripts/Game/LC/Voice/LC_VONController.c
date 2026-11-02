@@ -101,6 +101,13 @@ modded class SCR_VONController
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Whether this exact entry is in the VON list (vanilla clears the list without telling anyone)
+	bool LC_HasEntry(SCR_VONEntry entry)
+	{
+		return entry && m_aEntries.Contains(entry);
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Whether Lima Charlie push-to-talk may transmit on this entry, by the same rules as vanilla activation
 	bool LC_CanTransmitOn(notnull SCR_VONEntryRadio entry)
 	{

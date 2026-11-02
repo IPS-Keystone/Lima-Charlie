@@ -155,3 +155,34 @@ session; update after each meaningful step and before ending one. Never rewrite 
   nearest radio: log `[LC] Radio lease granted` + `[LC] Radio leases held: 1`, radio appears in game_state.json
   `radios[]` with src borrowed; walk > 4.5 m away: `ended ... OUT_OF_RANGE`. In an M151/UAZ driver seat, Lease
   this vehicle's radio: granted; move to a cargo seat: `ended ... WRONG_SEAT` (not listed in radios[]: no gadget).
+- Workstream B part 1+2 (vehicle radios), session started from the 3.0 lead session:
+  - WB check 1 answered (Workbench 14:54, ClaudeDevTools dev-only override of `Wheeled_APC_Base` adding a dummy
+    `SignalsManagerComponent` beside LC's): a placed BTR-70 listed both LC_VehicleCommsComponent and two
+    SignalsManagerComponents, so two mods' delta overrides of one base `.et` layer per block. Side fact: the engine
+    refuses a 2nd SignalsManagerComponent on a Vehicle ("cannot be combined") - a dummy of that type was a bad pick.
+    Dummy removed again. Checks 2 (proxy tuning a vehicle-owned radio) and 3 (seat events on non-owner clients)
+    need MP with 2 clients; the design no longer depends on either: tuning/power go through a server RPC, the
+    reconciler only reads the local player's own seat.
+  - Built: `LC_VehicleCommsComponent` (Vehicle/; attributes: radio on/off, radio prefab, antenna offset `0 2.5 0`,
+    radio seats = LC_ERadioLeaseSeat flags default pilot+commander+gunner, military-only) in delta overrides of
+    `Wheeled_Car_Base` + `Wheeled_Truck_Base` (military-only 1), `Wheeled_APC_Base`, `TrackedVehicle_Base`,
+    `Helicopter_Base`. Server spawns `Prefabs/LC/Vehicles/LC_VehicleRadio.et` ({6A5C69DD20000080}: RplComponent,
+    BaseRadioComponent 1 RadioTransceiver 30-76 MHz 5 km, SCR_RadioComponent, SignalsManager; no mesh, physics,
+    inventory or actions so nobody can pick it up) one frame after init, AddChild at the antenna (BaseRplComponent
+    replicates hierarchy changes by default), key + platoon frequency from the vehicle's default faction,
+    RplProp RplId for clients. `LC_VehicleSeat` (client reconciler in LC_Client.Tick): seat reaches radio ->
+    VEHICLE lease request (retry 3 s) -> on grant `LC_VONEntryVehicleRadio` per transceiver via AddEntry; seat
+    change/death/leave -> RemoveEntry + release; re-adds entries vanilla dropped (`LC_HasEntry`). Entry = ordinary
+    SCR_VONEntryRadio that also sends frequency/power to the server (`LC_TuneLeasedRadio`/`LC_PowerLeasedRadio`,
+    lease-holder check). Lease seat rule takes the comms component's seat flags. Plugin: reception distance per
+    receiving radio from its own antenna (`lc_radio_receiver_distance`, radios[].pos), best quality wins.
+  - Evidence: plugin build "All checks passed", no warnings (new test_receiver_antenna); enforce_check 43 files clean;
+    Workbench compile logs_2026-11-02_14-53-42 `Module: Game; loaded 5703x files; 11177x classes`, no LC errors.
+  - NOT verified: radio spawn in play mode. The WB play session froze while the window was unfocused (known
+    gotcha) and the only test vehicle was the BTR broken by the dummy; the UAZ placed later never made it into a
+    session, and the MCP could not stop play (reports edit mode). No `SpawnEntityPrefab ... LC_VehicleRadio` line
+    seen. First thing for the next session: place a UAZ469/LAV-25, play with the window focused, grep the log for
+    `LC_VehicleRadio.et`; if absent, print-debug EOnInit/SpawnRadio (InPlayMode / Replication.IsServer at init).
+  - Terrain links still measure from the listener's eye, not the receiving radio (fine seated; touch-up).
+  - Left for the next session: part 3 intercom, part 4 infantry phone (see hand-over note in the side-session notes
+    folder and the plan B section).

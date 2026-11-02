@@ -84,6 +84,57 @@ modded class SCR_PlayerController
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Client tunes a radio it holds by lease (a vehicle radio): the server owns that radio, so the change is
+	//! made there and replicates to everyone sharing it. transceiver is the 0-based index on the radio.
+	void LC_TuneLeasedRadio(RplId radio, int transceiver, int frequency)
+	{
+		Rpc(RpcAsk_LC_TuneLeasedRadio, radio, transceiver, frequency);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	void LC_PowerLeasedRadio(RplId radio, bool powered)
+	{
+		Rpc(RpcAsk_LC_PowerLeasedRadio, radio, powered);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Only a holder of a lease on that radio may change it
+	protected BaseRadioComponent LC_GetLeasedRadio(RplId radio)
+	{
+		LC_RadioLeases leases = LC_RadioLeases.Get();
+		if (!leases || !leases.IsHolderById(GetPlayerId(), radio))
+			return null;
+
+		IEntity entity = LC_RadioLeases.FindRadio(radio);
+		if (!entity)
+			return null;
+
+		return BaseRadioComponent.Cast(entity.FindComponent(BaseRadioComponent));
+	}
+
+	//------------------------------------------------------------------------------------------------
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcAsk_LC_TuneLeasedRadio(RplId radio, int transceiver, int frequency)
+	{
+		BaseRadioComponent radioComponent = LC_GetLeasedRadio(radio);
+		if (!radioComponent || transceiver < 0 || transceiver >= radioComponent.TransceiversCount())
+			return;
+
+		BaseTransceiver tuned = radioComponent.GetTransceiver(transceiver);
+		if (tuned)
+			tuned.SetFrequency(Math.ClampInt(frequency, tuned.GetMinFrequency(), tuned.GetMaxFrequency()));
+	}
+
+	//------------------------------------------------------------------------------------------------
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcAsk_LC_PowerLeasedRadio(RplId radio, bool powered)
+	{
+		BaseRadioComponent radioComponent = LC_GetLeasedRadio(radio);
+		if (radioComponent)
+			radioComponent.SetPower(powered);
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! A grant needs no answer of its own: it arrives with the replicated lease state
 	[RplRpc(RplChannel.Reliable, RplRcver.Owner)]
 	protected void RpcDo_LC_RadioLeaseRefused(RplId radio, int refusal)

@@ -78,6 +78,14 @@ const float* lc_radio_transmitter_position(const lc_radio_announcement* info, co
     return player && lc_radio_source_on_body(info->src) ? player->pos : info->pos;
 }
 
+float lc_radio_receiver_distance(const lc_radio_state* radio, const float transmitter[3])
+{
+    const float dx = radio->pos[0] - transmitter[0];
+    const float dy = radio->pos[1] - transmitter[1];
+    const float dz = radio->pos[2] - transmitter[2];
+    return sqrtf(dx * dx + dy * dy + dz * dz);
+}
+
 float lc_radio_terrain_share(float height)
 {
     if (!(height > 0.0f))

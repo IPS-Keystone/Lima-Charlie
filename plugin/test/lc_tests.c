@@ -257,6 +257,41 @@ static void test_held_radio_unchanged(void)
     CHECK(after.terrainLoss > 0.0f);
 }
 
+/* Each of our radios hears from its own antenna: a vehicle radio from the vehicle, a carried one from where we
+   are (the game sends self.pos for it, or nothing, which the parser turns into self.pos). */
+static void test_receiver_antenna(void)
+{
+    static const char json[] =
+        "{\"v\":10,\"seq\":1,\"inGame\":true,\"session\":{\"token\":\"tok\",\"playerId\":3},"
+        "\"self\":{\"alive\":true,\"pos\":[0,0,0],\"dir\":[0,0,1],"
+        "\"radios\":[{\"id\":\"77:1\",\"freq\":45000,\"range\":2000,\"key\":\"US\",\"rx\":true,\"src\":\"held\"},"
+        "{\"id\":\"90:1\",\"freq\":45000,\"range\":5000,\"key\":\"US\",\"rx\":true,\"src\":\"vehicle\",\"pos\":[0,2.5,1500]}]},"
+        "\"players\":[],\"links\":[]}";
+    static lc_game_state state;
+    CHECK(lc_game_state_parse(json, &state));
+    CHECK(state.radioCount == 2);
+
+    const float transmitter[3] = {0.0f, 2.5f, 3000.0f};
+    /* The carried radio measures from self.pos, the vehicle radio from its antenna 1500 m nearer */
+    CHECK(fabsf(lc_radio_receiver_distance(&state.radios[0], transmitter) - 3000.001f) < 0.01f);
+    CHECK(fabsf(lc_radio_receiver_distance(&state.radios[1], transmitter) - 1500.0f) < 0.01f);
+
+    /* With a 2000 m transmitter, only the vehicle radio is in reach */
+    lc_rx_inputs in;
+    lc_rx_result rx;
+    memset(&in, 0, sizeof(in));
+    in.range         = 2000.0f;
+    in.terrainKnown  = 1;
+    in.cleanFraction = LC_RADIO_CLEAN_FRACTION;
+    in.beepFraction  = LC_RADIO_BEEP_FRACTION;
+    in.distance      = lc_radio_receiver_distance(&state.radios[0], transmitter);
+    lc_radio_receive(&in, &rx);
+    CHECK(!rx.inRange);
+    in.distance = lc_radio_receiver_distance(&state.radios[1], transmitter);
+    lc_radio_receive(&in, &rx);
+    CHECK(rx.inRange && rx.quality > 0.0f);
+}
+
 static void test_radio_quality(void)
 {
     const float clean = LC_RADIO_CLEAN_FRACTION;
@@ -701,6 +736,7 @@ int main(void)
     test_radio_announcement();
     test_transmitter_position();
     test_held_radio_unchanged();
+    test_receiver_antenna();
     test_radio_quality();
     test_radio_receive();
     test_transmissions();

@@ -402,9 +402,18 @@ class LC_RadioLeases
 
 		if (kind == LC_ERadioLeaseKind.VEHICLE)
 		{
+			// The seats a vehicle's comms component names; a radio on a vehicle without one (vanilla's own
+			// vehicle radios) goes by the default crew seats
 			IEntity vehicle = LC_RadioLeaseSeatRule.FindVehicle(radio);
-			if (vehicle)
-				rules.Insert(new LC_RadioLeaseSeatRule(vehicle, LC_RadioLeaseSeatRule.CREW_SEATS));
+			if (!vehicle)
+				return;
+
+			int seats = LC_RadioLeaseSeatRule.CREW_SEATS;
+			LC_VehicleCommsComponent comms = LC_VehicleCommsComponent.Cast(vehicle.FindComponent(LC_VehicleCommsComponent));
+			if (comms)
+				seats = comms.GetRadioSeats();
+
+			rules.Insert(new LC_RadioLeaseSeatRule(vehicle, seats));
 		}
 	}
 

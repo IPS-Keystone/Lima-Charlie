@@ -41,6 +41,7 @@ class LC_Client
 	protected ref array<ref SCR_VONEntryRadio> m_aLeaseEntries = {};
 	protected int m_iLeaseRevision = -1;
 	protected bool m_bLeaseEntriesStale;
+	protected ref LC_VehicleSeat m_VehicleSeat = new LC_VehicleSeat();
 #ifdef ENABLE_DIAG
 	protected ref LC_RadioLeaseDiag m_LeaseDiag = new LC_RadioLeaseDiag();
 #endif
@@ -120,6 +121,9 @@ class LC_Client
 		if (game && game.GetInputManager())
 			s_Instance.SetInputListeners(game.GetInputManager(), false);
 
+		if (s_Instance.m_PlayerController)
+			s_Instance.m_VehicleSeat.Clear(s_Instance.GetVONController());
+
 		s_Instance.m_FrequencyInput.Close();
 		s_Instance.m_Hud.Release();
 		s_Instance.m_VonDisplay.Release();
@@ -195,6 +199,7 @@ class LC_Client
 			m_PlayerController.LC_RequestSession();
 		}
 
+		m_VehicleSeat.Update(GetControlledEntity(), GetVONController(), now);
 		RefreshRadioEntries();
 #ifdef ENABLE_DIAG
 		m_LeaseDiag.Update(GetControlledEntity());

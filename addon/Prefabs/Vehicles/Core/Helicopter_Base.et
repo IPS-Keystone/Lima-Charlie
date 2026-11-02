@@ -1,0 +1,7 @@
+Vehicle : "{4085446E2B406849}Prefabs/Vehicles/Core/Vehicle_Base.et" {
+ ID "57DA6675519A417B"
+ components {
+  LC_VehicleCommsComponent "{7FA1AF717D450531}" {
+  }
+ }
+}

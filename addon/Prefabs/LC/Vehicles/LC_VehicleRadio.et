@@ -1,0 +1,23 @@
+GenericEntity {
+ ID "B3CDB4DF425F6E06"
+ components {
+  SignalsManagerComponent "{CED7E1618B4FBC43}" {
+  }
+  BaseRadioComponent "{53BC201A19591276}" {
+   "Turned on" 1
+   Transceivers {
+    RadioTransceiver "{48E3F332BF05B0DA}" {
+     "Transmitting Range" 5000
+     "Min tunable frequency" 30000
+     "Max tunable frequency" 76000
+     "Frequency resolution" 200
+    }
+   }
+  }
+  SCR_RadioComponent "{013D6DA563985D98}" {
+   m_eAnimVariable 2147483647
+  }
+  RplComponent "{88AE0662CFFD4578}" {
+  }
+ }
+}

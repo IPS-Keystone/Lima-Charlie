@@ -61,6 +61,11 @@ int lc_radio_parse_announcement(const char* command, lc_radio_announcement* out)
    which is more current than the last announcement. player may be NULL. */
 const float* lc_radio_transmitter_position(const lc_radio_announcement* info, const lc_player_state* player);
 
+/* Metres from one of our receiving radios to a transmitting antenna. Measured from the receiving radio's own
+   antenna (radios[].pos: self.pos for a radio on the body, the vehicle's antenna for a vehicle radio, the
+   radio itself for a borrowed one), never from where we stand, so every radio of ours hears from where it is. */
+float lc_radio_receiver_distance(const lc_radio_state* radio, const float transmitter[3]);
+
 /* Distance after terrain: clearance is the TFAR-style terrain height in metres (0 for line of sight). */
 /* Share of a radio's range that one hill this many metres above the line of sight takes,
    0 .. LC_RADIO_TERRAIN_MAX_SHARE. */

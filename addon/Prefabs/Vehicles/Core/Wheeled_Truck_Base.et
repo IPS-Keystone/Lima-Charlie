@@ -1,0 +1,8 @@
+Vehicle : "{62F416029692CE40}Prefabs/Vehicles/Core/Wheeled_Base.et" {
+ ID "BBCBA43A9778AE21"
+ components {
+  LC_VehicleCommsComponent "{411548756D79A523}" {
+   m_bMilitaryOnly 1
+  }
+ }
+}
