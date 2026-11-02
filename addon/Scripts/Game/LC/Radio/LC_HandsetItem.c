@@ -4,8 +4,8 @@ class LC_HandsetGadgetComponentClass : SCR_GadgetComponentClass
 }
 
 //------------------------------------------------------------------------------------------------
-//! Marks the handset item. A gadget so the engine's left-hand gadget pose and inspection (the radio's
-//! animation, set by m_eAnimVariable and the item's ItemAnimationAttributes) apply and replicate to everyone.
+//! Marks the handset item. A gadget so the engine's left-hand gadget pose (the radio's
+//! animation, set by m_eAnimVariable and the item's ItemAnimationAttributes) applies and replicates to everyone.
 //! It carries no mesh: LC_HandsetCable puts the visible handset on it and draws the cable from there.
 class LC_HandsetGadgetComponent : SCR_GadgetComponent
 {
@@ -55,12 +55,18 @@ class LC_HandsetGadgetComponent : SCR_GadgetComponent
 
 //------------------------------------------------------------------------------------------------
 //! The handset item's life: the server gives it with the lease and deletes it when the lease ends;
-//! the holder's own machine keeps it in the left hand and inspected (the radio inspect pose).
+//! the holder's own machine takes it into the left hand once (the radio hold pose). After that the player
+//! is free: pulling out something else ends the pose and it is not forced back.
 class LC_HandsetItem
 {
-	//! How often the holder's machine re-asks for the pose while it is not there yet
+	//! While the item is not in hand yet, ask again this often, at most MAX_TRIES times
 	protected static const int RETRY_MS = 500;
+	protected static const int MAX_TRIES = 6;
 
+	//! Weak: the item last taken into hand (or given up on); nothing more is done for it
+	protected IEntity m_Done;
+	protected IEntity m_Item;
+	protected int m_iTries;
 	protected int m_iNextTryTick;
 
 	//------------------------------------------------------------------------------------------------
@@ -112,32 +118,40 @@ class LC_HandsetItem
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Holder's machine, every frame while holding a lease with a handset: the item in the left hand, inspected
+	//! Holder's machine, every frame while holding a lease: takes a newly given handset item into the left hand,
+	//! once. Not inspected: inspection hides the world actions and forces free look.
 	void Update(IEntity character, int now)
 	{
 		ChimeraCharacter chimera = ChimeraCharacter.Cast(character);
-		if (!chimera || now < m_iNextTryTick)
+		if (!chimera)
 			return;
 
 		CharacterControllerComponent controller = chimera.GetCharacterController();
 		IEntity item = LC_HandsetGadgetComponent.FindOn(character);
-		if (!controller || !item)
+		if (!controller || !item || item == m_Done)
 			return;
 
-		if (controller.GetAttachedGadgetAtLeftHandSlot() != item)
+		if (item != m_Item)
 		{
-			SCR_GadgetManagerComponent gadgets = SCR_GadgetManagerComponent.GetGadgetManager(character);
-			if (gadgets)
-				gadgets.SetGadgetMode(item, EGadgetMode.IN_HAND);
+			m_Item = item;
+			m_iTries = 0;
+			m_iNextTryTick = now;
+		}
 
-			m_iNextTryTick = now + RETRY_MS;
+		if (controller.GetAttachedGadgetAtLeftHandSlot() == item || m_iTries >= MAX_TRIES)
+		{
+			m_Done = item;
 			return;
 		}
 
-		if (!controller.GetInspect() && controller.CanInspect(item))
-		{
-			controller.SetInspect(item);
-			m_iNextTryTick = now + RETRY_MS;
-		}
+		if (now < m_iNextTryTick)
+			return;
+
+		SCR_GadgetManagerComponent gadgets = SCR_GadgetManagerComponent.GetGadgetManager(character);
+		if (gadgets)
+			gadgets.SetGadgetMode(item, EGadgetMode.IN_HAND);
+
+		m_iTries++;
+		m_iNextTryTick = now + RETRY_MS;
 	}
 }

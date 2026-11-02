@@ -505,7 +505,7 @@ class LC_RadioLeases
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! The item the holder carries while the lease lasts (the radio inspect pose), or empty for none. Override
+	//! The item the holder carries while the lease lasts (the radio hold pose), or empty for none. Override
 	//! point: the manpack handset (A) returns its own for BORROWED.
 	protected ResourceName GetHandsetItemPrefab(LC_ERadioLeaseKind kind, notnull IEntity radio)
 	{

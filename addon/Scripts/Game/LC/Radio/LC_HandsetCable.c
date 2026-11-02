@@ -21,7 +21,7 @@ class LC_HandsetCable
 	//! Tube resolution: SEGMENTS along, SIDES around. The arrays in Rebuild are sized from these.
 	protected static const int SEGMENTS = 16;
 	protected static const int SIDES = 4;
-	//! The handset prop goes on the handset item in the left hand (the radio inspect pose), or on this bone
+	//! The handset prop goes on the handset item in the left hand (the radio hold pose), or on this bone
 	//! until the item is there. Its model is centred on GRIP_OFFSET (the item's / bone's space) at
 	//! HANDSET_ANGLES; the cord leaves the bottom of the model (lowest Y, centred), where the cable starts.
 	protected static const string HAND_BONE = "LeftHandProp";
@@ -348,7 +348,7 @@ class LC_HandsetCables
 	protected static const float VIEW_DISTANCE_M = 100;
 
 	protected ref array<ref LC_HandsetCable> m_aCables = {};
-	//! Keeps the local player's own handset item in hand and inspected
+	//! Takes the local player's own handset item into the hand when it arrives
 	protected ref LC_HandsetItem m_OwnHandset = new LC_HandsetItem();
 
 	//------------------------------------------------------------------------------------------------

@@ -285,9 +285,10 @@ door). Any other vehicle gets one from **one prefab override and no script**.
   `Prefabs/LC/Items/LC_InfantryPhoneHandsetItem.et` (an item with `LC_HandsetGadgetComponent`, no mesh, the
   AN/PRC-68's player animation instance, `m_eAnimVariable ANPRC68`) into the holder's inventory, and deletes it
   when the lease ends (`LC_RadioLeases.End`); dropping it ends the lease ("handset dropped"). The holder's own
-  machine keeps it in the left hand (`SCR_GadgetManagerComponent.SetGadgetMode IN_HAND`) and inspected
-  (`CharacterControllerComponent.SetInspect`), re-asking every 500 ms, so the character holds it like an
-  inspected radio; the engine replicates that pose. Item prefab: `m_sHandsetItemPrefab` on the phone
+  machine takes it into the left hand once when it arrives (`SCR_GadgetManagerComponent.SetGadgetMode IN_HAND`,
+  retried every 500 ms up to 6 times), so the character holds it like a radio; the engine replicates that
+  pose. Not inspected (inspection hides world actions and forces free look) and not forced back: pulling out
+  something else ends the pose, the phone stays held. Item prefab: `m_sHandsetItemPrefab` on the phone
   component; override point `LC_RadioLeases.GetHandsetItemPrefab(kind, radio)`.
 - **Handset and cable** (`Radio/LC_HandsetCable.c`, generic; research in
   `docs/research/2026-11-02-handset-cable.md`): while a phone is held, every client puts the handset prop

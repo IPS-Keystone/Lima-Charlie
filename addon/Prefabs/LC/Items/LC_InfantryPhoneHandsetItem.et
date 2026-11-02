@@ -9,7 +9,6 @@ GenericEntity : "{C95E11C60810F432}Prefabs/Items/Core/Item_Base.et" {
     }
     ItemAnimationAttributes ItemAnimationAttributes "{CF173789855A55EE}" {
      AnimationInstance "{332D4A7512E78419}Assets/Items/Equipment/workspaces/Radio_ANPRC68_player.asi"
-     AllowInspection 1
     }
     m_SlotType SLOT_GADGETS_STORAGE
    }

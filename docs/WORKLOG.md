@@ -350,3 +350,11 @@ session; update after each meaningful step and before ending one. Never rewrite 
   - Evidence: enforce_check 49 files clean; Workbench restarted (Duke's OK) logs_2026-11-02_21-42-55
     `21:43:02.780 Module: Game; loaded 5709x files; 11194x classes`, 0 `SCRIPT (E)`; testWorld open in edit mode.
     NOT verified in play: pose, handset placement, cable colour, hang-up while inspecting.
+- 2026-11-02 (Duke's correction): **hold, don't inspect; don't force.** The phone gives the radio *hold* pose
+  only: no `SetInspect` (inspection hid the world actions, e.g. putting the item away, and forced free look),
+  `AllowInspection` removed from the item. The holder's machine takes a newly given handset item into the left
+  hand once (retry every 500 ms, at most 6 tries) and then leaves it alone: pulling out something else ends the
+  pose and the phone stays held (cable falls back to the hand bone); dropping the item hangs up (unchanged).
+  Evidence: enforce_check 49 files clean. Workbench: `wb_play` at 21:51 logged `Workbench Reload Game` and no
+  `SCRIPT (E)`, but no new `Module: Game` line, so this revision's compile is not confirmed by the log. Play
+  mode left running for Duke.
