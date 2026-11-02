@@ -174,7 +174,7 @@ first session it is missing. See [server-settings.md](server-settings.md) for th
 ## Radio leases (3.0)
 
 Access to a radio that is not in your own inventory (a borrowed manpack's handset, a vehicle radio from a
-seat; later the infantry phone and SATCOM links) is arbitrated by the server. Only access: what is said
+seat, a vehicle's infantry phone; later SATCOM links) is arbitrated by the server. Only access: what is said
 stays client-trusted. Access is not exclusive: any number of players can hold one radio, and its owner
 never needs a lease.
 
@@ -185,7 +185,9 @@ never needs a lease.
   the state with the game mode.
 - **Keys:** a radio is its entity's `RplComponent.Id()`, the same number as `LC_Radio.GetRadioKey` (the part of
   `radios[].id` before the colon).
-- **Kinds** (`LC_ERadioLeaseKind`): `BORROWED` → `src` `borrowed`, `VEHICLE` → `src` `vehicle`.
+- **Kinds** (`LC_ERadioLeaseKind`): `BORROWED` → `src` `borrowed`, `VEHICLE` → `src` `vehicle`, `PHONE` (the
+  leased entity is the vehicle, which needs an `LC_InfantryPhoneComponent` instead of a radio; never listed).
+- **Queries** also work for any player: `GetHolderKind(playerId, radioId)` (-1 if none).
 - **Client API:** `Request(radio, kind)`, `Release(radio)`, `ReleaseAll()`, `IsHolder(playerId, radio)`,
   `GetHolders(radio, out playerIds)`, `GetOwnLeases(out radios, out kinds)`, `GetOwnKind(radioId)`,
   `GetOnOwnLeasesChanged()` (fires on your machine when a lease of yours is granted or ends),
@@ -195,7 +197,7 @@ never needs a lease.
   `RpcDo_LC_RadioLeaseRefused(RplId, refusal)` back to the owner. A grant has no answer of its own: it
   arrives with the replicated state.
 - **Server checks on a request:** the player controls a living character (unconscious is fine), the radio
-  exists and has a `BaseRadioComponent`, it is not in the requester's own inventory, and every rule allows
+  exists and has a `BaseRadioComponent` (`PHONE`: an `LC_InfantryPhoneComponent`), it is not in the requester's own inventory, and every rule allows
   it. Asking again for a radio already held is a grant that changes nothing. Refusals
   (`LC_ERadioLeaseRefusal`) are logged on both ends: `[LC] Radio lease refused: ...`.
 - **Rules** (`Radio/LC_RadioLease.c`), subclasses of `LC_RadioLeaseRule` (`Allows(holder, radio, granting)`):
@@ -205,6 +207,10 @@ never needs a lease.
     flags (pilot / commander / gunner / cargo; commander = `TURRET` slot named `CommanderTurret`). `VEHICLE`
     gets the vehicle the radio is on (topmost parent with a compartment manager) with pilot + commander +
     gunner. Override `IsSeatAllowed(slot)` for vehicles that name seats differently.
+  - `LC_RadioLeasePhoneRule(m)`: a distance rule measured from the infantry phone (its action context), not
+    the vehicle's origin; `LC_RadioLeaseOnFootRule`: holder in no seat of any vehicle (re-checked on seat
+    events). `PHONE` gets both, with the phone's cable length, and only if the vehicle has an intercom.
+  - Distance rules measure from `GetAnchor(radio)` (the radio entity's position); override it for another point.
   - Which rules a lease gets: override `LC_RadioLeases.CollectRules(kind, radio, holder, rules)` in a
     `modded class`. No rules means refused, so no kind reaches a radio across the map.
 - **Ends:** explicit release; death (`OnPlayerKilled` / `OnPlayerKilledHandled`); disconnect
@@ -251,6 +257,62 @@ reaches the far end of the vehicle: intercom ignores voice range.
   radio key into direct speech), `SCR_RadioComponent.RadioToggle` null-checks the radio entry cast
   (`Radio/LC_RadioToggle.c`, vanilla body otherwise), and `SCR_VONMenu.OnAdjustEntry` cycles it without the
   squad/platoon frequency table (`Radio/LC_VONMenu.c`).
+
+## Infantry phone (3.0)
+
+A handset outside a vehicle that puts whoever holds it on the vehicle's intercom, so infantry can talk to
+the crew. Vanilla BTR-70 and LAV-25 have one at the rear (`push_rear`, where Push and Open Trunk already
+are). Any other vehicle gets one from **one prefab override and no script**.
+
+- **Pieces** (`Vehicle/LC_InfantryPhone.c`): `LC_InfantryPhoneComponent` on the vehicle (attributes: action
+  context name, default `push_rear`; cable length, default 5 m; intercom channel, default Misc) and
+  `LC_InfantryPhoneAction` in the vehicle's `ActionsManagerComponent`, in that context. It needs
+  `LC_VehicleCommsComponent` with its intercom on the same vehicle; every vanilla vehicle base already has
+  it (a military-only intercom has no phone on a civilian vehicle either).
+- **How it works:** the action (only shown on foot, local effect only) asks for a `PHONE` lease on the
+  vehicle, or gives it back; picking up one phone hangs up any other. The server holds it under
+  `LC_RadioLeasePhoneRule` (cable length from the context's world position, `GetPhonePosition`, falling back
+  to the vehicle origin if the context is missing) and `LC_RadioLeaseOnFootRule`. It ends on walking off,
+  the action, getting into any seat, death, respawn or disconnect, like any lease. While it is held,
+  `LC_VehicleCommsComponent.GetPhoneChannel` puts the holder on the phone's channel on every machine (so
+  `players[].ic` and the server's membership check pick them up), and `LC_VehicleSeat.FindPhoneIntercom`
+  gives the holder the Intercom entry in the radio menu, where they can pick another channel like any seat.
+  Nothing new in the bridge or the plugin.
+- **Adding it to a modded vehicle.** In your mod, override the vehicle's prefab (or its base) at its own
+  path and GUID, holding only the new blocks. Reuse the vehicle's own `ActionsManagerComponent` block ID
+  (find it in its prefab chain; vanilla vehicles inherit `{C97BE5489221AE18}`): a fresh ID would add a second
+  actions manager instead of extending the first. The new component and action get fresh IDs. Pick an
+  exterior context the vehicle already has (a rear door, `push_rear`...) and name it in both places. The
+  worked example, `Prefabs/Vehicles/Wheeled/LAV25/LAV25_base.et` in this addon (the BTR-70's is the same):
+
+  ```
+  Vehicle : "{543A50BF3A42AD47}Prefabs/Vehicles/Core/Wheeled_APC_Base.et" {
+   ID "BBCBA43A9778AE21"
+   components {
+    LC_InfantryPhoneComponent "{0A96636490FC9A7E}" {
+    }
+    ActionsManagerComponent "{C97BE5489221AE18}" {
+     additionalActions {
+      LC_InfantryPhoneAction "{F3A04750554AEE9D}" {
+       ParentContextList {
+        "push_rear"
+       }
+       UIInfo SCR_ActionUIInfo "{5959B6D4C6644BB1}" {
+        Name "Infantry Phone"
+       }
+      }
+     }
+    }
+   }
+  }
+  ```
+
+  The first two lines are copied from the vehicle's own prefab (its parent and `ID`). Its `.meta` names the
+  overridden resource (`{1B8EB269EECA2DF9}Prefabs/Vehicles/Wheeled/LAV25/LAV25_base.et`). A vehicle mod of
+  your own can instead add the two blocks in Workbench. Set `m_sContextName` on the component when the
+  context is not `push_rear`, and keep `ParentContextList` the same. Workbench needs a restart to register
+  new override files; check the result with the resolved prefab (one `ActionsManagerComponent`, the phone
+  action beside the vehicle's own). The action's name comes from script (Pick Up / Hang Up Infantry Phone).
 
 ## Hearing hook for other mods
 
@@ -392,6 +454,7 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 | Session and settings | `LC_Session.c`, `LC_Settings.c`, `LC_ServerSettings.c`, `LC_MissionHeader.c`, `LC_PlayerController.c`, `LC_BaseGameMode.c` |
 | Radios | `LC_Radio.c`, `LC_RadioSettings.c`, `LC_RadioMode.c`, `LC_RadioLinks.c`, `LC_Terrain.c`, `LC_VONEntryRadio.c`, `LC_FrequencyInput.c` |
 | Radio leases | `LC_RadioLeases.c`, `LC_RadioLease.c` (kinds, refusals, rules), `LC_RadioLeaseDiag.c` (diag only) |
+| Vehicles | `LC_VehicleCommsComponent.c`, `LC_VehicleSeat.c`, `LC_Intercom.c`, `LC_InfantryPhone.c`, `LC_VehicleRadioSeatCondition.c` |
 | Channel names | `LC_ChannelLabel.c`, `LC_ChannelLabels.c` |
 | Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c`, `LC_Rooms.c`, `LC_Hearing.c` (hook for other mods) |
 | AI | `LC_AIHearing.c`, `LC_AIConfigComponent.c`, `LC_VoiceDangerEvent.c` |

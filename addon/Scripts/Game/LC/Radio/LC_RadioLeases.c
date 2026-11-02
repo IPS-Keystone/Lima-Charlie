@@ -96,7 +96,7 @@ class LC_RadioLeases
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! What a leased radio is listed as in game_state.json
+	//! What a leased radio is listed as in game_state.json (a PHONE lease is on a vehicle, which is never listed)
 	static LC_ERadioSource GetSourceOfKind(LC_ERadioLeaseKind kind)
 	{
 		if (kind == LC_ERadioLeaseKind.VEHICLE)
@@ -183,6 +183,23 @@ class LC_RadioLeases
 		}
 
 		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Kind of a player's lease on a radio, or -1 if they hold none
+	int GetHolderKind(int playerId, RplId radioId)
+	{
+		array<int> state = GetState();
+		if (!state || !radioId.IsValid())
+			return -1;
+
+		for (int i = 0; i + STATE_STRIDE <= state.Count(); i += STATE_STRIDE)
+		{
+			if (state[i] == radioId && state[i + 1] == playerId)
+				return state[i + 2];
+		}
+
+		return -1;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -304,7 +321,7 @@ class LC_RadioLeases
 		if (!Replication.IsServer())
 			return LC_ERadioLeaseRefusal.NO_PLAYER;
 
-		if (kind != LC_ERadioLeaseKind.BORROWED && kind != LC_ERadioLeaseKind.VEHICLE)
+		if (kind != LC_ERadioLeaseKind.BORROWED && kind != LC_ERadioLeaseKind.VEHICLE && kind != LC_ERadioLeaseKind.PHONE)
 			return LC_ERadioLeaseRefusal.BAD_KIND;
 
 		IEntity holder = GetGame().GetPlayerManager().GetPlayerControlledEntity(playerId);
@@ -314,8 +331,16 @@ class LC_RadioLeases
 		if (!LC_Life.CanHear(holder))
 			return LC_ERadioLeaseRefusal.DEAD;
 
+		// For the infantry phone the leased entity is the vehicle, which has the phone instead of a radio
 		IEntity radio = FindRadio(radioId);
-		if (!radio || !radio.FindComponent(BaseRadioComponent))
+		if (!radio)
+			return LC_ERadioLeaseRefusal.NO_RADIO;
+
+		typename required = BaseRadioComponent;
+		if (kind == LC_ERadioLeaseKind.PHONE)
+			required = LC_InfantryPhoneComponent;
+
+		if (!radio.FindComponent(required))
 			return LC_ERadioLeaseRefusal.NO_RADIO;
 
 		if (radio.GetRootParent() == holder)
@@ -414,6 +439,18 @@ class LC_RadioLeases
 				seats = comms.GetRadioSeats();
 
 			rules.Insert(new LC_RadioLeaseSeatRule(vehicle, seats));
+			return;
+		}
+
+		if (kind == LC_ERadioLeaseKind.PHONE)
+		{
+			// Only a phone wired to an intercom; the cable is measured from the phone, not the vehicle's origin
+			LC_InfantryPhoneComponent phone = LC_InfantryPhoneComponent.Cast(radio.FindComponent(LC_InfantryPhoneComponent));
+			if (!phone || !phone.GetIntercom())
+				return;
+
+			rules.Insert(new LC_RadioLeasePhoneRule(phone.GetCableLength()));
+			rules.Insert(new LC_RadioLeaseOnFootRule());
 		}
 	}
 

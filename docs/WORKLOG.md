@@ -4,6 +4,7 @@ The running journal (`_Rules/PROJECT-DEFAULTS.md` → Working loop). Read the to
 session; update after each meaningful step and before ending one. Never rewrite or delete old entries.
 
 ## Done
+- 3.0 workstream B (2026-11-02, feature/3.0-comms): vehicle radios, key fill/mute, intercom, infantry phone (BTR-70, LAV-25). All compiled in Workbench; **none tested in game** (test list: 2026-11-02 part 4 entry).
 - 3.0 groundwork step 2 (2026-11-02, feature/3.0-comms): server-arbitrated radio leases (`LC_RadioLeases` on the game mode, replicated triples, distance + seat rules, released on death/disconnect/radio gone/rule fail/explicit). Compiled (Workbench 5700 files, no LC errors); not yet exercised in play mode.
 - 3.0 groundwork step 3 (2026-10-31, feature/3.0-comms): receive quality behind `lc_radio_receive` (`lc_rx_inputs` → `lc_rx_result`, lc_radio.h); placeholders for jam/relay/SATCOM are comments only. Behaviour unchanged; pinned by `test_radio_receive`.
 - 2.0.5 released 2026-10-29 (tag v2.0.5): hearing hook for ear-pro mods, louder radios + limiter, terrain as shares per hill. Protocol still 9.
@@ -241,3 +242,42 @@ session; update after each meaningful step and before ending one. Never rewrite 
     (`LC_VehicleCommsComponent.GetPhoneChannel`, `LC_VehicleSeat.FindPhoneIntercom`); a step-by-step hand-over
     (PHONE lease kind, phone-point distance rule, component, action, BTR-70/LAV-25 overrides reusing vanilla block
     IDs, docs) is in the side-session notes folder, `workstream-B-part4-handover.md`.
+- 2026-11-02 (B part 4 session): **infantry phone landed.** B is complete in code.
+  - `LC_ERadioLeaseKind.PHONE`: the leased entity is the vehicle (needs `LC_InfantryPhoneComponent` instead of a
+    radio). Rules: `LC_RadioLeasePhoneRule` (distance from the phone's action context, `GetAnchor` override point
+    added to `LC_RadioLeaseDistanceRule`) + `LC_RadioLeaseOnFootRule` (no seat at all; watches seats, so getting
+    into any vehicle hangs up). Granted only if the vehicle has an intercom. New `GetHolderKind(player, radio)`.
+    The crew-key fill on grant now only runs for `VEHICLE` leases (a phone pick-up no longer keys the radio).
+  - `Vehicle/LC_InfantryPhone.c`: component (context name `push_rear`, cable 5 m, channel Misc; phone point =
+    `GetContext(name).GetTransformationWorld`, else vehicle origin) and `LC_InfantryPhoneAction` (shown on foot
+    with an intercom, local effect only, Pick Up / Hang Up by lease, picking up hangs up any other phone). Hooks
+    filled: `GetPhoneChannel` (holder kind PHONE -> phone channel), `FindPhoneIntercom` (own PHONE lease ->
+    vehicle intercom). No bridge or plugin change.
+  - Prefabs: delta overrides `Prefabs/Vehicles/Wheeled/BTR70/BTR70_Base.et` ({1C5FE7B7FF49BB8D}) and
+    `LAV25/LAV25_base.et` ({1B8EB269EECA2DF9}): the component plus the action in vanilla's
+    `ActionsManagerComponent "{C97BE5489221AE18}"` additionalActions. Workbench `getInfo` on both resolves to one
+    actions manager with the phone action beside vanilla's Push / Open Trunk / handbrake, plus LC comms from the
+    APC base override.
+  - Docs: developer-reference "Infantry phone (3.0)" (one-override recipe for modded vehicles, LAV-25 example),
+    lease kinds/rules, script map; player-guide; CHANGELOG. Wiki (workspace `a518e46`): subclass constructors
+    must match the parent's argument types (first compile failed on it), action delta override appends.
+  - Evidence: enforce_check 47 files clean; Workbench compile logs_2026-11-02_17-37-38 `17:37:44.520 Module: Game;
+    loaded 5707 files / 11187 classes` (+1 file, +5 classes), 0 `SCRIPT (E)`. Plugin untouched (no rebuild).
+  - NOT verified in game: anything of B. No play-mode session this time (the step-0 radio spawn is still open).
+  - **Duke's in-game test list for B** (MP, 2 clients, plugin 3.0 test build; grep the logs for `[LC]`):
+    1. Radio spawn: place/spawn a LAV-25 (or UAZ) and play: log has `[LC] Vehicle radio mounted on ...` (DEBUG level)
+       and no `Vehicle radio prefab not found`.
+    2. Seat lease: sit as driver/commander/gunner: `[LC] Radio lease granted: ... VEHICLE`, the vehicle radio is
+       in the VON menu; move to cargo: lease ended (`WRONG_SEAT`), entry gone; get out: same.
+    3. Tuning: one crew member changes the vehicle radio's frequency; the other sees it; a cargo player cannot.
+       Transmit on it and be heard on a hand radio on the same frequency, from the vehicle's position.
+    4. Key fill / mute: enemy vehicle (or GM-placed without faction key): transmit blocked, hover + Y, works for
+       both crew; one crew member mutes it with M, the other still hears it.
+    5. Intercom channels: driver + cargo player: driver on Crew, cargo on Cargo; they hear each other only
+       directly. Cargo scrolls the Intercom entry to Crew: now heard clear, whisper too, engine running. No
+       Intercom: off. Check the radial centre label follows the name on scroll, and whether the menu closes when
+       a radio lease is granted while it is open.
+    6. Phone (BTR-70 and LAV-25 rear): on foot, Pick Up Infantry Phone: `[LC] Radio lease granted: ... PHONE`,
+       Intercom entry appears on Misc; a crew member switches to Misc and you hear each other; walk > ~5.5 m:
+       `OUT_OF_RANGE` end, entry gone; pick up again then Hang Up; pick up then get into any vehicle seat
+       (`WRONG_SEAT` end); pick up then die. The action must not show on a civilian vehicle or from inside.

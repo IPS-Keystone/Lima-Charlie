@@ -76,7 +76,11 @@ modded class SCR_PlayerController
 			return;
 		}
 
-		// A vehicle radio with no key at all (no default faction) takes its first crew member's
+		// A vehicle radio with no key at all (no default faction) takes its first crew member's (not someone
+		// picking up the infantry phone outside)
+		if (kind != LC_ERadioLeaseKind.VEHICLE)
+			return;
+
 		LC_VehicleCommsComponent comms = LC_VehicleCommsComponent.Find(LC_RadioLeases.FindRadio(radio));
 		if (comms && comms.GetRadioKey().IsEmpty())
 			LC_LoadPlayerKey(comms);

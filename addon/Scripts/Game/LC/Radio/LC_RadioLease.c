@@ -7,7 +7,10 @@ enum LC_ERadioLeaseKind
 	//! Someone else's (or a dropped) manpack, through its handset cable
 	BORROWED,
 	//! A radio mounted in a vehicle, from one of its seats
-	VEHICLE
+	VEHICLE,
+	//! A vehicle's infantry phone (LC_InfantryPhoneComponent): the leased entity is the vehicle itself, and
+	//! the lease puts the holder on its intercom. Never listed as a radio.
+	PHONE
 }
 
 //------------------------------------------------------------------------------------------------
@@ -26,6 +29,7 @@ enum LC_ERadioLeaseRefusal
 	//! Nothing says how this kind of lease is held on this radio, so it is not granted at all
 	NO_RULES,
 	OUT_OF_RANGE,
+	//! Not in a seat that reaches the radio, or (infantry phone) in a seat at all
 	WRONG_SEAT
 }
 
@@ -98,7 +102,14 @@ class LC_RadioLeaseDistanceRule : LC_RadioLeaseRule
 		if (!granting)
 			limit += HOLD_SLACK_M;
 
-		return vector.DistanceSq(GetWorldPosition(holder), GetWorldPosition(radio)) <= limit * limit;
+		return vector.DistanceSq(GetWorldPosition(holder), GetAnchor(radio)) <= limit * limit;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Where the cable is measured from: the radio itself, unless a subclass knows better
+	protected vector GetAnchor(notnull IEntity radio)
+	{
+		return GetWorldPosition(radio);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -204,6 +215,35 @@ class LC_RadioLeaseSeatRule : LC_RadioLeaseRule
 		}
 
 		return vehicle;
+	}
+}
+
+//------------------------------------------------------------------------------------------------
+//! The holder is on foot: in no vehicle seat at all. The infantry phone is used from outside; getting in
+//! (any vehicle) hangs it up.
+class LC_RadioLeaseOnFootRule : LC_RadioLeaseRule
+{
+	//------------------------------------------------------------------------------------------------
+	override bool Allows(notnull IEntity holder, notnull IEntity radio, bool granting)
+	{
+		ChimeraCharacter character = ChimeraCharacter.Cast(holder);
+		if (!character)
+			return false;
+
+		CompartmentAccessComponent access = character.GetCompartmentAccessComponent();
+		return !access || !access.GetCompartment();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	override LC_ERadioLeaseRefusal GetRefusal()
+	{
+		return LC_ERadioLeaseRefusal.WRONG_SEAT;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	override bool WatchesSeat()
+	{
+		return true;
 	}
 }
 

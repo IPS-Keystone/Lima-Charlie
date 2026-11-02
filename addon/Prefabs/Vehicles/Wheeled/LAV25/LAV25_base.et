@@ -1,0 +1,19 @@
+Vehicle : "{543A50BF3A42AD47}Prefabs/Vehicles/Core/Wheeled_APC_Base.et" {
+ ID "BBCBA43A9778AE21"
+ components {
+  LC_InfantryPhoneComponent "{0A96636490FC9A7E}" {
+  }
+  ActionsManagerComponent "{C97BE5489221AE18}" {
+   additionalActions {
+    LC_InfantryPhoneAction "{F3A04750554AEE9D}" {
+     ParentContextList {
+      "push_rear"
+     }
+     UIInfo SCR_ActionUIInfo "{5959B6D4C6644BB1}" {
+      Name "Infantry Phone"
+     }
+    }
+   }
+  }
+ }
+}

@@ -227,9 +227,26 @@ class LC_VehicleSeat
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! The intercom of the vehicle whose infantry phone the character holds. Part 4 fills this in.
+	//! The intercom of the vehicle whose infantry phone the local player holds (the character is theirs)
 	protected LC_VehicleCommsComponent FindPhoneIntercom(IEntity character)
 	{
+		LC_RadioLeases leases = LC_RadioLeases.Get();
+		if (!leases)
+			return null;
+
+		array<RplId> radios = {};
+		array<int> kinds = {};
+		leases.GetOwnLeases(radios, kinds);
+		foreach (int i, RplId radioId : radios)
+		{
+			if (kinds[i] != LC_ERadioLeaseKind.PHONE)
+				continue;
+
+			LC_InfantryPhoneComponent phone = LC_InfantryPhoneComponent.Find(LC_RadioLeases.FindRadio(radioId));
+			if (phone && phone.GetIntercom())
+				return phone.GetIntercom();
+		}
+
 		return null;
 	}
 

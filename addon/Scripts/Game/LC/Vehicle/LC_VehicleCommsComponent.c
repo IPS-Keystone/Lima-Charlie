@@ -207,10 +207,18 @@ class LC_VehicleCommsComponent : ScriptComponent
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! The channel a player on the infantry phone is put on; -1 when they do not hold it. Part 4 fills this in.
+	//! The channel a player on the infantry phone is put on; -1 when they do not hold it
 	protected int GetPhoneChannel(int playerId)
 	{
-		return -1;
+		LC_RadioLeases leases = LC_RadioLeases.Get();
+		if (!leases || leases.GetHolderKind(playerId, LC_RadioLeases.GetRadioId(GetOwner())) != LC_ERadioLeaseKind.PHONE)
+			return -1;
+
+		LC_InfantryPhoneComponent phone = LC_InfantryPhoneComponent.Cast(GetOwner().FindComponent(LC_InfantryPhoneComponent));
+		if (!phone)
+			return -1;
+
+		return phone.GetChannel();
 	}
 
 	//------------------------------------------------------------------------------------------------
