@@ -1,0 +1,21 @@
+GenericEntity : "{C95E11C60810F432}Prefabs/Items/Core/Item_Base.et" {
+ ID "1D7F637099CD5B51"
+ components {
+  InventoryItemComponent "{5222EB4D0C73006B}" {
+   Attributes SCR_ItemAttributeCollection "{5222EB4D0A2B466B}" {
+    ItemDisplayName UIInfo "{5222EB4D07D865FA}" {
+     Name "Infantry Phone Handset"
+     Description "A vehicle's infantry phone. Hang it up at the vehicle."
+    }
+    ItemAnimationAttributes ItemAnimationAttributes "{CF173789855A55EE}" {
+     AnimationInstance "{332D4A7512E78419}Assets/Items/Equipment/workspaces/Radio_ANPRC68_player.asi"
+     AllowInspection 1
+    }
+    m_SlotType SLOT_GADGETS_STORAGE
+   }
+  }
+  LC_HandsetGadgetComponent "{A6DCA330F184E32E}" {
+   m_eAnimVariable ANPRC68
+  }
+ }
+}

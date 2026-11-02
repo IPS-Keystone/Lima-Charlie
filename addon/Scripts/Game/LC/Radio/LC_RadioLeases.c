@@ -399,6 +399,7 @@ class LC_RadioLeases
 		lease.m_Holder = holder;
 		m_aLeases.Insert(lease);
 		Watch(lease);
+		lease.m_HandsetItem = LC_HandsetItem.ServerGive(holder, GetHandsetItemPrefab(kind, radio));
 		Print(string.Format("[LC] Radio lease granted: player %1, radio %2, %3", playerId, radioId, GetKindName(kind)), LogLevel.NORMAL);
 
 		UpdateChecking();
@@ -504,6 +505,21 @@ class LC_RadioLeases
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! The item the holder carries while the lease lasts (the radio inspect pose), or empty for none. Override
+	//! point: the manpack handset (A) returns its own for BORROWED.
+	protected ResourceName GetHandsetItemPrefab(LC_ERadioLeaseKind kind, notnull IEntity radio)
+	{
+		if (kind != LC_ERadioLeaseKind.PHONE)
+			return ResourceName.Empty;
+
+		LC_InfantryPhoneComponent phone = LC_InfantryPhoneComponent.Cast(radio.FindComponent(LC_InfantryPhoneComponent));
+		if (!phone)
+			return ResourceName.Empty;
+
+		return phone.GetHandsetItemPrefab();
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Removes one lease without publishing, so a sweep publishes once
 	protected void End(int index, string reason)
 	{
@@ -511,6 +527,7 @@ class LC_RadioLeases
 		Print(string.Format("[LC] Radio lease ended: player %1, radio %2, %3", lease.m_iPlayerId, lease.m_RadioId, reason), LogLevel.NORMAL);
 		m_aLeases.Remove(index);
 		Unwatch(lease);
+		LC_HandsetItem.ServerTake(lease.m_HandsetItem);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -551,6 +568,10 @@ class LC_RadioLeases
 
 		if (!LC_Life.CanHear(lease.m_Holder))
 			return "holder dead";
+
+		// Dropped or handed over: the cable can't follow it
+		if (lease.m_HandsetItem && lease.m_HandsetItem.GetRootParent() != lease.m_Holder)
+			return "handset dropped";
 
 		foreach (LC_RadioLeaseRule rule : lease.m_aRules)
 		{

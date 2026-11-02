@@ -22,6 +22,9 @@ class LC_InfantryPhoneComponent : ScriptComponent
 	[Attribute("{2F7C1A6D93B4E058}Prefabs/LC/Props/LC_InfantryPhoneHandset.et", UIWidgets.ResourcePickerThumbnail, "Prop put in the holder's hand while the phone is held (local, visual only; empty: none)", "et", category: "Infantry phone")]
 	protected ResourceName m_sHandsetPrefab;
 
+	[Attribute("{6E1D2B7C4A905F38}Prefabs/LC/Items/LC_InfantryPhoneHandsetItem.et", UIWidgets.ResourcePickerThumbnail, "Item the server gives the holder while the phone is held, so they hold it in the radio inspect pose (an LC_HandsetGadgetComponent item; empty: none)", "et", category: "Infantry phone")]
+	protected ResourceName m_sHandsetItemPrefab;
+
 	//------------------------------------------------------------------------------------------------
 	//! The phone of the vehicle an entity belongs to, or null
 	static LC_InfantryPhoneComponent Find(IEntity entity)
@@ -59,6 +62,12 @@ class LC_InfantryPhoneComponent : ScriptComponent
 	float GetCableLength()
 	{
 		return m_fCableLength;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	ResourceName GetHandsetItemPrefab()
+	{
+		return m_sHandsetItemPrefab;
 	}
 
 	//------------------------------------------------------------------------------------------------

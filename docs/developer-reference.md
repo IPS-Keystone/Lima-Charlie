@@ -281,10 +281,19 @@ door). Any other vehicle gets one from **one prefab override and no script**.
   `players[].ic` and the server's membership check pick them up), and `LC_VehicleSeat.FindPhoneIntercom`
   gives the holder the Intercom entry in the radio menu, where they can pick another channel like any seat.
   Nothing new in the bridge or the plugin.
+- **Handset pose** (`Radio/LC_HandsetItem.c`): on a `PHONE` grant the server spawns
+  `Prefabs/LC/Items/LC_InfantryPhoneHandsetItem.et` (an item with `LC_HandsetGadgetComponent`, no mesh, the
+  AN/PRC-68's player animation instance, `m_eAnimVariable ANPRC68`) into the holder's inventory, and deletes it
+  when the lease ends (`LC_RadioLeases.End`); dropping it ends the lease ("handset dropped"). The holder's own
+  machine keeps it in the left hand (`SCR_GadgetManagerComponent.SetGadgetMode IN_HAND`) and inspected
+  (`CharacterControllerComponent.SetInspect`), re-asking every 500 ms, so the character holds it like an
+  inspected radio; the engine replicates that pose. Item prefab: `m_sHandsetItemPrefab` on the phone
+  component; override point `LC_RadioLeases.GetHandsetItemPrefab(kind, radio)`.
 - **Handset and cable** (`Radio/LC_HandsetCable.c`, generic; research in
   `docs/research/2026-11-02-handset-cable.md`): while a phone is held, every client puts the handset prop
-  (the vanilla wall phone's handset model, no physics) on the holder's `LeftHandProp` bone and draws a thin
-  near-black cable from it to the phone point, sagging with slack (straight line x 1.15 + 0.5 m, capped at
+  (the vanilla wall phone's handset model, no physics) on the held handset item (on the `LeftHandProp` bone
+  until the item is in hand), centred on the model's own bounds (`GRIP_OFFSET`, `HANDSET_ANGLES`), and draws a
+  thin black cable (`Assets/LC/LC_HandsetCable.emat`) from the bottom of the handset to the phone point, sagging with slack (straight line x 1.15 + 0.5 m, capped at
   the cable length) and kept above the terrain. Drawn locally from the replicated lease (`LC_HandsetCables`,
   ticked by `LC_Client`), so nothing new is replicated; no physics. Hidden and not updated beyond 100 m of
   the camera or while holder or vehicle is streamed out; gone when the lease ends. The mesh is rebuilt

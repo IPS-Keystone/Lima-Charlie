@@ -260,6 +260,8 @@ class LC_RadioLease
 	ref array<ref LC_RadioLeaseRule> m_aRules = {};
 	//! The holder's seat events this lease listens to, if any of its rules watch seats
 	SCR_CompartmentAccessComponent m_SeatWatch;
+	//! Server: the handset item given with the lease (LC_HandsetItem), deleted when it ends. Weak: the world owns it.
+	IEntity m_HandsetItem;
 
 	//------------------------------------------------------------------------------------------------
 	bool WatchesSeat()

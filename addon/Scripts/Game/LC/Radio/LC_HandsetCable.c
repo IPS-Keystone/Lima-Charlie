@@ -8,8 +8,8 @@
 //! area meshes the same way), on a local entity placed at the hand end so vertex coordinates stay small.
 class LC_HandsetCable
 {
-	//! Vanilla's gantry crane cable: near-black rope
-	protected static const ResourceName MATERIAL = "{1C8CA76ED832109C}Assets/Structures/Industrial/Cranes/GantryCrane_01/Data/GantryCrane_cables_EXT.emat";
+	//! Plain black, fully rough: the mesh has no normals of its own, so a textured or glossy material lights white
+	protected static const ResourceName MATERIAL = "{9C3E5A1F7B2D4068}Assets/LC/LC_HandsetCable.emat";
 	protected static const float RADIUS = 0.006;
 	//! The drawn cable is the straight line plus this share of it plus SLACK_M, up to the cable's length
 	protected static const float SLACK_SHARE = 0.15;
@@ -21,19 +21,23 @@ class LC_HandsetCable
 	//! Tube resolution: SEGMENTS along, SIDES around. The arrays in Rebuild are sized from these.
 	protected static const int SEGMENTS = 16;
 	protected static const int SIDES = 4;
-	//! The handset sits on this bone with these offsets (bone space); the cord leaves it at CORD_EXIT (handset space)
+	//! The handset prop goes on the handset item in the left hand (the radio inspect pose), or on this bone
+	//! until the item is there. Its model is centred on GRIP_OFFSET (the item's / bone's space) at
+	//! HANDSET_ANGLES; the cord leaves the bottom of the model (lowest Y, centred), where the cable starts.
 	protected static const string HAND_BONE = "LeftHandProp";
-	protected static const vector HANDSET_OFFSET = "0 0 0";
+	protected static const vector GRIP_OFFSET = "0 0.06 0";
 	protected static const vector HANDSET_ANGLES = "0 0 0";
-	protected static const vector CORD_EXIT = "0 0 0";
 
 	protected RplId m_RadioId;
 	protected int m_iPlayerId;
 	protected LC_ERadioLeaseKind m_eKind;
 	protected ResourceName m_sHandsetPrefab;
 
-	//! Weak: the holder's character, which the handset is attached to
+	//! Weak: the holder's character, and what the handset prop is attached to (the held item or the character)
 	protected IEntity m_Holder;
+	protected IEntity m_Parent;
+	//! The cord's exit in the handset prop's own space
+	protected vector m_vCordExit;
 	//! Owned local entities, deleted by Destroy (the handset also goes with its holder)
 	protected IEntity m_Handset;
 	protected IEntity m_Cable;
@@ -87,8 +91,12 @@ class LC_HandsetCable
 	//! Draws the cable from the holder's hand to anchor (world), at most length long. Call every frame while shown.
 	void Update(notnull IEntity holder, vector anchor, float length)
 	{
-		if (holder != m_Holder)
-			Attach(holder);
+		IEntity parent = LC_HandsetGadgetComponent.GetHeld(holder);
+		if (!parent)
+			parent = holder;
+
+		if (holder != m_Holder || parent != m_Parent)
+			Attach(holder, parent);
 
 		vector start = GetHandPosition();
 		if (!m_Cable)
@@ -148,36 +156,55 @@ class LC_HandsetCable
 		m_Handset = null;
 		m_Mesh = null;
 		m_Holder = null;
+		m_Parent = null;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Puts the handset in the new holder's hand (a local prop, like vanilla's loiter animation props)
-	protected void Attach(IEntity holder)
+	//! Puts the handset prop on the held item, or on the hand bone (a local prop, like vanilla's loiter
+	//! animation props), centred on its own bounds so an off-centre model origin doesn't matter
+	protected void Attach(IEntity holder, IEntity parent)
 	{
 		if (m_Handset)
 			SCR_EntityHelper.DeleteEntityAndChildren(m_Handset);
 
 		m_Handset = null;
 		m_Holder = holder;
+		m_Parent = parent;
 		m_bVisible = false;
-		if (m_sHandsetPrefab.IsEmpty() || !holder.GetAnimation())
+		if (m_sHandsetPrefab.IsEmpty())
 			return;
 
-		TNodeId bone = holder.GetAnimation().GetBoneIndex(HAND_BONE);
+		TNodeId bone = -1;
+		if (parent == holder)
+		{
+			if (!holder.GetAnimation())
+				return;
+
+			bone = holder.GetAnimation().GetBoneIndex(HAND_BONE);
+			if (bone < 0)
+				return;
+		}
+
 		Resource resource = Resource.Load(m_sHandsetPrefab);
-		if (bone < 0 || !resource.IsValid())
+		if (!resource.IsValid())
 			return;
 
 		EntitySpawnParams params = new EntitySpawnParams();
-		holder.GetTransform(params.Transform);
+		parent.GetTransform(params.Transform);
 		m_Handset = GetGame().SpawnEntityPrefabLocal(resource, holder.GetWorld(), params);
 		if (!m_Handset)
 			return;
 
-		holder.AddChild(m_Handset, bone);
+		vector mins;
+		vector maxs;
+		m_Handset.GetBounds(mins, maxs);
+		vector centre = (mins + maxs) * 0.5;
+		m_vCordExit = Vector(centre[0], mins[1], centre[2]);
+
+		parent.AddChild(m_Handset, bone);
 		vector transform[4];
 		Math3D.AnglesToMatrix(HANDSET_ANGLES, transform);
-		transform[3] = HANDSET_OFFSET;
+		transform[3] = GRIP_OFFSET - centre.Multiply3(transform);
 		m_Handset.SetLocalTransform(transform);
 	}
 
@@ -189,7 +216,7 @@ class LC_HandsetCable
 		if (m_Handset)
 		{
 			m_Handset.GetWorldTransform(transform);
-			return CORD_EXIT.Multiply4(transform);
+			return m_vCordExit.Multiply4(transform);
 		}
 
 		Animation animation = m_Holder.GetAnimation();
@@ -321,6 +348,8 @@ class LC_HandsetCables
 	protected static const float VIEW_DISTANCE_M = 100;
 
 	protected ref array<ref LC_HandsetCable> m_aCables = {};
+	//! Keeps the local player's own handset item in hand and inspected
+	protected ref LC_HandsetItem m_OwnHandset = new LC_HandsetItem();
 
 	//------------------------------------------------------------------------------------------------
 	//! Call every frame. viewer: the camera position.
@@ -335,9 +364,14 @@ class LC_HandsetCables
 		}
 
 		Reconcile(leases);
+		int localPlayerId = SCR_PlayerController.GetLocalPlayerId();
+		int now = System.GetTickCount();
 		foreach (LC_HandsetCable cable : m_aCables)
 		{
 			IEntity holder = playerManager.GetPlayerControlledEntity(cable.GetPlayerId());
+			if (holder && cable.GetPlayerId() == localPlayerId)
+				m_OwnHandset.Update(holder, now);
+
 			IEntity radio = LC_RadioLeases.FindRadio(cable.GetRadioId());
 			if (!holder || !radio || vector.DistanceSq(holder.GetOrigin(), viewer) > VIEW_DISTANCE_M * VIEW_DISTANCE_M)
 			{

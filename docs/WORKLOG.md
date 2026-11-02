@@ -331,3 +331,22 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Duke asks: **force the radio inspect animation** while holding the phone, and place the handset and cable to
   match it. Handed to a fresh session (context budget); brief in the side-session notes,
   `handset-pose-cable-handover.md`.
+- 2026-11-02 (same session, Duke chose to do it here): **radio inspect pose + cable fixes.**
+  - Pose: vanilla's radio inspect = a gadget item in the left hand (`TakeGadgetInLeftHand` via
+    `SCR_GadgetManagerComponent.SetGadgetMode IN_HAND`) plus `CharacterControllerComponent.SetInspect(item)`, with
+    the item's `ItemAnimationAttributes.AnimationInstance` (PRC-68: `Radio_ANPRC68_player.asi`) and the gadget's
+    `m_eAnimVariable` (ANPRC68). No way to force it without an item, so (Duke's earlier OK to make it an item)
+    `LC_HandsetItem.c`: the server gives `Prefabs/LC/Items/LC_InfantryPhoneHandsetItem.et` ({6E1D2B7C4A905F38},
+    `LC_HandsetGadgetComponent`, no mesh) into the holder's inventory on a PHONE grant (vanilla precedent:
+    `SCR_IdentityManagerComponent` spawn + `TryInsertItem`) and deletes it on any lease end (`TryDeleteItem`, else
+    `RplComponent.DeleteRplEntity`); not in the holder's hierarchy any more -> lease ends "handset dropped". The
+    holder's machine (`LC_HandsetCables` -> `LC_HandsetItem.Update`) takes it into the hand and inspects it, retry
+    every 500 ms.
+  - Handset prop now rides on the held item (bone until then), centred on its own bounds (`GetBounds`), so the
+    debris model's off-centre origin no longer matters; the cable starts at the model's bottom (lowest Y, centred).
+  - Cable: own material `Assets/LC/LC_HandsetCable.emat` ({9C3E5A1F7B2D4068}, MatPBRBasic black, no specular,
+    `Cull none`). Suspected cause of the white ribbon: the script mesh has no normals and the gantry material is
+    glossy + textured (not proven).
+  - Evidence: enforce_check 49 files clean; Workbench restarted (Duke's OK) logs_2026-11-02_21-42-55
+    `21:43:02.780 Module: Game; loaded 5709x files; 11194x classes`, 0 `SCRIPT (E)`; testWorld open in edit mode.
+    NOT verified in play: pose, handset placement, cable colour, hang-up while inspecting.
