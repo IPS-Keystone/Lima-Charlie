@@ -35,6 +35,15 @@ class LC_Client
 	protected ref LC_SoundQueue m_SoundQueue = new LC_SoundQueue();
 	protected ref LC_FrequencyInput m_FrequencyInput = new LC_FrequencyInput();
 	protected ref array<SCR_VONEntryRadio> m_aRadioEntries = {};
+	//! Entries for radios held by lease (LC_RadioLeases), kept here because no VON list owns them. Rebuilt
+	//! when the leases change; appended after vanilla's entries, so transmit keys of carried radios keep
+	//! their places.
+	protected ref array<ref SCR_VONEntryRadio> m_aLeaseEntries = {};
+	protected int m_iLeaseRevision = -1;
+	protected bool m_bLeaseEntriesStale;
+#ifdef ENABLE_DIAG
+	protected ref LC_RadioLeaseDiag m_LeaseDiag = new LC_RadioLeaseDiag();
+#endif
 
 	protected bool m_bHasSession;
 	protected string m_sSessionToken;
@@ -187,6 +196,9 @@ class LC_Client
 		}
 
 		RefreshRadioEntries();
+#ifdef ENABLE_DIAG
+		m_LeaseDiag.Update(GetControlledEntity());
+#endif
 		ReleaseStuckRadioPTT();
 		UpdateTransmit(now);
 		UpdateRadioVolumeInput();
@@ -223,6 +235,96 @@ class LC_Client
 		SCR_VONController vonController = GetVONController();
 		if (vonController)
 			vonController.LC_GetRadioEntries(m_aRadioEntries);
+
+		AppendLeaseEntries();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Radios held by lease join the list unless vanilla already lists them (the radio has since reached our
+	//! inventory, or what leased it added it to the VON menu itself)
+	protected void AppendLeaseEntries()
+	{
+		LC_RadioLeases leases = LC_RadioLeases.Get();
+		if (!leases)
+			return;
+
+		if (m_bLeaseEntriesStale || m_iLeaseRevision != leases.GetOwnRevision())
+			RebuildLeaseEntries(leases);
+
+		int vonCount = m_aRadioEntries.Count();
+		foreach (SCR_VONEntryRadio entry : m_aLeaseEntries)
+		{
+			BaseTransceiver transceiver = entry.GetTransceiver();
+			if (!transceiver || !transceiver.GetRadio())
+			{
+				m_bLeaseEntriesStale = true;
+				continue;
+			}
+
+			if (IsListed(transceiver.GetRadio(), vonCount))
+				continue;
+
+			// No VON menu updates these entries, so power is read here; LC_CanTransmitOn checks it
+			entry.SetUsable(transceiver.GetRadio().IsPowered());
+			m_aRadioEntries.Insert(entry);
+		}
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected void RebuildLeaseEntries(notnull LC_RadioLeases leases)
+	{
+		m_aLeaseEntries.Clear();
+		m_iLeaseRevision = leases.GetOwnRevision();
+		m_bLeaseEntriesStale = false;
+
+		array<RplId> radios = {};
+		leases.GetOwnLeases(radios);
+		foreach (RplId radioId : radios)
+		{
+			// Not streamed in yet: try again next frame
+			IEntity radioEntity = LC_RadioLeases.FindRadio(radioId);
+			if (!radioEntity)
+			{
+				m_bLeaseEntriesStale = true;
+				continue;
+			}
+
+			// A radio entry needs its gadget (vanilla's entry and LC_Radio both call into it), as when vanilla
+			// lists a carried radio
+			SCR_RadioComponent gadget = SCR_RadioComponent.Cast(radioEntity.FindComponent(SCR_RadioComponent));
+			if (!gadget)
+				continue;
+
+			BaseRadioComponent radio = gadget.GetRadioComponent();
+			if (!radio)
+				continue;
+
+			int count = radio.TransceiversCount();
+			for (int i = 0; i < count; i++)
+			{
+				BaseTransceiver transceiver = radio.GetTransceiver(i);
+				if (!transceiver)
+					continue;
+
+				SCR_VONEntryRadio entry = new SCR_VONEntryRadio();
+				entry.SetRadioEntry(transceiver, i + 1, gadget);
+				m_aLeaseEntries.Insert(entry);
+			}
+		}
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether one of the first count entries belongs to this radio
+	protected bool IsListed(notnull BaseRadioComponent radio, int count)
+	{
+		for (int i = 0; i < count; i++)
+		{
+			BaseTransceiver transceiver = m_aRadioEntries[i].GetTransceiver();
+			if (transceiver && transceiver.GetRadio() == radio)
+				return true;
+		}
+
+		return false;
 	}
 
 	//------------------------------------------------------------------------------------------------

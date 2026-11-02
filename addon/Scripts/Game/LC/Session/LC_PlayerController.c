@@ -48,6 +48,52 @@ modded class SCR_PlayerController
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Client asks for access to a radio not in its inventory (LC_RadioLeases.Request)
+	void LC_RequestRadioLease(RplId radio, LC_ERadioLeaseKind kind)
+	{
+		Rpc(RpcAsk_LC_RequestRadioLease, radio, kind);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	void LC_ReleaseRadioLease(RplId radio)
+	{
+		Rpc(RpcAsk_LC_ReleaseRadioLease, radio);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The player is the controller's own: a client can only ever ask on its own behalf
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcAsk_LC_RequestRadioLease(RplId radio, int kind)
+	{
+		LC_RadioLeases leases = LC_RadioLeases.Get();
+		if (!leases)
+			return;
+
+		LC_ERadioLeaseRefusal refusal = leases.ServerRequest(GetPlayerId(), radio, kind);
+		if (refusal != LC_ERadioLeaseRefusal.NONE)
+			Rpc(RpcDo_LC_RadioLeaseRefused, radio, refusal);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	[RplRpc(RplChannel.Reliable, RplRcver.Server)]
+	protected void RpcAsk_LC_ReleaseRadioLease(RplId radio)
+	{
+		LC_RadioLeases leases = LC_RadioLeases.Get();
+		if (leases)
+			leases.ServerRelease(GetPlayerId(), radio, "released");
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! A grant needs no answer of its own: it arrives with the replicated lease state
+	[RplRpc(RplChannel.Reliable, RplRcver.Owner)]
+	protected void RpcDo_LC_RadioLeaseRefused(RplId radio, int refusal)
+	{
+		LC_RadioLeases leases = LC_RadioLeases.Get();
+		if (leases)
+			leases.OnRefused(radio, refusal);
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Gameplay settings the server owns, sent just before the session so they are in place when the
 	//! client starts writing radio state for the plugin
 	[RplRpc(RplChannel.Reliable, RplRcver.Owner)]

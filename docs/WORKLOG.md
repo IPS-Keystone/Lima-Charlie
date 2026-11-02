@@ -4,6 +4,7 @@ The running journal (`_Rules/PROJECT-DEFAULTS.md` → Working loop). Read the to
 session; update after each meaningful step and before ending one. Never rewrite or delete old entries.
 
 ## Done
+- 3.0 groundwork step 2 (2026-11-02, feature/3.0-comms): server-arbitrated radio leases (`LC_RadioLeases` on the game mode, replicated triples, distance + seat rules, released on death/disconnect/radio gone/rule fail/explicit). Compiled (Workbench 5700 files, no LC errors); not yet exercised in play mode.
 - 3.0 groundwork step 3 (2026-10-31, feature/3.0-comms): receive quality behind `lc_radio_receive` (`lc_rx_inputs` → `lc_rx_result`, lc_radio.h); placeholders for jam/relay/SATCOM are comments only. Behaviour unchanged; pinned by `test_radio_receive`.
 - 2.0.5 released 2026-10-29 (tag v2.0.5): hearing hook for ear-pro mods, louder radios + limiter, terrain as shares per hill. Protocol still 9.
 - 2.0.4 released (mod + plugin), protocol 9 (was mis-noted as 6); radio keys open the TeamSpeak mic, transmit-key picker (CHANGELOG.md).
@@ -23,6 +24,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Decide whether `WorkshopCoverPicture.*` and the new `PROJECT.md` / `docs/research/` / this file get committed.
 
 ## Touch-ups
+- 3.0 leases: leased radios reach `radios[]` and the transmit keys but not the VON radial menu (the consumer adds a menu entry, e.g. vehicle reconciler); radios without an `SCR_RadioComponent` gadget (vanilla's unused vehicle radios) are leased but never listed.
 - 3.0: switching to another radio on the same frequency restarts the 300 ms terrain wait (links are per radio since `d00d805`); briefly clear until the answer lands.
 - 3.0: receiving side still measures from `self.pos`, not its own radio's antenna; needed for vehicle radios (B).
 - Terrain answers can be missed: plugin assumes line of sight after 300 ms without reporting it (docs/troubleshooting.md, Known fragilities).
@@ -129,3 +131,27 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Workbench compile `Module: Game; loaded 5697x files; 11156x classes` (logs_2026-10-31_18-38-44, no LC errors).
   Not tested in game: Duke to run 2 clients on TeamSpeak (radio heard as before, terrain as before, manpack).
 - Verified groundwork 1 (`d00d805`) myself: plugin rebuild "All checks passed" (3.0.0-test.1 package), enforce_check 37 files clean, Workbench log 18:38 Game module 5697 files, no script errors. Needs Duke's 2-client test.
+
+## 2026-11-02
+- Groundwork 2 landed: server-arbitrated radio leases. `LC_RadioLeases` (Radio/LC_RadioLeases.c) lives on the
+  modded `SCR_BaseGameMode`, keyed by the radio entity's RplId, replicated as one `[RplProp] array<int>` of
+  (radio, player, kind) triples: no radio prefab override, JIP via the RplProp, any client can ask who holds a
+  radio. Non-exclusive. Kinds BORROWED/VEHICLE map to `src` borrowed/vehicle. Rules (Radio/LC_RadioLease.c):
+  distance (handset 4 m, 0.5 m slack while held), seat (ECompartmentType + `CommanderTurret`, default pilot +
+  commander + gunner, `IsSeatAllowed` override point); `CollectRules` is the override point for consumers; no
+  rules = refused. Server refuses dead / no character / no radio / own radio / out of range / wrong seat;
+  duplicate requests are idempotent grants. Ends: release RPC, OnPlayerKilled(+Handled), OnPlayerDisconnected,
+  500 ms check only while leases exist (radio gone, controlled entity changed, dead, rule fails), seat events
+  of the holder for seat rules. RPCs on LC_PlayerController (request, release, refused). LC_Client appends one
+  SCR_VONEntryRadio per transceiver of each held radio after vanilla's (not in the VON menu), so `radios[]`
+  lists it with src + the entity's world position and TX keys reach it; plugin unchanged (already parses src/pos,
+  protocol stays 10). Diag-only path: Diag menu > Lima Charlie > "Lease nearest radio" / "Lease this vehicle's
+  radio" (LC_RadioLeaseDiag.c, `#ifdef ENABLE_DIAG`); unticking releases all.
+- Evidence: enforce_check 40 files, no problems; Workbench compile logs_2026-11-02_10-08-21
+  `Module: Game; loaded 5700x files; 11171x classes` (5697 + 3 new), no SCRIPT (E), no LC warnings. Plugin not
+  touched. Not exercised in play mode: the MCP has no way to tick a diag option or give input, and there is
+  no radio placed near a spawn to lease.
+- Duke to test (Workbench SP): drop a manpack (or stand by an AI radioman), Diag menu > Lima Charlie > Lease
+  nearest radio: log `[LC] Radio lease granted` + `[LC] Radio leases held: 1`, radio appears in game_state.json
+  `radios[]` with src borrowed; walk > 4.5 m away: `ended ... OUT_OF_RANGE`. In an M151/UAZ driver seat, Lease
+  this vehicle's radio: granted; move to a cargo seat: `ended ... WRONG_SEAT` (not listed in radios[]: no gadget).

@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------------------------
 //! Where a radio physically is, and so where its antenna is: "src" in game_state.json radios[], named as
-//! LC_Radio.GetSourceName gives it. Only HELD and PACK exist so far; the rest are named now so the bridge
-//! format does not change again when they land.
+//! LC_Radio.GetSourceName gives it. BORROWED and VEHICLE come from the local player's radio leases
+//! (LC_RadioLeases); SPEAKER is named now so the bridge format does not change again when it lands.
 enum LC_ERadioSource
 {
 	//! In the player's own inventory, not worn as the backpack
@@ -17,7 +17,8 @@ enum LC_ERadioSource
 }
 
 //------------------------------------------------------------------------------------------------
-//! The local player's radios as the plugin sees them: one per vanilla VON radio entry (transceiver)
+//! The local player's radios as the plugin sees them: one per radio entry (transceiver), vanilla VON's plus
+//! LC_Client's entries for radios held by lease
 class LC_Radio
 {
 	//! Range announced for a Game Master's radios: far past any map, so distance and terrain both come out as
@@ -85,16 +86,24 @@ class LC_Radio
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Where one of the local player's own radios is. Every radio in the VON list is on the player's body
-	//! today: worn as the backpack, or anywhere else in the inventory.
-	static LC_ERadioSource GetSource(notnull SCR_VONEntryRadio entry, IEntity wornBackpack)
+	//! Where one of the local player's radios is: worn as the backpack, anywhere else on the body, or (for a
+	//! radio off the body that the player holds a lease on) what the lease's kind says
+	static LC_ERadioSource GetSource(notnull SCR_VONEntryRadio entry, IEntity character, IEntity wornBackpack, LC_RadioLeases leases)
 	{
 		BaseTransceiver transceiver = entry.GetTransceiver();
-		if (!wornBackpack || !transceiver || !transceiver.GetRadio())
+		if (!transceiver || !transceiver.GetRadio())
 			return LC_ERadioSource.HELD;
 
-		if (transceiver.GetRadio().GetOwner() == wornBackpack)
+		IEntity owner = transceiver.GetRadio().GetOwner();
+		if (wornBackpack && owner == wornBackpack)
 			return LC_ERadioSource.PACK;
+
+		if (leases && character && owner && owner.GetRootParent() != character)
+		{
+			int kind = leases.GetOwnKind(LC_RadioLeases.GetRadioId(owner));
+			if (kind >= 0)
+				return LC_RadioLeases.GetSourceOfKind(kind);
+		}
 
 		return LC_ERadioSource.HELD;
 	}
@@ -169,12 +178,14 @@ class LC_Radio
 	//! "radios" array of game_state.json
 	//! \param character the local player's controlled entity, whose worn backpack tells a manpack from the rest
 	//! \param bodyPosition antenna of every radio on the body: the listener position the plugin used to announce
-	//! for every transmission, so that nothing changes for a held or worn radio
+	//! for every transmission, so that nothing changes for a held or worn radio. A leased radio's antenna is
+	//! the radio entity itself.
 	//! \param unlimitedRange announces every radio as having limitless reach, for a Game Master transmitting
 	//! from the editor camera. Only what we transmit is affected; what we hear still goes by the real range.
 	static string BuildJson(notnull array<SCR_VONEntryRadio> entries, notnull LC_RadioSettings settings, IEntity character, vector bodyPosition, bool unlimitedRange = false)
 	{
 		IEntity wornBackpack = GetWornBackpack(character);
+		LC_RadioLeases leases = LC_RadioLeases.Get();
 		string bodyJson = LC_Json.Position(bodyPosition);
 		string json = "[";
 		bool first = true;
@@ -206,8 +217,12 @@ class LC_Radio
 			json += ",\"beep\":" + LC_Json.String(settings.GetBeepSet(entry));
 			int halfDuplex = GetRadioMode(entry) == LC_ERadioMode.HALF_DUPLEX;
 			json += ",\"halfDuplex\":" + halfDuplex.ToString();
-			json += ",\"src\":" + LC_Json.String(GetSourceName(GetSource(entry, wornBackpack)));
-			json += ",\"pos\":" + bodyJson + "}";
+			LC_ERadioSource source = GetSource(entry, character, wornBackpack, leases);
+			json += ",\"src\":" + LC_Json.String(GetSourceName(source));
+			if (IsOnBody(source))
+				json += ",\"pos\":" + bodyJson + "}";
+			else
+				json += ",\"pos\":" + LC_Json.Position(LC_RadioLeaseRule.GetWorldPosition(radio.GetOwner())) + "}";
 		}
 
 		return json + "]";

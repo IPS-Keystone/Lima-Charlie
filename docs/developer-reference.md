@@ -106,12 +106,13 @@ Protocol 10 (3.0 test builds; 2.0.x is 9).
 - `radios[].id` is `<radio RplId>:<transceiver number>`, unique among the player's own radios.
 - `radios[].range` is the announced range, which is 1000000 for a Game Master with the editor open.
 - `radios[].src` is where the radio physically is: `held` (in the inventory), `pack` (worn as the backpack:
-  its radio entity is the character's `LoadoutBackpackArea` cloth), `borrowed`, `vehicle` or `speaker`. Only
-  `held` and `pack` are sent so far; the rest are reserved for 3.0 manpack handsets, vehicle radios and
-  speakers. An unknown name reads as `held`. New in protocol 10.
+  its radio entity is the character's `LoadoutBackpackArea` cloth), `borrowed` or `vehicle` (a radio off
+  the body held by a **radio lease** of that kind, below), or `speaker` (reserved). An unknown name reads as
+  `held`. New in protocol 10.
 - `radios[].pos` is the radio's antenna, which is what the plugin announces in `RTX` when transmitting on
-  it. For a held or worn radio it is `self.pos`, the position every transmission came from before. A radio
-  with no `pos` is taken to be at `self.pos`. New in protocol 10.
+  it. For a held or worn radio it is `self.pos`, the position every transmission came from before; for a
+  leased one it is the radio entity's world position. A radio with no `pos` is taken to be at `self.pos`.
+  New in protocol 10.
 - `players[]` holds only players within 60 m; `muffle` is 0 clear to 1 fully obstructed. `room` is how
   much of the listener's room that voice fills, which scales the reverb send only: 1 in the same room,
   0.35 elsewhere in the building, 0.1 from outdoors. New in protocol 8.
@@ -165,6 +166,58 @@ Read last, after the defaults, `Settings.conf` and the mission header, and it wi
 it is the only layer an operator can change without republishing. Applied key by key through
 `DoesKeyExist`, so a file with one key overrides one setting. Written out in full by `WriteTemplate()` the
 first session it is missing. See [server-settings.md](server-settings.md) for the key formats.
+
+## Radio leases (3.0)
+
+Access to a radio that is not in your own inventory (a borrowed manpack's handset, a vehicle radio from a
+seat; later the infantry phone and SATCOM links) is arbitrated by the server. Only access: what is said
+stays client-trusted. Access is not exclusive: any number of players can hold one radio, and its owner
+never needs a lease.
+
+- **Where:** `LC_RadioLeases` (`Radio/LC_RadioLeases.c`), one per game mode
+  (`SCR_BaseGameMode.LC_GetRadioLeases()`, or `LC_RadioLeases.Get()`). The server keeps the leases and their
+  rules and publishes them as `(radio RplId, player id, kind)` triples in one `[RplProp] array<int>` on the
+  modded `SCR_BaseGameMode` (`LC_BaseGameMode.c`). No radio prefab needs a component, and late joiners get
+  the state with the game mode.
+- **Keys:** a radio is its entity's `RplComponent.Id()`, the same number as `LC_Radio.GetRadioKey` (the part of
+  `radios[].id` before the colon).
+- **Kinds** (`LC_ERadioLeaseKind`): `BORROWED` → `src` `borrowed`, `VEHICLE` → `src` `vehicle`.
+- **Client API:** `Request(radio, kind)`, `Release(radio)`, `ReleaseAll()`, `IsHolder(playerId, radio)`,
+  `GetHolders(radio, out playerIds)`, `GetOwnLeases(out radios, out kinds)`, `GetOwnKind(radioId)`,
+  `GetOnOwnLeasesChanged()` (fires on your machine when a lease of yours is granted or ends),
+  `GetOwnRevision()`.
+- **RPCs** (`LC_PlayerController.c`, always on behalf of the controller's own player):
+  `RpcAsk_LC_RequestRadioLease(RplId, kind)`, `RpcAsk_LC_ReleaseRadioLease(RplId)`, and
+  `RpcDo_LC_RadioLeaseRefused(RplId, refusal)` back to the owner. A grant has no answer of its own: it
+  arrives with the replicated state.
+- **Server checks on a request:** the player controls a living character (unconscious is fine), the radio
+  exists and has a `BaseRadioComponent`, it is not in the requester's own inventory, and every rule allows
+  it. Asking again for a radio already held is a grant that changes nothing. Refusals
+  (`LC_ERadioLeaseRefusal`) are logged on both ends: `[LC] Radio lease refused: ...`.
+- **Rules** (`Radio/LC_RadioLease.c`), subclasses of `LC_RadioLeaseRule` (`Allows(holder, radio, granting)`):
+  - `LC_RadioLeaseDistanceRule(m)`: holder within m of the radio entity (0.5 m slack while held).
+    `BORROWED` gets `HANDSET_CABLE_M` (4 m) by default.
+  - `LC_RadioLeaseSeatRule(vehicle, seats)`: holder sits in the vehicle in one of the `LC_ERadioLeaseSeat`
+    flags (pilot / commander / gunner / cargo; commander = `TURRET` slot named `CommanderTurret`). `VEHICLE`
+    gets the vehicle the radio is on (topmost parent with a compartment manager) with pilot + commander +
+    gunner. Override `IsSeatAllowed(slot)` for vehicles that name seats differently.
+  - Which rules a lease gets: override `LC_RadioLeases.CollectRules(kind, radio, holder, rules)` in a
+    `modded class`. No rules means refused, so no kind reaches a radio across the map.
+- **Ends:** explicit release; death (`OnPlayerKilled` / `OnPlayerKilledHandled`); disconnect
+  (`OnPlayerDisconnected`); and a server check every 500 ms, run only while leases exist, that ends a lease
+  whose radio entity is gone, whose player now controls a different entity (respawn, possession), whose
+  holder is dead, or whose rules no longer allow it. A seat rule also re-checks on the holder's seat events
+  (`SCR_CompartmentAccessComponent` entered / left; a seat switch is checked on the entry only). Logged as
+  `[LC] Radio lease granted / ended: player, radio, kind or reason`.
+- **Bridge:** `LC_Client` adds an `SCR_VONEntryRadio` per transceiver of each radio you hold (not added to the
+  VON menu) after vanilla's entries, so transmit keys of carried radios keep their places, and drops it if
+  vanilla lists that radio itself. Only radios with an `SCR_RadioComponent` gadget are listed (vanilla's
+  unused vehicle radios have none). `radios[]` then lists them with `src` `borrowed` / `vehicle` and the
+  entity's position; the plugin needs no change.
+- **Trying it** (Workbench / diag exe only, `#ifdef ENABLE_DIAG`, `Radio/LC_RadioLeaseDiag.c`): Diag menu
+  → *Lima Charlie* → *Lease nearest radio* (nearest radio entity within 4 m that is not yours, including a
+  manpack someone nearby wears) or *Lease this vehicle's radio* (the vehicle's own radio or its first radio
+  child). Unticking either releases all your leases. Results are in the log.
 
 ## Hearing hook for other mods
 
@@ -305,6 +358,7 @@ process-wide and costs power system-wide, and TeamSpeak is usually open far long
 | Bridge | `LC_GameStateWriter.c`, `LC_PluginStateReader.c`, `LC_Json.c`, `LC_SoundQueue.c` |
 | Session and settings | `LC_Session.c`, `LC_Settings.c`, `LC_ServerSettings.c`, `LC_MissionHeader.c`, `LC_PlayerController.c`, `LC_BaseGameMode.c` |
 | Radios | `LC_Radio.c`, `LC_RadioSettings.c`, `LC_RadioMode.c`, `LC_RadioLinks.c`, `LC_Terrain.c`, `LC_VONEntryRadio.c`, `LC_FrequencyInput.c` |
+| Radio leases | `LC_RadioLeases.c`, `LC_RadioLease.c` (kinds, refusals, rules), `LC_RadioLeaseDiag.c` (diag only) |
 | Channel names | `LC_ChannelLabel.c`, `LC_ChannelLabels.c` |
 | Voice | `LC_VONController.c`, `LC_VoiceLevel.c`, `LC_Occlusion.c`, `LC_Rooms.c`, `LC_Hearing.c` (hook for other mods) |
 | AI | `LC_AIHearing.c`, `LC_AIConfigComponent.c`, `LC_VoiceDangerEvent.c` |
