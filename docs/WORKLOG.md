@@ -321,3 +321,6 @@ session; update after each meaningful step and before ending one. Never rewrite 
     `HANDSET_OFFSET` / `HANDSET_ANGLES` / `CORD_EXIT` constants in LC_HandsetCable.c), colour, no hold
     animation (the hand keeps the weapon pose). That Workbench instance is still open in play mode behind the
     dialog.
+  - Later: Duke answered the dialog (rule from now on: answer it with Yes to All myself; wiki + memory). Play mode
+    then ran: `21:31:00.386 [LC] Client started`, the per-frame tick (cable manager included) ran with no
+    `SCRIPT (E)` / NULL pointer. No phone picked up (no input from this session), so cable and handset still unseen.
