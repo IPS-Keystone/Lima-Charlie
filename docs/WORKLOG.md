@@ -324,3 +324,10 @@ session; update after each meaningful step and before ending one. Never rewrite 
   - Later: Duke answered the dialog (rule from now on: answer it with Yes to All myself; wiki + memory). Play mode
     then ran: `21:31:00.386 [LC] Client started`, the per-frame tick (cable manager included) ran with no
     `SCRIPT (E)` / NULL pointer. No phone picked up (no input from this session), so cable and handset still unseen.
+- 2026-11-02 (Duke's first look, Workbench play, LAV-25): phone action, lease and handset spawn work at
+  `door_back_right`. Wrong: the cable starts at the hand, not the handset's bottom (debris model origin off the
+  handset; offsets all zero); the cable renders white and ribbon-like, not black; the handset hangs in the weapon
+  pose. Fixed: the handset prefab's MLOD material remap (`RESOURCES (E) Can't remap ... PhoneWall_01_MLOD`), `abd8e63`.
+  Duke asks: **force the radio inspect animation** while holding the phone, and place the handset and cable to
+  match it. Handed to a fresh session (context budget); brief in the side-session notes,
+  `handset-pose-cable-handover.md`.
