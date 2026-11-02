@@ -11,7 +11,7 @@
   the new **Intercom** entry at the end of the radio menu (scroll to cycle; No Intercom turns it off).
   Driver, commander and gunner start on crew, everyone else on cargo. Protocol stays 10.
 - **Infantry phone.** The BTR-70 and LAV-25 have a phone at the rear: pick it up to talk to the crew over the
-  intercom (Misc channel) from outside, within about 5 m. Modded vehicles can add one with a single prefab
+  intercom (Crew channel) from outside, within about 5 m. Modded vehicles can add one with a single prefab
   override and no script (docs/developer-reference.md, "Infantry phone").
 
 ## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)

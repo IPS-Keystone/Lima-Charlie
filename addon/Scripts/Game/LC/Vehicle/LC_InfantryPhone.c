@@ -16,7 +16,7 @@ class LC_InfantryPhoneComponent : ScriptComponent
 	[Attribute("5", UIWidgets.Slider, "How far the holder may walk from the phone before it is hung up (m)", "1 30 0.5", category: "Infantry phone")]
 	protected float m_fCableLength;
 
-	[Attribute("4", UIWidgets.ComboBox, "Intercom channel the holder starts on; they can pick another from the radio menu like any seat", "", ParamEnumArray.FromEnum(LC_EIntercomChannel), category: "Infantry phone")]
+	[Attribute("1", UIWidgets.ComboBox, "Intercom channel the holder starts on (Crew, so the phone reaches the crew without them switching); they can pick another from the radio menu like any seat", "", ParamEnumArray.FromEnum(LC_EIntercomChannel), category: "Infantry phone")]
 	protected LC_EIntercomChannel m_eChannel;
 
 	//------------------------------------------------------------------------------------------------
@@ -43,11 +43,11 @@ class LC_InfantryPhoneComponent : ScriptComponent
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! The channel the holder starts on (a misconfigured NONE counts as MISC, or the phone would be dead)
+	//! The channel the holder starts on (a misconfigured NONE counts as CREW, or the phone would be dead)
 	LC_EIntercomChannel GetChannel()
 	{
 		if (m_eChannel == LC_EIntercomChannel.NONE || !LC_Intercom.IsChannel(m_eChannel))
-			return LC_EIntercomChannel.MISC;
+			return LC_EIntercomChannel.CREW;
 
 		return m_eChannel;
 	}

@@ -278,6 +278,9 @@ session; update after each meaningful step and before ending one. Never rewrite 
        Intercom: off. Check the radial centre label follows the name on scroll, and whether the menu closes when
        a radio lease is granted while it is open.
     6. Phone (BTR-70 and LAV-25 rear): on foot, Pick Up Infantry Phone: `[LC] Radio lease granted: ... PHONE`,
-       Intercom entry appears on Misc; a crew member switches to Misc and you hear each other; walk > ~5.5 m:
+       Intercom entry appears on Crew; the driver/commander/gunner hear you with no switching; walk > ~5.5 m:
        `OUT_OF_RANGE` end, entry gone; pick up again then Hang Up; pick up then get into any vehicle seat
        (`WRONG_SEAT` end); pick up then die. The action must not show on a civilian vehicle or from inside.
+- 2026-11-02 (Duke): **phone default channel Crew, not Misc.** `LC_InfantryPhoneComponent.m_eChannel` default 1
+  (Crew); a misconfigured NONE now falls back to Crew. Docs, CHANGELOG, plan (decision), test list updated
+  (item 6 above already reads Crew). The prefab overrides set no channel, so they follow the default.

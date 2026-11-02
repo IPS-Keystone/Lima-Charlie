@@ -265,7 +265,7 @@ the crew. Vanilla BTR-70 and LAV-25 have one at the rear (`push_rear`, where Pus
 are). Any other vehicle gets one from **one prefab override and no script**.
 
 - **Pieces** (`Vehicle/LC_InfantryPhone.c`): `LC_InfantryPhoneComponent` on the vehicle (attributes: action
-  context name, default `push_rear`; cable length, default 5 m; intercom channel, default Misc) and
+  context name, default `push_rear`; cable length, default 5 m; intercom channel, default Crew) and
   `LC_InfantryPhoneAction` in the vehicle's `ActionsManagerComponent`, in that context. It needs
   `LC_VehicleCommsComponent` with its intercom on the same vehicle; every vanilla vehicle base already has
   it (a military-only intercom has no phone on a civilian vehicle either).
