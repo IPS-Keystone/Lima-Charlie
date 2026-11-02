@@ -8,10 +8,6 @@ GenericEntity {
      SourceMaterial "PhoneWall_01"
      AssignedMaterial "{07F889D3A570D5DC}Assets/Props/Services/PhoneWall_01/Data/PhoneWall_01_blue.emat"
     }
-    MaterialAssignClass "{8A23695E043E4562}" {
-     SourceMaterial "PhoneWall_01_MLOD"
-     AssignedMaterial "{81888689C183D170}Assets/Props/Services/PhoneWall_01/Data/PhoneWall_01_blue_MLOD.emat"
-    }
    }
   }
  }
