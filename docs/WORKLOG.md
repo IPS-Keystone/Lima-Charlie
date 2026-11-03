@@ -99,3 +99,11 @@ session; update after each meaningful step and before ending one. Never rewrite 
     5697x files; 11155x classes`, 0 `SCRIPT (E)`.
   - NOT tested in play or MP: editor close and radio drop order, overflow with OTAC, apartment frame times, muffle
     glide by ear.
+
+## 2026-11-04 (bugfix-2.0.6)
+- Room occlusion / building paths performance pass: docs/investigations/2026-11-03-room-occlusion-performance.md
+  (code read first, 2.0.6 investigation compared after). 2.0.6 already removes the big recurring cost (per-write
+  solve, ~50x fewer script calls in the apartment). Still open, unmeasured: 8 path slots thrash at 9+ live
+  buildings; `Locate` sphere query every write for any moving player (0.5 m OR 500 ms) and per-child callbacks;
+  `GetPrefabName` per speaker per write in `GetLayout`; trace filter does casts + prefab name before the width
+  test; portal costs read per slot not per building; unguarded portal index on a variant building. No code changed.
