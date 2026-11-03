@@ -107,3 +107,15 @@ session; update after each meaningful step and before ending one. Never rewrite 
   buildings; `Locate` sphere query every write for any moving player (0.5 m OR 500 ms) and per-child callbacks;
   `GetPrefabName` per speaker per write in `GetLayout`; trace filter does casts + prefab name before the width
   test; portal costs read per slot not per building; unguarded portal index on a variant building. No code changed.
+- Rooms fixes 1-5 + 7 committed (f9480cc): 32 path slots, per-building shared portal costs with global revision,
+  Locate 150 ms minimum + per-query visited list, layout cached on LC_RoomLocation, layout ignored (and never
+  mapped) when the instance's area/portal counts differ from the prefab's map, FilterCover width first. Evidence:
+  enforce_check clean; Workbench logs_2026-11-03_22-54-22 `00:08:53 Module: Game; loaded 5697x files; 11158x
+  classes`, no LC errors. Not run in MP.
+- Whole-mod performance pass with Workbench timings: docs/investigations/2026-11-04-whole-mod-performance.md
+  (bench sources + raw output in docs/investigations/bench/). Top items: mapping 3.6 ms/write x 313 writes in
+  the apartment and never completes (cap 40,000 < ~71,000 cells, 87 portals unfound); game_state.json write
+  ~0.4 ms/write (proxy); writer JSON 190-485 us/write (one append per player saves 13-30%); plugin_state poll
+  108 us/50 ms; GetId rebuilt ~4x per radio per write. Steady state ~0.8-1 ms/write. No code changed by the pass.
+- Waiting on Duke: mapping budget by portal count and/or layouts saved to $profile; writer JSON one-append;
+  GetId cached on the entry.

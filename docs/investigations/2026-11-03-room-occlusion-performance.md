@@ -120,3 +120,10 @@ New here, not in that investigation:
 Its tests still apply, and they are the oracle for all of this: the 20–25 min apartment vs shelter run with
 frame times (diagnostics off), then with rooms bypassed. Add a town run with a moving squad outdoors for (1) and
 (2).
+
+## Follow-up, measured (2026-11-04)
+
+Fixes 1-5 and 7 landed in f9480cc. Timed in Workbench afterwards (`2026-11-04-whole-mod-performance.md`): a
+sphere query costs ~2 µs and a trace pair through a building ~13 µs, so fixes 2 and 4 save little. The real cost
+is mapping: 3.6 ms a write for 313 writes in the apartment, which also stops at the 40,000-cell cap with 87
+portals unfound. Finding 6 ("traces are likely the largest remaining indoor cost") is wrong.
