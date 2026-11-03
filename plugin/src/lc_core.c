@@ -639,6 +639,62 @@ static void log_hearing(void)
     lc_logf(LC_LOG_INFO, "Hearing: direct %s; radio %s", direct, radio);
 }
 
+/* A speaker's muffle and room share as the listener hears them, gliding toward what the game last said.
+   The game decides them once a write from traces and room paths, and people shuffling in a room flip a voice
+   between clear and one wall behind every second or so; heard as steps, that was a voice pumping 5-8 dB and
+   losing its top end in jumps. */
+typedef struct {
+    int                playerId;
+    float              muffle;
+    float              room;
+    unsigned long long seenMs;
+} lc_smoothed_voice;
+
+/* A speaker not seen for this long starts again from the game's values rather than gliding from old ones */
+#define LC_SMOOTH_FORGET_MS 1000ULL
+
+static lc_smoothed_voice g_smoothed[LC_AUDIO_MAX_TARGETS];
+static int               g_smoothedCount;
+
+/* Worker thread. The smoothed values for one speaker, moved on by the time since they were last seen. */
+static void smooth_voice(int playerId, float muffle, float room, unsigned long long nowMs, float* smoothMuffle, float* smoothRoom)
+{
+    lc_smoothed_voice* slot = NULL;
+    lc_smoothed_voice* spare = NULL;
+    for (int i = 0; i < g_smoothedCount; ++i) {
+        lc_smoothed_voice* entry = &g_smoothed[i];
+        if (entry->playerId == playerId) {
+            slot = entry;
+            break;
+        }
+        if (!spare && nowMs - entry->seenMs > LC_SMOOTH_FORGET_MS)
+            spare = entry;
+    }
+
+    if (slot && nowMs - slot->seenMs <= LC_SMOOTH_FORGET_MS) {
+        const float elapsed = (float)(nowMs - slot->seenMs);
+        slot->muffle        = lc_direct_voice_ease(slot->muffle, muffle, elapsed, LC_MUFFLE_SMOOTH_MS);
+        slot->room          = lc_direct_voice_ease(slot->room, room, elapsed, LC_MUFFLE_SMOOTH_MS);
+    } else {
+        if (!slot)
+            slot = spare;
+        if (!slot && g_smoothedCount < LC_AUDIO_MAX_TARGETS)
+            slot = &g_smoothed[g_smoothedCount++];
+        if (!slot) {
+            *smoothMuffle = muffle;
+            *smoothRoom   = room;
+            return;
+        }
+        slot->playerId = playerId;
+        slot->muffle   = muffle;
+        slot->room     = room;
+    }
+
+    slot->seenMs  = nowMs;
+    *smoothMuffle = slot->muffle;
+    *smoothRoom   = slot->room;
+}
+
 /* Who can be heard, and how, from the latest game state: direct speech from nearby peers plus radio
    transmissions on frequencies our radios are tuned to. Everyone else in TeamSpeak is silenced while in game. */
 static void publish_voice(int connected, int inGame, unsigned long long nowMs)
@@ -670,11 +726,13 @@ static void publish_voice(int connected, int inGame, unsigned long long nowMs)
                 continue;
             lc_voice_target* target = &targets[count];
             memset(target, 0, sizeof(*target));
-            if (!lc_direct_voice_compute(g_game.pos, g_game.dir, player->pos, peers[i].voiceRange, player->muffle, &target->gainLeft, &target->gainRight))
+            float muffle, room;
+            smooth_voice(player->id, player->muffle, player->room, nowMs, &muffle, &room);
+            if (!lc_direct_voice_compute(g_game.pos, g_game.dir, player->pos, peers[i].voiceRange, muffle, &target->gainLeft, &target->gainRight))
                 continue;
             target->client = peers[i].client;
-            target->muffle = player->muffle;
-            target->roomShare = player->room;
+            target->muffle = muffle;
+            target->roomShare = room;
             ++count;
         }
 

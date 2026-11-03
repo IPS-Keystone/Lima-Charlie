@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.0.6 — mod 2.0.6, plugin 2.0.6 (testing, unreleased)
+
+Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchanged (9).
+
+- **Radio channels no longer swap places.** Closing the Game Master editor, dropping a radio or leaving a
+  vehicle used to reshuffle the radio menu and move the transmit keys onto other channels: the game removes a
+  radio by moving the last one into its slot. Lima Charlie now puts the moved one back at the end, so the
+  order stays as it was. A Game Master's editor channels now come after their own radios, so opening the
+  editor no longer takes over TX 1-4.
+- **Smoother when several people talk on the radio at once.** With OTAC Core loaded, an incoming radio
+  speaker beyond the VON display's slots made OTAC's display code throw an error, and Lima Charlie raised it
+  again up to 20 times a second until a slot freed. Each error wrote a full stack trace to three log files.
+  It now happens once per overflow. The error itself is OTAC Core's to fix.
+- **Less work in big buildings.** The path through a building's rooms was worked out again on every update,
+  up to 20 times a second, across every doorway of the building. A Soviet apartment block has 117 rooms and
+  over 300 doorways and windows. Paths are now kept per building and only worked out again when a door or
+  window changes (checked four times a second), and the search only follows each room's own doorways.
+  Someone outdoors near several mapped buildings no longer throws one building's answer away for the next.
+- **Room mapping stops when it has covered the building.** It used to carry on probing above the roof until
+  it hit its cap, whenever it could not find every doorway. That was a few extra seconds of mapping per
+  building type.
+- **Room diagnostic log is cheaper.** With `roomDiagnosticLog` on, measuring how solid a blocker is (the
+  `s0.42` figure) walked every collider of the blocking object, often a whole building, on every occlusion
+  check. It is now measured only for the line about to be printed.
+- **Voices behind walls no longer pump.** When people shuffle in a room, a voice can flip between clear and
+  one wall behind every second or so; that was heard as a 5-8 dB step and the top end cutting in and out.
+  The muffle and room echo now glide to the new value over about 200 ms.
+
 ## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)
 
 Since 2.0.4.

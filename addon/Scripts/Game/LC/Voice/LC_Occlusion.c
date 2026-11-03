@@ -248,7 +248,9 @@ class LC_Occlusion
 
 	//------------------------------------------------------------------------------------------------
 	//! What blocked the last trace and how many props it ignored on the way, for the diagnostic line
-	string DescribeCover()
+	//! \param solidity also measure how much of the blocker's box its colliders fill. That walks every collider
+	//! of the entity, often a whole block of flats, so it is only worth doing for a line about to be printed.
+	string DescribeCover(bool solidity = false)
 	{
 		string text;
 		if (m_CoverEntity)
@@ -264,7 +266,9 @@ class LC_Occlusion
 			if (prefab.IsEmpty())
 				prefab = "unnamed";
 
-			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m " + DescribeSolidity(m_CoverEntity);
+			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m";
+			if (solidity)
+				text += " " + DescribeSolidity(m_CoverEntity);
 		}
 		else if (m_bCoverIsWorld)
 		{

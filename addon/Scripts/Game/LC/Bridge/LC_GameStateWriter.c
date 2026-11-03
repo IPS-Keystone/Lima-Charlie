@@ -70,6 +70,8 @@ class LC_GameStateWriter
 	protected ref LC_RoomLocation m_ListenerRoom = new LC_RoomLocation();
 	protected int m_iNextRoomDiagnosticTick;
 	protected bool m_bRoomDiagnostics;
+	//! This write prints the room line, so the costly parts of the cover description are worth working out
+	protected bool m_bRoomLineDue;
 	protected int m_iRoomsResolved;
 	protected int m_iRoomsTraced;
 	protected string m_sRoomDiagnostic;
@@ -124,6 +126,7 @@ class LC_GameStateWriter
 
 		m_sRoomDiagnostic = string.Empty;
 		m_bRoomDiagnostics = client.GetRoomDiagnostics();
+		m_bRoomLineDue = m_bRoomDiagnostics && now >= m_iNextRoomDiagnosticTick;
 		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, radios, now, unlimitedRange);
 		WriteFile(json);
 		LogDiagnostic(now, json, client.GetDiagnosticLog());
@@ -304,7 +307,7 @@ class LC_GameStateWriter
 
 		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
 		float roomMuffle;
-		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, roomMuffle))
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, now, roomMuffle))
 		{
 			sample.m_bFromRooms = true;
 			m_iRoomsResolved++;
@@ -348,7 +351,7 @@ class LC_GameStateWriter
 		m_iTraceBudget--;
 		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
 		if (m_bRoomDiagnostics)
-			sample.m_sCover = m_Occlusion.DescribeCover();
+			sample.m_sCover = m_Occlusion.DescribeCover(m_bRoomLineDue);
 		sample.m_vListener = listenerPosition;
 		sample.m_vSpeaker = speakerPosition;
 		sample.m_iTracedTick = now;

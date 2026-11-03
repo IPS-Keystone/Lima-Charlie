@@ -85,3 +85,17 @@ session; update after each meaningful step and before ending one. Never rewrite 
   `main` (= v2.0.5 + release docs). The 3.0 work lives in Workbench "Lima Charlie DEV", junctioned as `addon-dev\`
   (local only, in `.git/info/exclude`). DEV matched feature/3.0-comms 17bf712 at the switch (only two .edds.meta
   trailing newlines differ). feature/3.0-comms is 9 commits ahead of origin (unpushed).
+- **2.0.6 fixes** on `bugfix-2.0.6` (both halves `2.0.6`, protocol 9):
+  - scramble: modded `SCR_VONController.RemoveEntry` puts back the entry vanilla's `RemoveItem` swapped in;
+    `LC_GetRadioEntries` lists GM editor entries last.
+  - VON overflow: `LC_VonDisplay.LC_IsStuckOverflow` (additional and never active); the feed skips those speakers.
+  - rooms: `Build` finishes on grid exhaustion, cap inside the loop; per-area adjacency at `Finish`; `LC_RoomPaths`
+    cache (8 slots, keyed subscene + layout + source area, LRU), portals re-read every 250 ms, search
+    (queue-based) only on a cost change.
+  - diag: collider volume only when the room line is due.
+  - plugin: per-player muffle and room glide (`lc_direct_voice_ease`, tau 200 ms) in `publish_voice`.
+  - Evidence: plugin build /W4 clean, "All checks passed", `LimaCharlie_2.0.6.ts3_plugin`; enforce_check 37 files
+    clean; Workbench (ClaudeDevTools → Lima Charlie) logs_2026-11-03_22-54-22 `22:54:28.683 Module: Game; loaded
+    5697x files; 11155x classes`, 0 `SCRIPT (E)`.
+  - NOT tested in play or MP: editor close and radio drop order, overflow with OTAC, apartment frame times, muffle
+    glide by ear.

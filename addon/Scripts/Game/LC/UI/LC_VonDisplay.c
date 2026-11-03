@@ -42,4 +42,15 @@ modded class SCR_VonDisplay
 
 		return shown;
 	}
+
+	//------------------------------------------------------------------------------------------------
+	//! A speaker vanilla parked on the "+N" overflow line whose entry never came on. That line has none of a
+	//! speaker's widgets, so a mod that styles them in UpdateTransmission without checking (OTAC Core) throws
+	//! there, and the throw skips vanilla's m_bIsActive. Every later OnReceive for that speaker would then run
+	//! UpdateTransmission and throw again, many times a second, until a line frees up.
+	bool LC_IsStuckOverflow(int playerId)
+	{
+		TransmissionData data = m_aTransmissionMap.Get(playerId);
+		return data && data.m_bIsAdditional && !data.m_bIsActive;
+	}
 }

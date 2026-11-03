@@ -80,6 +80,14 @@ static void test_direct_voice(void)
     const float right1[3] = {1.0f, 0.0f, 0.0f};
     CHECK(lc_direct_voice_compute(kOrigin, kNorth, right1, 20.0f, 0.0f, &left, &right));
     CHECK(left <= 1.0f && right <= 1.0f);
+
+    /* Muffle glides: 63% of the way after one time constant, nearly all of it after five, nothing without time */
+    CHECK(fabs(lc_direct_voice_ease(0.0f, 1.0f, LC_MUFFLE_SMOOTH_MS, LC_MUFFLE_SMOOTH_MS) - 0.632f) < 0.01f);
+    CHECK(lc_direct_voice_ease(0.0f, 0.6f, 5.0f * LC_MUFFLE_SMOOTH_MS, LC_MUFFLE_SMOOTH_MS) > 0.59f);
+    CHECK(lc_direct_voice_ease(0.6f, 0.0f, 0.0f, LC_MUFFLE_SMOOTH_MS) == 0.6f);
+    CHECK(lc_direct_voice_ease(0.6f, 0.0f, 5.0f, 0.0f) == 0.0f);
+    /* A one-poll flip (5 ms) moves the muffle by a few percent, not the whole step */
+    CHECK(lc_direct_voice_ease(0.0f, 0.6f, 5.0f, LC_MUFFLE_SMOOTH_MS) < 0.02f);
 }
 
 static void test_hello(void)

@@ -47,6 +47,22 @@ class LC_RoomPortal
 }
 
 //------------------------------------------------------------------------------------------------
+//! The cheapest muffle from one area of one building to every other area of it, and the portal costs it was
+//! found with
+class LC_RoomPaths
+{
+	//! Weak: a building that streams out leaves this empty, and the slot is reused
+	WorldSubsceneComponent m_Subscene;
+	LC_RoomLayout m_Layout;
+	int m_iFrom = LC_Rooms.AREA_NONE;
+	ref array<float> m_aDistance = {};
+	//! Per usable portal of the layout, by index
+	ref array<float> m_aCost = {};
+	int m_iCheckedTick;
+	int m_iUsedTick;
+}
+
+//------------------------------------------------------------------------------------------------
 //! The room layout of one building type.
 //!
 //! The engine says which area a point is in and how open each portal is, but not which areas a portal
@@ -85,6 +101,8 @@ class LC_RoomLayout
 	protected int m_iCellsY;
 	protected int m_iCellsZ;
 	protected ref map<int, ref LC_RoomPortal> m_mByPortal = new map<int, ref LC_RoomPortal>();
+	//! Per area, the indexes into m_aPortals of the portals touching it. Built when mapping finishes.
+	ref array<ref array<int>> m_aAreaPortals = {};
 
 	//------------------------------------------------------------------------------------------------
 	void Begin(string prefab, notnull IEntity building, notnull WorldSubsceneComponent subscene)
@@ -115,7 +133,10 @@ class LC_RoomLayout
 
 		float half = CELL_M * 0.5;
 		int spent;
-		while (spent < cellBudget)
+		// The grid running out ends the mapping too. It used to only end the batch, and the next write carried
+		// on probing past the top of the building until the cap stopped it.
+		bool exhausted;
+		while (spent < cellBudget && m_iCellsDone < MAX_CELLS)
 		{
 			vector cell = Vector(m_vMins[0] + (m_iCellX + 0.5) * CELL_M, m_vMins[1] + (m_iCellY + 0.5) * CELL_M, m_vMins[2] + (m_iCellZ + 0.5) * CELL_M);
 			vector mins = Vector(cell[0] - half, cell[1] - half, cell[2] - half);
@@ -129,10 +150,13 @@ class LC_RoomLayout
 				Record(subscene, portal, cell);
 
 			if (!Advance())
+			{
+				exhausted = true;
 				break;
+			}
 		}
 
-		if (m_aPortals.Count() >= m_iPortalCount || m_iCellsDone >= MAX_CELLS)
+		if (exhausted || m_aPortals.Count() >= m_iPortalCount || m_iCellsDone >= MAX_CELLS)
 			Finish();
 
 		return spent;
@@ -194,11 +218,26 @@ class LC_RoomLayout
 		if (m_iMissing < 0)
 			m_iMissing = 0;
 
-		// A portal whose two areas could not be established is no use for pathing
+		// A portal whose two areas could not be established is no use for pathing, and nor is one naming an area
+		// the building does not have
 		for (int i = m_aPortals.Count() - 1; i >= 0; i--)
 		{
-			if (!m_aPortals[i].JoinsKnownAreas())
+			LC_RoomPortal found = m_aPortals[i];
+			if (!found.JoinsKnownAreas() || found.m_iAreaA >= m_iAreaCount || found.m_iAreaB >= m_iAreaCount)
 				m_aPortals.Remove(i);
+		}
+
+		// Each area's portals, by index into m_aPortals, so a path search only looks at the doorways it can use
+		m_aAreaPortals.Clear();
+		for (int area = 0; area < m_iAreaCount; area++)
+		{
+			m_aAreaPortals.Insert(new array<int>());
+		}
+
+		foreach (int index, LC_RoomPortal portal : m_aPortals)
+		{
+			m_aAreaPortals[portal.m_iAreaA].Insert(index);
+			m_aAreaPortals[portal.m_iAreaB].Insert(index);
 		}
 	}
 
@@ -255,15 +294,17 @@ class LC_Rooms
 	//! Muffle standing for "no path at all". Anything at or above it means the graph cannot connect the two
 	//! areas, which is a reason to trace rather than to silence anybody.
 	protected static const float UNREACHABLE = 99;
+	//! Doors and windows are read again this often for paths already found, so a door opening or a window
+	//! breaking reaches the muffle within a quarter second
+	protected static const int PORTAL_RECHECK_MS = 250;
+	//! Paths kept at once: one per building and source area in use, more than enough for anyone nearby
+	protected static const int MAX_PATHS = 8;
 
 	protected ref map<string, ref LC_RoomLayout> m_mLayouts = new map<string, ref LC_RoomLayout>();
-	//! Muffle from one source area to every area of one building, reused by every speaker in it this write
-	protected ref array<float> m_aDistance = {};
-	protected ref array<float> m_aCost = {};
-	protected WorldSubsceneComponent m_SearchSubscene;
-	protected int m_iSearchArea = AREA_NONE;
-	protected int m_iSearchGeneration = -1;
-	protected int m_iGeneration;
+	protected ref array<ref LC_RoomPaths> m_aPaths = {};
+	//! Search scratch, reused rather than rebuilt
+	protected ref array<int> m_aQueue = {};
+	protected ref array<bool> m_aQueued = {};
 
 	//! Where the sphere query is looking and what it found, since a query callback carries nothing itself
 	protected vector m_vQueryPosition;
@@ -366,8 +407,6 @@ class LC_Rooms
 	//! yet. Called once per game state write.
 	void Update(notnull LC_RoomLocation listener)
 	{
-		// Door states change, so a path found last write is not reused in this one
-		m_iGeneration++;
 		m_iBuildSpent = 0;
 		if (!listener.IsIndoors())
 			return;
@@ -406,7 +445,7 @@ class LC_Rooms
 	//! clearer, since a path cost cannot know whether the two can simply see each other. 0 needs no trace,
 	//! because nothing can beat it.
 	//! \return false when the room model cannot answer, so tracing alone decides
-	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, out float muffle)
+	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, int now, out float muffle)
 	{
 		muffle = 0;
 
@@ -442,13 +481,14 @@ class LC_Rooms
 		if (!layout || !layout.m_bComplete || layout.m_aPortals.IsEmpty())
 			return false;
 
-		if (!EnsureDistances(subscene, layout, listenerArea))
-			return false;
-
 		if (speakerArea < 0 || speakerArea >= layout.m_iAreaCount)
 			return false;
 
-		float distance = m_aDistance[speakerArea];
+		LC_RoomPaths paths = FindPaths(subscene, layout, listenerArea, now);
+		if (!paths)
+			return false;
+
+		float distance = paths.m_aDistance[speakerArea];
 
 		// A pair the graph cannot connect - a doorway probing never found, or a room reachable only through
 		// one - is not silenced. It falls back to tracing, which is what happens without a room model at all.
@@ -497,81 +537,135 @@ class LC_Rooms
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Cheapest muffle from one area to every other, across the portals between them, computed once per
-	//! write and reused by every speaker measured from the same area. Doing it per speaker instead meant
-	//! reading every portal's state once per relaxation pass per listener, which is thousands of engine
-	//! calls a second in a building with a few rooms in it.
-	//!
-	//! There are only ever a handful of areas, so every edge is relaxed repeatedly rather than kept in a
-	//! sorted queue.
-	protected bool EnsureDistances(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, int from)
+	//! Cheapest muffle from one area to every other area of one building, across the portals between them.
+	//! Kept per building and source area, so an outdoor listener with speakers in several buildings does not
+	//! throw one answer away for the next, and reused across writes: the portals are read again every
+	//! PORTAL_RECHECK_MS, and the paths are only searched again when one of them has changed. Searching every
+	//! write took a full pass over every portal per area; a block of flats has over a hundred of each.
+	protected LC_RoomPaths FindPaths(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, int from, int now)
 	{
-		int areaCount = layout.m_iAreaCount;
-		if (from < 0 || from >= areaCount)
-			return false;
+		if (from < 0 || from >= layout.m_iAreaCount || layout.m_aAreaPortals.Count() < layout.m_iAreaCount)
+			return null;
 
-		if (m_SearchSubscene == subscene && m_iSearchArea == from && m_iSearchGeneration == m_iGeneration)
-			return true;
-
-		m_SearchSubscene = subscene;
-		m_iSearchArea = from;
-		m_iSearchGeneration = m_iGeneration;
-
-		// Reused rather than rebuilt: this runs every write
-		while (m_aDistance.Count() < areaCount)
+		LC_RoomPaths paths;
+		LC_RoomPaths oldest;
+		foreach (LC_RoomPaths candidate : m_aPaths)
 		{
-			m_aDistance.Insert(UNREACHABLE);
-		}
-
-		for (int i = 0; i < areaCount; i++)
-		{
-			m_aDistance[i] = UNREACHABLE;
-		}
-
-		while (m_aCost.Count() < layout.m_aPortals.Count())
-		{
-			m_aCost.Insert(0);
-		}
-
-		// Each portal's state is read once, not once per pass
-		foreach (int index, LC_RoomPortal portal : layout.m_aPortals)
-		{
-			m_aCost[index] = PortalMuffle(subscene, portal.m_iPortal);
-		}
-
-		m_aDistance[from] = 0;
-		for (int pass = 0; pass < areaCount; pass++)
-		{
-			bool changed = false;
-			foreach (int index, LC_RoomPortal portal : layout.m_aPortals)
+			if (candidate.m_Subscene == subscene && candidate.m_Layout == layout && candidate.m_iFrom == from)
 			{
-				if (portal.m_iAreaA >= areaCount || portal.m_iAreaB >= areaCount)
-					continue;
-
-				if (Relax(portal.m_iAreaA, portal.m_iAreaB, m_aCost[index]))
-					changed = true;
-
-				if (Relax(portal.m_iAreaB, portal.m_iAreaA, m_aCost[index]))
-					changed = true;
+				paths = candidate;
+				break;
 			}
 
-			if (!changed)
-				break;
+			// A building that has streamed out leaves its slot free
+			if (!oldest || !candidate.m_Subscene || (oldest.m_Subscene && candidate.m_iUsedTick < oldest.m_iUsedTick))
+				oldest = candidate;
 		}
 
-		return true;
+		bool search;
+		if (!paths)
+		{
+			if (m_aPaths.Count() < MAX_PATHS)
+			{
+				paths = new LC_RoomPaths();
+				m_aPaths.Insert(paths);
+			}
+			else
+			{
+				paths = oldest;
+			}
+
+			paths.m_Subscene = subscene;
+			paths.m_Layout = layout;
+			paths.m_iFrom = from;
+			paths.m_aCost.Clear();
+			search = true;
+		}
+
+		paths.m_iUsedTick = now;
+		if (!search && now - paths.m_iCheckedTick < PORTAL_RECHECK_MS)
+			return paths;
+
+		paths.m_iCheckedTick = now;
+		if (ReadCosts(subscene, layout, paths.m_aCost))
+			search = true;
+
+		if (search)
+			Search(layout, paths);
+
+		return paths;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	protected bool Relax(int from, int to, float cost)
+	//! Each usable portal's current cost; true if any differs from what the array held
+	protected bool ReadCosts(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, notnull array<float> costs)
 	{
-		float candidate = m_aDistance[from] + cost;
-		if (candidate >= m_aDistance[to])
-			return false;
+		int count = layout.m_aPortals.Count();
+		bool changed = costs.Count() != count;
+		costs.Resize(count);
+		foreach (int index, LC_RoomPortal portal : layout.m_aPortals)
+		{
+			float cost = PortalMuffle(subscene, portal.m_iPortal);
+			if (cost != costs[index])
+			{
+				costs[index] = cost;
+				changed = true;
+			}
+		}
 
-		m_aDistance[to] = candidate;
-		return true;
+		return changed;
 	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Cheapest path from the source area to every area. An area goes back on the queue only when its
+	//! distance improves, so each search looks at a few hundred portal ends rather than every portal once per
+	//! area. Every cost is positive, which is what lets it finish.
+	protected void Search(notnull LC_RoomLayout layout, notnull LC_RoomPaths paths)
+	{
+		int areaCount = layout.m_iAreaCount;
+		array<float> distance = paths.m_aDistance;
+		distance.Resize(areaCount);
+		m_aQueued.Resize(areaCount);
+		for (int i = 0; i < areaCount; i++)
+		{
+			distance[i] = UNREACHABLE;
+			m_aQueued[i] = false;
+		}
+
+		m_aQueue.Clear();
+		m_aQueue.Insert(paths.m_iFrom);
+		m_aQueued[paths.m_iFrom] = true;
+		distance[paths.m_iFrom] = 0;
+
+		int head;
+		while (head < m_aQueue.Count())
+		{
+			int area = m_aQueue[head];
+			head++;
+			m_aQueued[area] = false;
+
+			array<int> links = layout.m_aAreaPortals[area];
+			foreach (int index : links)
+			{
+				LC_RoomPortal portal = layout.m_aPortals[index];
+				int next = portal.m_iAreaA;
+				if (next == area)
+					next = portal.m_iAreaB;
+
+				float reached = distance[area] + paths.m_aCost[index];
+				if (reached >= distance[next])
+					continue;
+
+				distance[next] = reached;
+				if (!m_aQueued[next])
+				{
+					m_aQueue.Insert(next);
+					m_aQueued[next] = true;
+				}
+			}
+		}
+	}
+
 
 	//------------------------------------------------------------------------------------------------
 	//! What passing through one portal costs. A door reports how open it is; a window reports whether it

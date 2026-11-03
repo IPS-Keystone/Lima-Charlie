@@ -80,3 +80,13 @@ int lc_direct_voice_compute(const float listenerPos[3], const float listenerDir[
     *gainRight        = right > 1.0f ? 1.0f : right;
     return 1;
 }
+
+float lc_direct_voice_ease(float current, float target, float elapsedMs, float timeConstantMs)
+{
+    if (!(timeConstantMs > 0.0f))
+        return target;
+    if (!(elapsedMs > 0.0f))
+        return current;
+    const float moved = 1.0f - (float)exp(-elapsedMs / timeConstantMs);
+    return current + (target - current) * moved;
+}
