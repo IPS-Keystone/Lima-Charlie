@@ -18,6 +18,17 @@ Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchang
   over 300 doorways and windows. Paths are now kept per building and only worked out again when a door or
   window changes (checked four times a second), and the search only follows each room's own doorways.
   Someone outdoors near several mapped buildings no longer throws one building's answer away for the next.
+  Up to 32 paths are kept (a town fight spread over more than 8 buildings used to work every one out again on
+  every update), and each building's doors and windows are read once per check however many rooms paths
+  start from.
+- **Less work for people on the move.** Finding which building someone is in used to run on every update for
+  anyone running or in a vehicle nearby. It now runs at most about 7 times a second per person, and asks each
+  building once rather than once for every door and window of it.
+- **Cheaper occlusion traces.** Each object a trace passes is measured first, and only something wide enough
+  to be cover is checked further (tree, fence, person); posts and props are passed straight away. Same result.
+- **A building with a different room model under the same name is left to tracing.** A copy of a building with
+  its model swapped, or a destroyed building, could be read with another model's doorway numbers. It now
+  falls back to traces, and is never used to map that building type.
 - **Room mapping stops when it has covered the building.** It used to carry on probing above the roof until
   it hit its cap, whenever it could not find every doorway. That was a few extra seconds of mapping per
   building type.

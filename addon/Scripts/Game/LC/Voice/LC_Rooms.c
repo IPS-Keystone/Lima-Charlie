@@ -12,6 +12,10 @@ class LC_RoomLocation
 	float m_fVolume;
 	int m_iCheckedTick;
 	vector m_vCheckedPosition;
+	//! The layout of that building's type, looked up once per building rather than by prefab name every write.
+	//! Null when it has none this building can use.
+	LC_RoomLayout m_Layout;
+	bool m_bLayoutKnown;
 
 	//------------------------------------------------------------------------------------------------
 	bool IsIndoors()
@@ -26,6 +30,8 @@ class LC_RoomLocation
 		m_Subscene = null;
 		m_iArea = LC_Rooms.AREA_NONE;
 		m_fVolume = 0;
+		m_Layout = null;
+		m_bLayoutKnown = false;
 	}
 }
 
@@ -47,8 +53,23 @@ class LC_RoomPortal
 }
 
 //------------------------------------------------------------------------------------------------
-//! The cheapest muffle from one area of one building to every other area of it, and the portal costs it was
-//! found with
+//! What passing through each usable portal of one building costs right now. Shared by every path searched in
+//! that building, so its doors and windows are read once per recheck however many rooms paths start from.
+class LC_RoomCosts
+{
+	//! Weak: a building that streams out leaves this empty, and the slot is reused
+	WorldSubsceneComponent m_Subscene;
+	LC_RoomLayout m_Layout;
+	//! Per usable portal of the layout, by index
+	ref array<float> m_aCost = {};
+	//! Changes whenever any cost does, and is unique across buildings, so a path can tell its search is stale
+	int m_iRevision;
+	int m_iCheckedTick;
+	int m_iUsedTick;
+}
+
+//------------------------------------------------------------------------------------------------
+//! The cheapest muffle from one area of one building to every other area of it
 class LC_RoomPaths
 {
 	//! Weak: a building that streams out leaves this empty, and the slot is reused
@@ -56,9 +77,8 @@ class LC_RoomPaths
 	LC_RoomLayout m_Layout;
 	int m_iFrom = LC_Rooms.AREA_NONE;
 	ref array<float> m_aDistance = {};
-	//! Per usable portal of the layout, by index
-	ref array<float> m_aCost = {};
-	int m_iCheckedTick;
+	//! The cost revision the distances were searched with
+	int m_iRevision = -1;
 	int m_iUsedTick;
 }
 
@@ -287,6 +307,9 @@ class LC_Rooms
 	//! A location is rechecked after this long, or once its owner has moved this far
 	protected static const int RECHECK_MS = 500;
 	protected static const float RECHECK_MOVE_M = 0.5;
+	//! But never sooner than this. Anyone running or in a vehicle crosses the distance above every write, and
+	//! outdoors every recheck is a sphere query; at this rate a doorway is still noticed within a stride.
+	protected static const int RECHECK_MIN_MS = 150;
 	//! Probe cells spent per game state write while the local player stands in an unmapped building
 	protected static const int BUILD_BUDGET = 128;
 	protected static const float SEARCH_RADIUS_M = 0.5;
@@ -297,11 +320,18 @@ class LC_Rooms
 	//! Doors and windows are read again this often for paths already found, so a door opening or a window
 	//! breaking reaches the muffle within a quarter second
 	protected static const int PORTAL_RECHECK_MS = 250;
-	//! Paths kept at once: one per building and source area in use, more than enough for anyone nearby
-	protected static const int MAX_PATHS = 8;
+	//! Paths kept at once: one per building and source area in use. An outdoor listener needs one for every
+	//! building a nearby speaker is in, and a town spread over more buildings than this re-searches every one
+	//! of them every write, so it is set well above any plausible count. Each is a float per area.
+	protected static const int MAX_PATHS = 32;
+	//! Portal cost tables kept at once: one per building in use
+	protected static const int MAX_COSTS = 16;
 
 	protected ref map<string, ref LC_RoomLayout> m_mLayouts = new map<string, ref LC_RoomLayout>();
 	protected ref array<ref LC_RoomPaths> m_aPaths = {};
+	protected ref array<ref LC_RoomCosts> m_aCosts = {};
+	//! Last revision handed to a cost table
+	protected int m_iCostRevision;
 	//! Search scratch, reused rather than rebuilt
 	protected ref array<int> m_aQueue = {};
 	protected ref array<bool> m_aQueued = {};
@@ -311,6 +341,9 @@ class LC_Rooms
 	protected IEntity m_QueryBuilding;
 	protected WorldSubsceneComponent m_QuerySubscene;
 	protected int m_iQueryArea;
+	//! Entities this query has already walked to: a building's doors and windows are each returned on their
+	//! own, and would otherwise each walk up to the building and ask it the same question again
+	protected ref array<IEntity> m_aQueryVisited = {};
 
 	protected int m_iBuildSpent;
 
@@ -319,8 +352,12 @@ class LC_Rooms
 	//! location was last in is asked first, which answers it for anyone who has not left that building.
 	void Locate(notnull LC_RoomLocation location, vector position, int now)
 	{
+		int age = now - location.m_iCheckedTick;
+		if (age < RECHECK_MIN_MS)
+			return;
+
 		bool moved = vector.DistanceSq(location.m_vCheckedPosition, position) > RECHECK_MOVE_M * RECHECK_MOVE_M;
-		if (!moved && now - location.m_iCheckedTick < RECHECK_MS)
+		if (!moved && age < RECHECK_MS)
 			return;
 
 		location.m_iCheckedTick = now;
@@ -351,12 +388,20 @@ class LC_Rooms
 		m_QueryBuilding = null;
 		m_QuerySubscene = null;
 		m_iQueryArea = AREA_NONE;
+		m_aQueryVisited.Clear();
 		world.QueryEntitiesBySphere(position, SEARCH_RADIUS_M, OnQueryEntity, null, EQueryEntitiesFlags.STATIC);
+		m_aQueryVisited.Clear();
 
 		if (!m_QuerySubscene)
 		{
 			location.Clear();
 			return;
+		}
+
+		if (location.m_Building != m_QueryBuilding || location.m_Subscene != m_QuerySubscene)
+		{
+			location.m_Layout = null;
+			location.m_bLayoutKnown = false;
 		}
 
 		location.m_Building = m_QueryBuilding;
@@ -372,6 +417,11 @@ class LC_Rooms
 		IEntity parent = entity;
 		while (parent)
 		{
+			// Reached by an earlier entity of this query, which already asked everything above it
+			if (m_aQueryVisited.Contains(parent))
+				return true;
+
+			m_aQueryVisited.Insert(parent);
 			WorldSubsceneComponent subscene = WorldSubsceneComponent.Cast(parent.FindComponent(WorldSubsceneComponent));
 			if (subscene)
 			{
@@ -411,14 +461,27 @@ class LC_Rooms
 		if (!listener.IsIndoors())
 			return;
 
-		LC_RoomLayout layout = GetLayout(listener.m_Building, listener.m_Subscene);
+		LC_RoomLayout layout = GetLayout(listener);
 		if (layout && !layout.m_bComplete)
 			m_iBuildSpent = layout.Build(listener.m_Building, listener.m_Subscene, BUILD_BUDGET);
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! The layout of the building this location is in, looked up the first time it is needed there
+	protected LC_RoomLayout GetLayout(notnull LC_RoomLocation location)
+	{
+		if (!location.m_bLayoutKnown)
+		{
+			location.m_Layout = FindLayout(location.m_Building, location.m_Subscene);
+			location.m_bLayoutKnown = true;
+		}
+
+		return location.m_Layout;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! The layout for this building's type, started the first time we are inside one of them
-	LC_RoomLayout GetLayout(IEntity building, WorldSubsceneComponent subscene)
+	protected LC_RoomLayout FindLayout(IEntity building, WorldSubsceneComponent subscene)
 	{
 		if (!building || !subscene)
 			return null;
@@ -428,12 +491,20 @@ class LC_Rooms
 			return null;
 
 		LC_RoomLayout layout = m_mLayouts.Get(prefab);
-		if (layout)
+		if (!layout)
+		{
+			layout = new LC_RoomLayout();
+			layout.Begin(prefab, building, subscene);
+			m_mLayouts.Set(prefab, layout);
 			return layout;
+		}
 
-		layout = new LC_RoomLayout();
-		layout.Begin(prefab, building, subscene);
-		m_mLayouts.Set(prefab, layout);
+		// The map belongs to the prefab, but an instance can carry a different room model under the same name: a
+		// placed copy with its mesh swapped, or a destroyed building once its model is gone. Its portal and area
+		// numbers mean something else there, so it gets no map, neither used nor added to.
+		if (layout.m_iAreaCount != subscene.GetAreaCount() || layout.m_iPortalCount != subscene.GetPortalCount())
+			return null;
+
 		return layout;
 	}
 
@@ -455,8 +526,7 @@ class LC_Rooms
 
 		// Whoever is indoors owns the room model both are placed in. With two buildings involved there is
 		// no single model to path through.
-		WorldSubsceneComponent subscene = listener.m_Subscene;
-		IEntity building = listener.m_Building;
+		LC_RoomLocation inside = listener;
 		int listenerArea = listener.m_iArea;
 		int speakerArea = AREA_OUTSIDE;
 		if (listener.IsIndoors() && speaker.IsIndoors())
@@ -468,8 +538,7 @@ class LC_Rooms
 		}
 		else if (!listener.IsIndoors())
 		{
-			subscene = speaker.m_Subscene;
-			building = speaker.m_Building;
+			inside = speaker;
 			listenerArea = AREA_OUTSIDE;
 			speakerArea = speaker.m_iArea;
 		}
@@ -477,14 +546,14 @@ class LC_Rooms
 		if (listenerArea == speakerArea)
 			return true;
 
-		LC_RoomLayout layout = GetLayout(building, subscene);
+		LC_RoomLayout layout = GetLayout(inside);
 		if (!layout || !layout.m_bComplete || layout.m_aPortals.IsEmpty())
 			return false;
 
 		if (speakerArea < 0 || speakerArea >= layout.m_iAreaCount)
 			return false;
 
-		LC_RoomPaths paths = FindPaths(subscene, layout, listenerArea, now);
+		LC_RoomPaths paths = FindPaths(inside.m_Subscene, layout, listenerArea, now);
 		if (!paths)
 			return false;
 
@@ -539,13 +608,15 @@ class LC_Rooms
 	//------------------------------------------------------------------------------------------------
 	//! Cheapest muffle from one area to every other area of one building, across the portals between them.
 	//! Kept per building and source area, so an outdoor listener with speakers in several buildings does not
-	//! throw one answer away for the next, and reused across writes: the portals are read again every
-	//! PORTAL_RECHECK_MS, and the paths are only searched again when one of them has changed. Searching every
-	//! write took a full pass over every portal per area; a block of flats has over a hundred of each.
+	//! throw one answer away for the next, and reused across writes: the building's portals are read again
+	//! every PORTAL_RECHECK_MS, and the paths are only searched again when one of them has changed. Searching
+	//! every write took a full pass over every portal per area; a block of flats has over a hundred of each.
 	protected LC_RoomPaths FindPaths(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, int from, int now)
 	{
 		if (from < 0 || from >= layout.m_iAreaCount || layout.m_aAreaPortals.Count() < layout.m_iAreaCount)
 			return null;
+
+		LC_RoomCosts costs = FindCosts(subscene, layout, now);
 
 		LC_RoomPaths paths;
 		LC_RoomPaths oldest;
@@ -562,7 +633,6 @@ class LC_Rooms
 				oldest = candidate;
 		}
 
-		bool search;
 		if (!paths)
 		{
 			if (m_aPaths.Count() < MAX_PATHS)
@@ -578,22 +648,68 @@ class LC_Rooms
 			paths.m_Subscene = subscene;
 			paths.m_Layout = layout;
 			paths.m_iFrom = from;
-			paths.m_aCost.Clear();
-			search = true;
+			paths.m_iRevision = -1;
 		}
 
 		paths.m_iUsedTick = now;
-		if (!search && now - paths.m_iCheckedTick < PORTAL_RECHECK_MS)
-			return paths;
-
-		paths.m_iCheckedTick = now;
-		if (ReadCosts(subscene, layout, paths.m_aCost))
-			search = true;
-
-		if (search)
-			Search(layout, paths);
+		if (paths.m_iRevision != costs.m_iRevision)
+		{
+			Search(layout, paths, costs.m_aCost);
+			paths.m_iRevision = costs.m_iRevision;
+		}
 
 		return paths;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! This building's portal costs, read again if they are more than PORTAL_RECHECK_MS old
+	protected LC_RoomCosts FindCosts(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, int now)
+	{
+		LC_RoomCosts costs;
+		LC_RoomCosts oldest;
+		foreach (LC_RoomCosts candidate : m_aCosts)
+		{
+			if (candidate.m_Subscene == subscene && candidate.m_Layout == layout)
+			{
+				costs = candidate;
+				break;
+			}
+
+			if (!oldest || !candidate.m_Subscene || (oldest.m_Subscene && candidate.m_iUsedTick < oldest.m_iUsedTick))
+				oldest = candidate;
+		}
+
+		bool read;
+		if (!costs)
+		{
+			if (m_aCosts.Count() < MAX_COSTS)
+			{
+				costs = new LC_RoomCosts();
+				m_aCosts.Insert(costs);
+			}
+			else
+			{
+				costs = oldest;
+			}
+
+			costs.m_Subscene = subscene;
+			costs.m_Layout = layout;
+			costs.m_aCost.Clear();
+			read = true;
+		}
+
+		costs.m_iUsedTick = now;
+		if (!read && now - costs.m_iCheckedTick < PORTAL_RECHECK_MS)
+			return costs;
+
+		costs.m_iCheckedTick = now;
+		if (ReadCosts(subscene, layout, costs.m_aCost) || read)
+		{
+			m_iCostRevision++;
+			costs.m_iRevision = m_iCostRevision;
+		}
+
+		return costs;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -620,7 +736,7 @@ class LC_Rooms
 	//! Cheapest path from the source area to every area. An area goes back on the queue only when its
 	//! distance improves, so each search looks at a few hundred portal ends rather than every portal once per
 	//! area. Every cost is positive, which is what lets it finish.
-	protected void Search(notnull LC_RoomLayout layout, notnull LC_RoomPaths paths)
+	protected void Search(notnull LC_RoomLayout layout, notnull LC_RoomPaths paths, notnull array<float> costs)
 	{
 		int areaCount = layout.m_iAreaCount;
 		array<float> distance = paths.m_aDistance;
@@ -652,7 +768,7 @@ class LC_Rooms
 				if (next == area)
 					next = portal.m_iAreaB;
 
-				float reached = distance[area] + paths.m_aCost[index];
+				float reached = distance[area] + costs[index];
 				if (reached >= distance[next])
 					continue;
 
@@ -716,7 +832,7 @@ class LC_Rooms
 		if (!location.IsIndoors())
 			return "none";
 
-		LC_RoomLayout layout = GetLayout(location.m_Building, location.m_Subscene);
+		LC_RoomLayout layout = GetLayout(location);
 		if (!layout)
 			return "none";
 

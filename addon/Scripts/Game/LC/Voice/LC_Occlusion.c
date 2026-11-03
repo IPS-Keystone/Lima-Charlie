@@ -142,20 +142,17 @@ class LC_Occlusion
 	//------------------------------------------------------------------------------------------------
 	//! The engine calls this for each entity the trace meets; false ignores that one and the trace carries
 	//! on behind it. Measured on the wider of its two horizontal sides, so a fence panel or a wall section
-	//! still counts while a post does not.
+	//! still counts while a post does not. The width comes first because it is the cheap test and rules out
+	//! most of what a trace meets; the casts and the prefab name are only worth it for something wide.
 	protected bool FilterCover(notnull IEntity entity, vector start = "0 0 0", vector dir = "0 0 0")
 	{
-		if (IsNeverCover(entity))
+		if (Width(entity) < NARROW_M || IsNeverCover(entity))
 		{
 			m_iSkipped++;
 			return false;
 		}
 
-		if (Width(entity) >= NARROW_M)
-			return true;
-
-		m_iSkipped++;
-		return false;
+		return true;
 	}
 
 	//------------------------------------------------------------------------------------------------
