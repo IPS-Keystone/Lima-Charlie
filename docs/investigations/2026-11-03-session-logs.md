@@ -59,8 +59,36 @@ Analysis scripts are in the session scratchpad (`radios.py`, `peer.py`, `brief.p
   (`mapping` lines, up to 6,528 cells in the apartment).
 - Traces: 2 `TraceMove` per due speaker, budget 12 per write (≤ 480 traces/s). A speaker is due after 50 ms
   (talking) or 250 ms when either end moves 0.15 m, which confirms that shuffling drives traces.
-  `FilterCover` is a script callback per entity met (casts, `GetPrefabName` string work, bounds). Window glass debris
-  and dense interiors put many entities on each ray. The likely cause of the window-break spike, but unverified.
+  `FilterCover` is a script callback per entity met (casts, `GetPrefabName` string work, bounds). In practice the
+  callbacks are few: no trace in the logs skipped more than 6 entities (skip1 ×2622, skip2 ×634, skip3 ×190,
+  skip4 ×143, skip6 ×8).
+- Window-break spike, followed up below: the glass-debris idea is **refuted**.
+
+#### Window break (follow-up)
+- **Nothing in LC runs on a break.** There is no damage hook. The only change LC sees is vanilla
+  `SCR_WindowHitZone` flipping that window's portal to sound-passing. The room model already re-reads every portal
+  on every write, so that costs nothing extra.
+- **No debris on the apartment's windows.** Its panes (`Win_Soviet_A_*` → `Glass_Soviet_A_*` →
+  `DestructibleGlass_Base.et`) break into a damaged model swap (mesh and physics) plus a shatter particle. Only the
+  glass-block windows spawn debris, and `SCR_BaseDebrisSmallEntity` is in `IsNeverCover` (one cheap skip each).
+- **Panes never reach the traces.** Across all logs the trace's cover is the building shell (9,923), a window
+  frame (`Win_Soviet_A_195x142_3_B` 264), a door or furniture, and never a `Glass_*`. Panes are under the 0.8 m
+  width cutoff. The frame survives the break, so a trace through a broken window still reads muffled.
+- **After the break LC does less, not more.** The window portal goes from blocking (0.6) to passing (0.2). A
+  speaker within 15 m through that one opening resolves as clear from the room model and **skips the trace**.
+  That is one LC reason for "frames get better once the occluder is gone", though it only covers speakers
+  behind that window.
+- **One logged break, no visible hitch.** Apartment portal 7 went `B` → `S` at 21:02:10.85 (Tim) and 21:02:11.80
+  (Linstone), with both inside. The 1 Hz diagnostic lines stayed on time (Tim gaps 1.075/0.946 s, Linstone
+  1.070/1.001 s; session median 1.02 s, only 2 gaps over 1.2 s in ~3,600). Linstone's writes dipped to 14/s and
+  then 16/s (usually 18–19), so a hitch of up to ~0.2 s there is possible. A freeze that ends before the next due
+  line is invisible to this check.
+- So the break-time cost is the engine's destruction work (model and physics swap, particle, sound). If it
+  feels "major", it is most likely landing on frames already loaded by LC's per-write room solve and traces. The
+  fix target stays the per-write work above, not anything break-specific.
+- Test to settle it: in an apartment, break windows with (a) TeamSpeak running and (b) TeamSpeak closed. With no
+  plugin, the LC writer drops to one write per 500 ms (`NO_PLUGIN_INTERVAL_MS`), about a tenth of the room and trace
+  work. If the spike is the same in both runs, it is vanilla. A vanilla-only run (no LC) is the stricter control.
 - "Character location, not head": **refuted**. Speakers are `EyePosition()` and the listener is the head
   (or the camera when it is >20 m from the body).
 
