@@ -69,3 +69,19 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Clean plugin build from radio-tuning 46a874e: plugin/build/LimaCharlie_2.0.5.ts3_plugin (package.ini 2.0.5,
   DLL carries 2.0.5, vanilla beeps excluded), all checks passed. Not yet tested in game.
 - New on GitHub, not ours this session: feature/3.0-comms and claude/gallant-knuth-zna9uk (3.0 plan docs only).
+
+## 2026-11-03 (bugfix-2.0.6)
+- Unit session logs (2.0.5, 4 clients) triaged before reading the external handover:
+  docs/investigations/2026-11-03-session-logs.md. Confirmed: GM channel scramble = positional TX-key default
+  over vanilla `m_aEntries`, reordered by vanilla `RemoveEntry`'s unordered `RemoveItem` (Tim's log, editor close);
+  radio stutter contributor = OTAC `OT_VonDisplay` `m_wRole` VM exceptions on the "+N" VON slot, re-raised by our
+  20 Hz feed (748 in the logs). Code hot spots (rooms Bellman-Ford per write, 117-area apartments; traces) not
+  measured. Reverb fade in big spaces is by design. Terrain not captured. Nothing committed in the project.
+- External FPS handover read and compared (investigation doc, "Comparison" section). Verified their room-scanner
+  no-Finish bug, per-trace collider volume under room diagnostics, outdoor use of indoor graphs, LC reset at the
+  20:47 reload; Linstone's plugin is 2.0.1; Parko's clock is UTC+10:30. Did their open diagnostic-flag audit: flags off
+  = no optional work. Revised: mapped layouts add area-wide solver work over a session (fits "runway fixes it").
+- Layout change (Duke): `addon\` (Workbench "Lima Charlie") now holds the **2.0.x line**; branch `bugfix-2.0.6` from
+  `main` (= v2.0.5 + release docs). The 3.0 work lives in Workbench "Lima Charlie DEV", junctioned as `addon-dev\`
+  (local only, in `.git/info/exclude`). DEV matched feature/3.0-comms 17bf712 at the switch (only two .edds.meta
+  trailing newlines differ). feature/3.0-comms is 9 commits ahead of origin (unpushed).
