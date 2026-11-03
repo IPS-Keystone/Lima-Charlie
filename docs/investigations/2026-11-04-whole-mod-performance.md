@@ -143,3 +143,35 @@ type and resets at every reconnect or scenario reload.
 
 The 20–25 min apartment vs shelter run with frame times from the 2.0.6 plan is still the test that settles
 how much of this a player feels.
+
+## Follow-up: fixes 1, 3 and 5 applied and measured (2026-11-04)
+
+Duke chose mapping (a) + (b) + (c), the writer JSON and the radio id cache. Bench: `bench/LCBench_Map.c`, raw
+output `bench/2026-11-04-map-bench-raw.txt` (play mode on testWorld, WB 1.8.0, one `LC_Rooms.Update` per
+simulated write).
+
+| | Before | After |
+|---|---|---|
+| Apartment, mapping cost a write | 3.6 ms (128 cells) | **1.13 ms** (38 cells), worst write 3 ms (a save) |
+| Apartment, mapping writes | 313, then stopped by the cap | 1,433 (≈ 72 s at 20 Hz, 2.4 min at 10 Hz) |
+| Apartment, portals found / usable | 223 / 185 | **310 / 270** (finished at cell 54,454, before the grid ran out) |
+| Village house, mapping | 0.45 ms × 85 writes | same (128-cell batch is under the 1 ms target) |
+| Next session, first write in a mapped type | mapping again | load: 2 ms once (apartment, 275-line file) |
+| Partial: 400 writes, walk out, new session | started from nothing | resumed at 15,200 cells, done after 1,033 more (1,433 total) |
+
+- Mapping batch: `cells = clamp(12000 / portals, 8, 128)`; cap 40,000 → 120,000.
+- Saved layouts: `$profile:LimaCharlie/rooms/<prefab GUID>.txt`, plain text (header + format, game build
+  version, prefab, counts and grid, cursor, then a line per portal). Saved every 4,000 cells, on finishing, and
+  when the player leaves the building part way. A file that disagrees on format, game version, prefab,
+  area/portal counts or grid, or has any malformed line, is ignored and the type is mapped again. Loaded
+  layouts compared equal to freshly mapped ones (`Describe`, same counts and cells).
+- The cap was the only reason the apartment had unfound portals; 0.75 m probes find every one.
+- Writer JSON: each player's object is built on its own and appended once (bench before: −13% at 30 players,
+  −30% at 60). Game state in play mode still parses as JSON.
+- Radio id and duplex mode cached on the modded `SCR_VONEntryRadio`, keyed on the transceiver, not cached
+  while the radio's replication id is unknown. Play mode game state showed `-2147482841:1` and `:2` through the
+  new path.
+- Compile: Workbench logs_2026-11-04_07-56-21, `Module: Game; loaded 5697x files; 11158x classes`, no LC
+  errors or warnings. enforce_check clean.
+- Not tested: multiplayer, a real client mapping while moving between rooms, a player entry with other players
+  present in game (the bench covered the JSON shape).

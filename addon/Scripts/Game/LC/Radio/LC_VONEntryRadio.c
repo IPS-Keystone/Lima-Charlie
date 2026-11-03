@@ -2,6 +2,42 @@ modded class SCR_VONEntryRadio
 {
 	protected static const ResourceName LC_LAYOUT = "{6A5C69DD20000050}UI/layouts/HUD/LC_VONEntry.layout";
 
+	//! The transceiver the id and duplex mode below were read from. Vanilla points an entry at its transceiver
+	//! once, but checking costs one compare and keeps an entry that is pointed elsewhere honest.
+	protected BaseTransceiver m_LC_CachedTransceiver;
+	protected string m_sLC_Id;
+	protected LC_ERadioMode m_eLC_RadioMode;
+
+	//------------------------------------------------------------------------------------------------
+	//! LC_Radio.GetId, read once per transceiver
+	string LC_GetId()
+	{
+		LC_UpdateCache();
+		return m_sLC_Id;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! LC_Radio.GetRadioMode, read once per transceiver
+	LC_ERadioMode LC_GetRadioMode()
+	{
+		LC_UpdateCache();
+		return m_eLC_RadioMode;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected void LC_UpdateCache()
+	{
+		if (m_RadioTransceiver && m_RadioTransceiver == m_LC_CachedTransceiver)
+			return;
+
+		m_sLC_Id = LC_Radio.BuildId(this);
+		m_eLC_RadioMode = LC_Radio.ReadRadioMode(this);
+
+		// Not kept while the radio cannot be identified yet, or it would stay "0" for the entry's life
+		if (!m_sLC_Id.StartsWith("0:"))
+			m_LC_CachedTransceiver = m_RadioTransceiver;
+	}
+
 	//------------------------------------------------------------------------------------------------
 	//! Vanilla's radial menu entry layout plus transmit key and beep set lines
 	override void InitEntry()

@@ -97,7 +97,8 @@ decides muffling for anyone in a building:
 
 - **listener** — the room you are in, and its volume.
 - **layout** — how much of that building type has been mapped. `unfound` portals are doorways the engine
-  reports but probing never located; the layout still works without them.
+  reports but probing never located; the layout still works without them. `saved` means it was read from
+  `$profile/LimaCharlie/rooms/` this session rather than mapped from nothing.
 - **portals** — how open each doorway is, as a percentage, with `B` for one that blocks sound (an intact
   window), `S` for one that passes sound anyway (broken glass), `X` for disabled. **Open a door and watch
   the number change** — that confirms the engine keeps this up to date.

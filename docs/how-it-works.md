@@ -130,10 +130,18 @@ were last in is asked first, so anyone who has not left a building costs a singl
 
 The layout of doorways is not something the engine will hand over, so it is worked out once per building
 type, by probing the building with small boxes to find its doorways and then asking what lies either side
-of each one. That runs 128 probes per write while a player stands in a building type nobody has mapped
-yet, and stops as soon as every doorway the engine reports has been found or the whole building has
-been covered. The result is shared by every
-copy of that building on the map.
+of each one. That runs while the player stands in a building type they have not mapped yet, and stops as
+soon as every doorway the engine reports has been found or the whole building has been covered. Each probe
+costs more the more doorways the building has, so the number per write is sized to keep it at about 1 ms:
+128 probes in a village house (mapped in a few seconds), about 38 in the 310-doorway apartment block
+(about 1,400 writes, 1-2.5 minutes of standing in it). The result is shared by every copy of that
+building on the map.
+
+Layouts are saved in `$profile/LimaCharlie/rooms/`, one text file per building type named by its prefab
+GUID, including how far an unfinished one got (every 4,000 probes, when finished, and when the player
+walks out). So each building type is mapped once per player, picked up where it was left across
+sessions, and mapped again only after a game update, a change in the building's room model, or a change in
+how LC maps. Deleting the folder is harmless.
 
 **Traces otherwise** — both outdoors, two different buildings, or a building with no room model. Two
 traces, one from each end: if each end hits a different first obstacle, there are at least two things in

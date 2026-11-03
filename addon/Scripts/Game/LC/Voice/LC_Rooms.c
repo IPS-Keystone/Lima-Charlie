@@ -91,6 +91,10 @@ class LC_RoomPaths
 //!
 //! A layout belongs to the model, so it is discovered once per prefab and reused by every copy of that
 //! building on the map. Probing stops as soon as every portal the engine reports has been found.
+//!
+//! Layouts are saved to the player's profile, finished or not, so each building type is mapped once per
+//! client and game version rather than once per session. A big building takes minutes of standing in it to
+//! map at the rate the writer allows, and that is spread over as many sessions as it takes.
 class LC_RoomLayout
 {
 	//! Side of one probe box. Smaller finds narrow portals more reliably and costs more probes.
@@ -98,9 +102,20 @@ class LC_RoomLayout
 	//! How far to either side of a portal we look to see which areas it joins
 	protected static const float PROBE_M = 0.8;
 	//! Probing gives up after this many cells, so a building whose portals cannot be found this way stops
-	//! costing anything
-	protected static const int MAX_CELLS = 40000;
+	//! costing anything. Big enough for the five storey apartment block (about 71,000 cells), which at 40,000
+	//! used to stop halfway along it with 87 of its 310 portals unfound.
+	protected static const int MAX_CELLS = 120000;
 	protected static const int MAX_CELLS_PER_AXIS = 200;
+
+	//! One file per building type, named by its prefab's GUID
+	protected static const string PARENT_DIRECTORY = "$profile:LimaCharlie";
+	protected static const string DIRECTORY = "$profile:LimaCharlie/rooms";
+	protected static const string FILE_HEADER = "LC rooms";
+	//! Bump whenever probing changes what a layout would contain, so files from before are mapped again
+	protected static const int FILE_FORMAT = 1;
+	//! A layout being mapped is saved this often as well as when it is finished, so standing in a building for
+	//! a while is not wasted if the session ends before it is done
+	protected static const int SAVE_EVERY_CELLS = 4000;
 
 	string m_sPrefab;
 	int m_iAreaCount;
@@ -111,6 +126,10 @@ class LC_RoomLayout
 	//! through those doorways.
 	int m_iMissing;
 	int m_iCellsDone;
+	//! Cells done when it was last saved or loaded
+	protected int m_iSavedCells;
+	//! Read from a saved file this session rather than mapped from nothing
+	protected bool m_bLoaded;
 
 	protected vector m_vMins;
 	protected vector m_vMaxs;
@@ -177,9 +196,24 @@ class LC_RoomLayout
 		}
 
 		if (exhausted || m_aPortals.Count() >= m_iPortalCount || m_iCellsDone >= MAX_CELLS)
+		{
 			Finish();
+			Save();
+		}
+		else if (m_iCellsDone - m_iSavedCells >= SAVE_EVERY_CELLS)
+		{
+			Save();
+		}
 
 		return spent;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Saves a layout part way through mapping, if it got further since it was last saved
+	void SaveProgress()
+	{
+		if (!m_bComplete && m_iCellsDone > m_iSavedCells)
+			Save();
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -238,6 +272,14 @@ class LC_RoomLayout
 		if (m_iMissing < 0)
 			m_iMissing = 0;
 
+		Index();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Drops the portals pathing cannot use and lists the rest per area. Done once a layout is complete, whether
+	//! it was mapped or loaded.
+	protected void Index()
+	{
 		// A portal whose two areas could not be established is no use for pathing, and nor is one naming an area
 		// the building does not have
 		for (int i = m_aPortals.Count() - 1; i >= 0; i--)
@@ -262,11 +304,200 @@ class LC_RoomLayout
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Where this building type's layout is saved, or empty for a prefab without a GUID
+	protected static string GetPath(string prefab)
+	{
+		if (!prefab.StartsWith("{") || prefab.IndexOf("}") != 17)
+			return string.Empty;
+
+		return DIRECTORY + "/" + prefab.Substring(1, 16) + ".txt";
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Plain text, a line per record: the header, the game version and prefab it was mapped on, the model's
+	//! counts and grid, how far mapping got, then one line per portal found
+	protected void Save()
+	{
+		string path = GetPath(m_sPrefab);
+		if (path.IsEmpty())
+			return;
+
+		FileIO.MakeDirectory(PARENT_DIRECTORY);
+		FileIO.MakeDirectory(DIRECTORY);
+		FileHandle file = FileIO.OpenFile(path, FileMode.WRITE);
+		if (!file)
+			return;
+
+		int complete = m_bComplete;
+		file.WriteLine(FILE_HEADER + " " + FILE_FORMAT.ToString());
+		file.WriteLine(GetGame().GetBuildVersion());
+		file.WriteLine(m_sPrefab);
+		file.WriteLine(string.Format("%1 %2 %3 %4 %5", m_iAreaCount, m_iPortalCount, m_iCellsX, m_iCellsY, m_iCellsZ));
+		file.WriteLine(string.Format("%1 %2 %3 %4 %5 %6", m_iCellX, m_iCellY, m_iCellZ, m_iCellsDone, complete, m_iMissing));
+		foreach (LC_RoomPortal portal : m_aPortals)
+		{
+			vector local = portal.m_vLocal;
+			file.WriteLine(string.Format("%1 %2 %3 %4 %5 %6", portal.m_iPortal, portal.m_iAreaA, portal.m_iAreaB, local[0].ToString(-1, 2), local[1].ToString(-1, 2), local[2].ToString(-1, 2)));
+		}
+
+		file.Close();
+		m_iSavedCells = m_iCellsDone;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Picks up this type's saved layout, finished or part way through. Only a file that matches this game
+	//! version, this prefab and this room model is used, and only if every line of it makes sense; otherwise
+	//! the layout is left as Begin made it and mapping starts from nothing.
+	bool Load()
+	{
+		string path = GetPath(m_sPrefab);
+		if (path.IsEmpty() || !FileIO.FileExists(path))
+			return false;
+
+		FileHandle file = FileIO.OpenFile(path, FileMode.READ);
+		if (!file)
+			return false;
+
+		bool loaded = Read(file);
+		file.Close();
+		return loaded;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected bool Read(notnull FileHandle file)
+	{
+		array<string> fields = {};
+		string line;
+		if (!ReadFields(file, fields, 3) || fields[0] + " " + fields[1] != FILE_HEADER || fields[2] != FILE_FORMAT.ToString())
+			return false;
+
+		if (file.ReadLine(line) < 0 || line.Trim() != GetGame().GetBuildVersion())
+			return false;
+
+		if (file.ReadLine(line) < 0 || line.Trim() != m_sPrefab)
+			return false;
+
+		array<int> model = {};
+		if (!ReadInts(file, fields, model, 5))
+			return false;
+
+		if (model[0] != m_iAreaCount || model[1] != m_iPortalCount || model[2] != m_iCellsX || model[3] != m_iCellsY || model[4] != m_iCellsZ)
+			return false;
+
+		array<int> progress = {};
+		if (!ReadInts(file, fields, progress, 6))
+			return false;
+
+		int cellX = progress[0];
+		int cellY = progress[1];
+		int cellZ = progress[2];
+		int cellsDone = progress[3];
+		int complete = progress[4];
+		int missing = progress[5];
+		if (cellX < 0 || cellX >= m_iCellsX || cellY < 0 || cellY >= m_iCellsY || cellZ < 0 || cellZ > m_iCellsZ)
+			return false;
+
+		if (cellsDone < 0 || cellsDone > MAX_CELLS || complete < 0 || complete > 1 || missing < 0 || missing > m_iPortalCount)
+			return false;
+
+		array<ref LC_RoomPortal> portals = {};
+		map<int, ref LC_RoomPortal> byPortal = new map<int, ref LC_RoomPortal>();
+		// To the end of the file. A line that is not a portal fails the whole file rather than ending it early, so
+		// a file cut short mid-line is mapped again instead of being taken as finished with portals missing.
+		while (file.ReadLine(line) >= 0)
+		{
+			if (!SplitFields(line, fields))
+				continue;
+
+			if (fields.Count() != 6)
+				return false;
+
+			LC_RoomPortal portal = new LC_RoomPortal();
+			portal.m_iPortal = fields[0].ToInt();
+			portal.m_iAreaA = fields[1].ToInt();
+			portal.m_iAreaB = fields[2].ToInt();
+			portal.m_vLocal = Vector(fields[3].ToFloat(), fields[4].ToFloat(), fields[5].ToFloat());
+			if (portal.m_iPortal < 0 || portal.m_iPortal >= m_iPortalCount || byPortal.Contains(portal.m_iPortal))
+				return false;
+
+			if (!IsAreaOrNone(portal.m_iAreaA) || !IsAreaOrNone(portal.m_iAreaB))
+				return false;
+
+			portals.Insert(portal);
+			byPortal.Set(portal.m_iPortal, portal);
+		}
+
+		m_aPortals = portals;
+		m_mByPortal = byPortal;
+		m_iCellX = cellX;
+		m_iCellY = cellY;
+		m_iCellZ = cellZ;
+		m_iCellsDone = cellsDone;
+		m_iSavedCells = cellsDone;
+		m_bLoaded = true;
+		if (complete == 1)
+		{
+			m_bComplete = true;
+			m_iMissing = missing;
+			Index();
+		}
+
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected bool IsAreaOrNone(int area)
+	{
+		return area == LC_Rooms.AREA_NONE || (area >= 0 && area < m_iAreaCount);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Splits the next line on spaces; false at the end of the file or if it has the wrong number of fields.
+	//! An empty field cannot get through, which matters because "".ToInt() throws.
+	protected static bool ReadFields(notnull FileHandle file, notnull array<string> fields, int count)
+	{
+		string line;
+		if (file.ReadLine(line) < 0)
+			return false;
+
+		SplitFields(line, fields);
+		return fields.Count() == count;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! False for a blank line
+	protected static bool SplitFields(string line, notnull array<string> fields)
+	{
+		fields.Clear();
+		string trimmed = line.Trim();
+		trimmed.Split(" ", fields, true);
+		return !fields.IsEmpty();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected static bool ReadInts(notnull FileHandle file, notnull array<string> fields, notnull array<int> values, int count)
+	{
+		if (!ReadFields(file, fields, count))
+			return false;
+
+		values.Clear();
+		foreach (string field : fields)
+		{
+			values.Insert(field.ToInt());
+		}
+
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	string Describe()
 	{
 		string state = "mapping";
 		if (m_bComplete)
 			state = "done";
+
+		if (m_bLoaded)
+			state += ", saved";
 
 		return string.Format("%1 areas, %2 portals, %3 usable, %4 unfound, %5 cells, %6", m_iAreaCount, m_iPortalCount, m_aPortals.Count(), m_iMissing, m_iCellsDone, state);
 	}
@@ -310,8 +541,13 @@ class LC_Rooms
 	//! But never sooner than this. Anyone running or in a vehicle crosses the distance above every write, and
 	//! outdoors every recheck is a sphere query; at this rate a doorway is still noticed within a stride.
 	protected static const int RECHECK_MIN_MS = 150;
-	//! Probe cells spent per game state write while the local player stands in an unmapped building
-	protected static const int BUILD_BUDGET = 128;
+	//! Mapping work per game state write while the local player stands in an unmapped building. A probe costs
+	//! about 0.09 us for every portal the building has (28 us in the 310 portal apartment block, 3 us in a
+	//! village house), so the cells probed are sized to the building: about 1 ms a write whatever it is,
+	//! instead of a fixed 128 cells costing 3.6 ms a write in the apartment.
+	protected static const int BUILD_PORTAL_TESTS = 12000;
+	protected static const int BUILD_MIN_CELLS = 8;
+	protected static const int BUILD_MAX_CELLS = 128;
 	protected static const float SEARCH_RADIUS_M = 0.5;
 
 	//! Muffle standing for "no path at all". Anything at or above it means the graph cannot connect the two
@@ -346,6 +582,8 @@ class LC_Rooms
 	protected ref array<IEntity> m_aQueryVisited = {};
 
 	protected int m_iBuildSpent;
+	//! The layout mapped on the last write, if it is not finished
+	protected LC_RoomLayout m_Mapping;
 
 	//------------------------------------------------------------------------------------------------
 	//! Updates where this position is, reusing the last answer while it is still fresh. The building the
@@ -458,12 +696,24 @@ class LC_Rooms
 	void Update(notnull LC_RoomLocation listener)
 	{
 		m_iBuildSpent = 0;
-		if (!listener.IsIndoors())
+		LC_RoomLayout layout;
+		if (listener.IsIndoors())
+			layout = GetLayout(listener);
+
+		if (layout && layout.m_bComplete)
+			layout = null;
+
+		// Walking out part way through mapping keeps what was found, in case the session ends before the next
+		// building of that type
+		if (m_Mapping && m_Mapping != layout)
+			m_Mapping.SaveProgress();
+
+		m_Mapping = layout;
+		if (!layout)
 			return;
 
-		LC_RoomLayout layout = GetLayout(listener);
-		if (layout && !layout.m_bComplete)
-			m_iBuildSpent = layout.Build(listener.m_Building, listener.m_Subscene, BUILD_BUDGET);
+		int cells = Math.ClampInt(BUILD_PORTAL_TESTS / Math.Max(layout.m_iPortalCount, 1), BUILD_MIN_CELLS, BUILD_MAX_CELLS);
+		m_iBuildSpent = layout.Build(listener.m_Building, listener.m_Subscene, cells);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -495,6 +745,9 @@ class LC_Rooms
 		{
 			layout = new LC_RoomLayout();
 			layout.Begin(prefab, building, subscene);
+			if (!layout.m_bComplete)
+				layout.Load();
+
 			m_mLayouts.Set(prefab, layout);
 			return layout;
 		}

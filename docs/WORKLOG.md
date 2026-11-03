@@ -119,3 +119,14 @@ session; update after each meaningful step and before ending one. Never rewrite 
   108 us/50 ms; GetId rebuilt ~4x per radio per write. Steady state ~0.8-1 ms/write. No code changed by the pass.
 - Waiting on Duke: mapping budget by portal count and/or layouts saved to $profile; writer JSON one-append;
   GetId cached on the entry.
+- Duke: "Start on the fixes" (mapping budget + saved layouts, writer JSON, radio id cache). Done on bugfix-2.0.6:
+  - mapping batch `clamp(12000/portals, 8, 128)`, cap 120,000; layouts saved/resumed in
+    `$profile:LimaCharlie/rooms/<GUID>.txt` (every 4,000 cells, on finish, on walking out; strict validation).
+  - writer: one append per player. Radio id + duplex cached on modded `SCR_VONEntryRadio` (keyed on transceiver).
+  - Evidence: enforce_check clean; WB logs_2026-11-04_07-56-21 Game module 5697 files / 11158 classes, no LC
+    errors; LCBench_Map in play mode: apartment 1.13 ms/write (was 3.6), 1,433 writes, all 310 portals found
+    (270 usable, was 185), save/load/resume identical; house unchanged 0.45 ms. Radio ids correct in play-mode
+    game_state.json. Docs: how-it-works, troubleshooting, CHANGELOG, whole-mod investigation follow-up.
+  - NOT tested in MP. Bench left out of ClaudeDevTools (EMCP_WB_Ping.c restored). Bench room files remain in the
+    Workbench profile (`profile/LimaCharlie/rooms/`), written by the mod itself.
+

@@ -32,6 +32,17 @@ Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchang
 - **Room mapping stops when it has covered the building.** It used to carry on probing above the roof until
   it hit its cap, whenever it could not find every doorway. That was a few extra seconds of mapping per
   building type.
+- **No more hitching the first time you walk into a big building.** Mapping a building type's rooms cost a
+  fixed amount of probing per update, and each probe costs more the more doorways the building has: 3.6 ms
+  on every update for 15-30 seconds in a Soviet apartment block. It is now sized to the building, about 1 ms
+  per update, so a big building takes longer to map (a few minutes of standing in it) without hitching.
+  It also no longer gives up halfway along the apartment block with 87 of its doorways unfound.
+- **Mapped buildings are remembered.** Room maps are saved to `profile/LimaCharlie/rooms/`, one small file
+  per building type, including how far an unfinished one got. Each building type is mapped once per
+  player and game version instead of every session. Deleting the folder just means mapping again.
+- **Cheaper game state updates.** Each nearby player's entry is built on its own and added once, which made
+  building the update up to 30% faster with 60 players nearby. Each radio's id and duplex mode are read once
+  instead of several times per update and on every frame a transmit key is held.
 - **Room diagnostic log is cheaper.** With `roomDiagnosticLog` on, measuring how solid a blocker is (the
   `s0.42` figure) walked every collider of the blocking object, often a whole building, on every occlusion
   check. It is now measured only for the line about to be printed.
