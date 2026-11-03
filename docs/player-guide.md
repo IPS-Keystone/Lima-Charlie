@@ -143,7 +143,7 @@ Per radio, kept for the session only — nothing is saved between sessions:
   picker opens beside the menu with five buttons: **None** and **1** to **4**. The key it is on now is lit.
   Choosing a key takes it from whichever radio had it; **None** takes the radio off every key. A radio you
   have never set defaults to its position in the list. The list keeps its order when a radio leaves it
-  (dropped, or a vehicle left), and a Game Master's editor channels always come after their own radios.
+  (dropped, or the Game Master editor closed), and a Game Master's editor channels always come after their own radios.
 
 ### What a transmission sounds like
 

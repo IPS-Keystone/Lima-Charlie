@@ -28,7 +28,9 @@ Analysis scripts are in the session scratchpad (`radios.py`, `peer.py`, `brief.p
   `[2769:2, 2769:1, 2823:2, 2823:1]` when the editor closed. That is exactly four swap-removals from the front.
   TX1–TX4 changed channels, and channel 1↔2 of each radio swapped.
 - While the editor is open with its entries first, TX1–4 default to the **GM editor transceivers**.
-- Same trigger for anyone: dropping or picking up a radio, or a vehicle radio leaving the list.
+- Same trigger for anyone: dropping a radio, or any radio entry leaving the list. Picking one up appends and
+  moves nothing. (Corrected: vanilla 2.0.x adds no vehicle radios to the list, so leaving a vehicle is not a
+  trigger. The 4-channel radio in the logs is the GM editor's own.)
 - Fix options: order our list ourselves (radio first-seen order, then transceiver number) and/or a modded
   `RemoveEntry` that uses `RemoveOrdered` so the vanilla radial stays put too. Explicit assignments (by id) are
   unaffected.

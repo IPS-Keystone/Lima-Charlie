@@ -4,8 +4,8 @@
 
 Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchanged (9).
 
-- **Radio channels no longer swap places.** Closing the Game Master editor, dropping a radio or leaving a
-  vehicle used to reshuffle the radio menu and move the transmit keys onto other channels: the game removes a
+- **Radio channels no longer swap places.** Closing the Game Master editor or dropping a radio used to
+  reshuffle the radio menu and move the transmit keys onto other channels: the game removes a
   radio by moving the last one into its slot. Lima Charlie now puts the moved one back at the end, so the
   order stays as it was. A Game Master's editor channels now come after their own radios, so opening the
   editor no longer takes over TX 1-4.
