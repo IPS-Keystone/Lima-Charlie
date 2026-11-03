@@ -358,3 +358,9 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Evidence: enforce_check 49 files clean. Workbench: `wb_play` at 21:51 logged `Workbench Reload Game` and no
   `SCRIPT (E)`, but no new `Module: Game` line, so this revision's compile is not confirmed by the log. Play
   mode left running for Duke.
+
+## 2026-11-03
+- Dev builds renamed `3.0-dev-NN` (Duke): version `3.0-dev-01` on both halves; plugin rebuilt
+  (`LimaCharlie_3.0-dev-01.ts3_plugin`, "All checks passed"). Addon files copied to Duke's new Workbench project
+  `addons\Lima Charlie DEV` (ID LimaCharlieDEV, GUID 6AC643FAF3F385E3), all but its own addon.gproj / .rdb;
+  diff -rq shows only those two differ. Not yet opened/compiled in Workbench as the DEV project.
