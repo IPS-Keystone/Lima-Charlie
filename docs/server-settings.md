@@ -49,6 +49,8 @@ edit:
     "unconsciousCanSpeak": false,
     "diagnostics": "REGULAR",
     "roomDiagnosticLog": false,
+    "hideRadioRoles": true,
+    "hideDirectSpeechDisplay": true,
     "channelNaming": "HYBRID",
     "channelLabels": ""
 }
@@ -77,6 +79,8 @@ than half-applied.
 | `m_fTerrainEffectPercent` | 100 | 0–300 | How much hills cost, by scaling every hill's height. At 100 a 30 m hill takes about a fifth of a radio's range and a 120 m one more than half (see how-it-works.md, Terrain). 0 ignores terrain, 200 makes every hill count as twice its height. |
 | `m_aChannelLabels` | empty | — | Named frequencies. One entry per net you want labelled. |
 | `m_eChannelNaming` | `HYBRID` | — | Where channel names come from: `LC_ONLY`, `HYBRID`, `VANILLA_ONLY`. |
+| `m_bHideRadioRoles` | on | `hideRadioRoles` | Incoming radio on the VON display shows the speaker's name and channel only, no group role or squad leader icon. |
+| `m_bHideDirectSpeechDisplay` | on | `hideDirectSpeechDisplay` | The VON display lists radio transmissions only, not people talking out loud nearby. The game's own server setting for this still applies when this is off. |
 | `m_bGameMasterUnlimitedRange` | on | — | Game Masters transmit and receive without range or terrain limits while the editor is open. |
 | `m_eDiagnostics` | `REGULAR` | `diagnostics` | How much every client logs: `OFF`, `REGULAR` (cheap event lines and a summary a minute; leave on) or `COMPREHENSIVE` (both sides of the bridge once a second; deliberate tests only). |
 | `m_bRoomDiagnosticLog` | off | `roomDiagnosticLog` | Every client logs what the engine's room model says about its neighbours, once a second. The most expensive diagnostic; troubleshooting only. Regular diagnostics already log entering a building and a room summary a minute. |
@@ -120,8 +124,9 @@ LC_Settings {
 ```
 
 The frequency is in MHz exactly as it reads on the radio, so `45.5` matches a radio tuned to 45.500 MHz.
-Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`. Commas and semicolons
-are stripped from names, because the list is flattened to a delimited string for the trip to each client.
+Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`. On the VON display
+the colour is the label's background, with white text on `RED`, `BLUE` and `PURPLE` and black text on the
+rest. Commas and semicolons are stripped from names, because the list is flattened to a delimited string for the trip to each client.
 
 ## Naming modes
 

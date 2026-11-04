@@ -46,8 +46,15 @@ Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchang
 - **Room diagnostic log is cheaper.** With `roomDiagnosticLog` on, measuring how solid a blocker is (the
   `s0.42` figure) walked every collider of the blocking object, often a whole building, on every occlusion
   check. It is now measured only for the line about to be printed.
-- **The transmit key picker hands you back to the radio menu.** Choosing a key, or backing out with Escape,
-  now reopens the radio menu instead of leaving you in the game, so you can set the next channel straight away.
+- **The transmit key picker hands you back to the radio menu, and takes keys.** With the picker open, `1` to
+  `4` choose that transmit key and `Esc` chooses None, the same as the buttons. Either way the radio menu
+  reopens instead of leaving you in the game, so you can set the next channel straight away.
+- **VON display, folded in from OTAC Core (with their approval).** Named channels are drawn on a background
+  of their colour with white or black text to suit, instead of coloured text. A widget reused for an unnamed
+  channel gets the game's own colours back (it used to keep the last name's colour). Two new server settings,
+  both on by default: `hideRadioRoles` hides the group role and squad leader icon on incoming radio, and
+  `hideDirectSpeechDisplay` keeps people talking out loud off the VON display. OTAC's PLATOON / AIR /
+  COMMAND nets are not built in; set them in `channelLabels`, e.g. `"50,RED,PLATOON;52,BLUE,AIR;60,YELLOW,COMMAND"`.
 - **The Lima Charlie status notice shows once, after you spawn in.** It used to appear when the server's
   session arrived (often still in the deploy menu) and again every time something changed, including each
   time you muted or unmuted in TeamSpeak. It now shows once per connection, shortly after you first spawn (or

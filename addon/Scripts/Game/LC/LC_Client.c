@@ -601,11 +601,14 @@ class LC_Client
 		m_bRegularDiagnostics = m_bComprehensiveDiagnostics || (flags & 8) != 0;
 		m_bRoomDiagnosticLog = (flags & 2) != 0;
 		LC_Life.SetUnconsciousCanSpeak((flags & 4) != 0);
+		bool hideRadioRoles = (flags & 16) != 0;
+		bool hideDirectSpeech = (flags & 32) != 0;
+		SCR_VonDisplay.LC_SetOptions(hideRadioRoles, hideDirectSpeech);
 
 		int cleanPercent = Math.Round(cleanFraction * 100);
 		int beepPercent = Math.Round(beepFraction * 100);
 		int terrainPercent = Math.Round(terrainFactor * 100);
-		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", unconscious speech " + LC_Life.GetUnconsciousCanSpeak().ToString() + ", diagnostics " + DescribeDiagnostics() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString(), LogLevel.NORMAL);
+		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", unconscious speech " + LC_Life.GetUnconsciousCanSpeak().ToString() + ", diagnostics " + DescribeDiagnostics() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString() + ", hide radio roles " + hideRadioRoles.ToString() + ", hide direct speech display " + hideDirectSpeech.ToString(), LogLevel.NORMAL);
 	}
 
 	//------------------------------------------------------------------------------------------------

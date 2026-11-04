@@ -197,6 +197,13 @@ class LC_ChannelLabels
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Whether a label in this colour needs white text rather than black to stay readable on it
+	static bool IsDarkColour(LC_EChannelColour colour)
+	{
+		return colour == LC_EChannelColour.RED || colour == LC_EChannelColour.BLUE || colour == LC_EChannelColour.PURPLE;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	static Color GetColour(LC_EChannelColour colour)
 	{
 		switch (colour)

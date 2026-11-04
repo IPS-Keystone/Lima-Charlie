@@ -54,6 +54,12 @@ class LC_Settings
 	[Attribute(defvalue: "0", desc: "Troubleshooting only, and the most expensive diagnostic: every client logs one line a second about the engine's room model: which room it thinks each nearby player is in, how open the doorways of the building you are in are, how much of the mapping of that building type is done, how each player's muffling was decided and what blocked each trace. Regular diagnostics already log which building you are in and a summary of the room model each minute.")]
 	bool m_bRoomDiagnosticLog;
 
+	[Attribute(defvalue: "1", desc: "On the VON display, incoming radio transmissions show only the speaker's name and channel: their group role and squad leader icon are hidden. A voice on the net is identified by callsign, not by the game telling you who leads which squad.")]
+	bool m_bHideRadioRoles;
+
+	[Attribute(defvalue: "1", desc: "The VON display shows radio transmissions only, not people talking out loud near you. Direct speech comes through TeamSpeak with its own position and walls, so a list of who is speaking nearby gives away people you cannot see. The server's own vanilla setting for this still applies when it is on.")]
+	bool m_bHideDirectSpeechDisplay;
+
 	[Attribute(defvalue: "LimaCharlie", desc: "TeamSpeak channel every player is moved into while in game, on whichever TeamSpeak server they are already connected to. Leave empty to disable automatic channel moves and let everyone sort out their own channel.")]
 	string m_sTeamSpeakChannel;
 
@@ -105,6 +111,8 @@ class LC_Settings
 		settings.m_bGameMasterUnlimitedRange = true;
 		settings.m_bAIHearing = true;
 		settings.m_eDiagnostics = LC_EDiagnostics.REGULAR;
+		settings.m_bHideRadioRoles = true;
+		settings.m_bHideDirectSpeechDisplay = true;
 		settings.m_sTeamSpeakChannel = "LimaCharlie";
 		return settings;
 	}

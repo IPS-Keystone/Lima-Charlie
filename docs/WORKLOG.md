@@ -161,3 +161,16 @@ session; update after each meaningful step and before ending one. Never rewrite 
     no LC script errors.
   - Still NOT verified: picker reopen (needs real input), the hint actually disappearing after 12 s in the GM
     editor, tx/rx/building lines (need TeamSpeak + another player / a building).
+- Duke: picker keys 1-4 / Esc = None; fold OTAC Core's VON display tweaks into LC (approved by OTAC; Duke picked
+  background-coloured labels for all, two server settings on by default, no built-in nets).
+  - Picker: new `LC_KeyAssignContext` (priority 50, actions LC_KeyAssign1-4 on KC_1-4, click filter) activated
+    each frame in `OnMenuUpdate`; MenuBack now = Choose(-1). Not in the keybind menu (fixed keys).
+  - VON display: label background = label colour, text white on RED/BLUE/PURPLE else black; unnamed labels
+    reset to layout colours (white bg, black text). `hideRadioRoles` / `hideDirectSpeechDisplay` (flags bits
+    4/5, server.json keys), applied in modded `SCR_VonDisplay` (OnReceive + UpdateTransmission set
+    `m_bIsVONDirectDisabled`; role/SL hidden on receive, null-checked for the overflow line).
+  - Evidence: enforce_check clean; WB restart logs_2026-11-04_12-48-53 Game module OK 5697/11159; play mode
+    settings line `hide radio roles true, hide direct speech display true`, no input/script errors.
+    NOT verified: keys 1-4/Esc in the picker, label look, role/direct hiding (needs input + a second player).
+  - OTAC side still has its own `SCR_VonDisplay.UpdateTransmission` override; it should drop it (both would
+    colour the label, last loaded wins) — Duke to pass on.

@@ -71,6 +71,8 @@ without one, so start the server once and then edit the file that appears:
     "unconsciousCanSpeak": false,
     "diagnostics": "REGULAR",
     "roomDiagnosticLog": false,
+    "hideRadioRoles": true,
+    "hideDirectSpeechDisplay": true,
     "channelNaming": "HYBRID",
     "channelLabels": ""
 }
