@@ -174,3 +174,14 @@ session; update after each meaningful step and before ending one. Never rewrite 
     NOT verified: keys 1-4/Esc in the picker, label look, role/direct hiding (needs input + a second player).
   - OTAC side still has its own `SCR_VonDisplay.UpdateTransmission` override; it should drop it (both would
     colour the label, last loaded wins) — Duke to pass on.
+- Custom label colours (Duke: "Make the change"): `LC_EChannelColour.CUSTOM` (appended, numbers unchanged) +
+  `ref Color m_CustomColour` (UIWidgets.ColorPicker); packed colour field = palette number or `#RRGGBB`
+  (picker colour LinearToSRGB'd to hex on the server; hex parsed by hand with `ToAscii` on both sides); labels
+  carry resolved sRGB; text white below Rec.601 brightness 150 (same split as before for the palette).
+  - Evidence: enforce_check clean; WB logs_2026-11-04_12-58-41 Game OK 5697/11159; NET API test
+    `LCTest_Colours` (bench/LCTest_Colours.c, run from ClaudeDevTools then removed) 8/8 ok: hex either case,
+    bad hex -> white, names/numbers, UnpackToText round trip, palette split 01000011, picker
+    FromSRGBA(73,179,255) -> "#49B3FF".
+  - Assumed, not seen: a picker value in a real .conf is linear like FromSRGBA (vanilla feeds picker colours
+    straight to widgets). The example `m_CustomColour 0.0666 0.4508 1 1` in server-settings.md is computed
+    from that assumption. Label look in game not seen.

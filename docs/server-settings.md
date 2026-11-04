@@ -59,8 +59,9 @@ edit:
 - Percentages, not fractions, matching the mod's config.
 - `channelNaming` takes `LC_ONLY`, `HYBRID` or `VANILLA_ONLY`.
 - `channelLabels` is one string, `megahertz,colour,name` per channel, separated by semicolons:
-  `"45.5,RED,COMMAND;38,GREEN,MEDEVAC"`. Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`,
-  `BLUE`, `PURPLE`. A malformed entry is skipped with a warning; the rest of the list still loads.
+  `"45.5,RED,COMMAND;38,GREEN,MEDEVAC;52,#49B3FF,AIR"`. Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`,
+  `GREEN`, `CYAN`, `BLUE`, `PURPLE`, or any `#RRGGBB` hex colour. A malformed entry is skipped with a
+  warning, and a malformed colour falls back to white; the rest of the list still loads.
 - Delete a key to hand that setting back to the mod's config. Delete the file to hand all of them back —
   it will be written again next session.
 
@@ -119,14 +120,23 @@ LC_Settings {
    m_sName "MEDEVAC"
    m_eColour GREEN
   }
+  LC_ChannelLabel {
+   m_fFrequencyMHz 52
+   m_sName "AIR"
+   m_eColour CUSTOM
+   m_CustomColour 0.0666 0.4508 1 1
+  }
  }
 }
 ```
 
 The frequency is in MHz exactly as it reads on the radio, so `45.5` matches a radio tuned to 45.500 MHz.
-Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`. On the VON display
-the colour is the label's background, with white text on `RED`, `BLUE` and `PURPLE` and black text on the
-rest. Commas and semicolons are stripped from names, because the list is flattened to a delimited string for the trip to each client.
+Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`, or `CUSTOM`: then
+`m_CustomColour` is used, set with the Workbench colour picker (stored the way widgets take colours, which is
+why the example's numbers are not 73/179/255 divided by 255; pick it in the Workbench rather than typing it).
+Its transparency is ignored. In `server.json` a custom colour is written as hex instead, `#RRGGBB`. On the
+VON display the colour is the label's background at the game's own label opacity, with white or black text,
+whichever reads better on it (by brightness: of the named colours `RED`, `BLUE` and `PURPLE` get white). Commas and semicolons are stripped from names, because the list is flattened to a delimited string for the trip to each client.
 
 ## Naming modes
 

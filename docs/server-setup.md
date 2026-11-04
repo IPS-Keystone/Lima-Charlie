@@ -106,8 +106,9 @@ receives on them. One string, `megahertz,colour,name` per channel, semicolons be
 "channelLabels": "45.5,RED,COMMAND;38,GREEN,MEDEVAC;50.2,CYAN,LOGI"
 ```
 
-Colours: `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`. A malformed entry is
-skipped with a warning and the rest still load.
+Colours: `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`, or any hex colour
+as `#RRGGBB` (`"52,#49B3FF,AIR"`). A malformed entry is skipped with a warning (a malformed colour becomes
+white) and the rest still load.
 
 `channelNaming` decides what happens to frequencies you have not named: `HYBRID` (default) falls back to
 the game's own platoon and task net labels, `LC_ONLY` shows nothing for them, `VANILLA_ONLY` ignores your

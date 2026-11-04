@@ -71,13 +71,13 @@ modded class SCR_VonDisplay
 		if (label)
 		{
 			channelText.SetText(label.m_sName);
-			if (LC_ChannelLabels.IsDarkColour(label.m_eColour))
+			if (LC_ChannelLabels.IsDark(label))
 				channelText.SetColor(Color.FromSRGBA(255, 255, 255, 255));
 			else
 				channelText.SetColor(Color.FromSRGBA(0, 0, 0, 255));
 
 			if (channelBackground)
-				channelBackground.SetColor(LC_ChannelLabels.GetColour(label.m_eColour));
+				channelBackground.SetColor(LC_ChannelLabels.GetColour(label));
 
 			channelFrame.SetVisible(true);
 			return shown;

@@ -54,7 +54,11 @@ Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchang
   channel gets the game's own colours back (it used to keep the last name's colour). Two new server settings,
   both on by default: `hideRadioRoles` hides the group role and squad leader icon on incoming radio, and
   `hideDirectSpeechDisplay` keeps people talking out loud off the VON display. OTAC's PLATOON / AIR /
-  COMMAND nets are not built in; set them in `channelLabels`, e.g. `"50,RED,PLATOON;52,BLUE,AIR;60,YELLOW,COMMAND"`.
+  COMMAND nets are not built in; set them in `channelLabels`, e.g. `"50,#FF0000,PLATOON;52,#49B3FF,AIR;60,#FFE02F,COMMAND"`.
+- **Channel labels can be any colour.** Alongside the named colours, `server.json` takes `#RRGGBB`
+  (`"52,#49B3FF,AIR"`), and the mod config has a `CUSTOM` colour with a colour picker. Text on a label is
+  now white or black by the colour's brightness, so a custom colour stays readable; the named colours keep
+  the split they had.
 - **The Lima Charlie status notice shows once, after you spawn in.** It used to appear when the server's
   session arrived (often still in the deploy menu) and again every time something changed, including each
   time you muted or unmuted in TeamSpeak. It now shows once per connection, shortly after you first spawn (or
