@@ -2,7 +2,7 @@
 
 ## First checks
 
-**Read the status notice.** It appears a few seconds after joining and names whichever part of the chain is
+**Read the status notice.** It appears once, a couple of seconds after first spawning in, and names whichever part of the chain is
 missing. Most reports of "the mod does not work" are the plugin not running or TeamSpeak not being
 connected, and the notice says which. It is repeated in `console.log` as `[LC] Status: ...`, so it is
 there even for a player who has hints and notifications turned off.
@@ -82,9 +82,33 @@ shows which of those three moved.
 
 ## Diagnostic logging
 
-Set `diagnosticLog` in `server.json`, or `m_bDiagnosticLog 1` in `Configs/LC/Settings.conf`. Every client then logs both sides of the bridge
-once a second. That includes a Game Master in the editor, who used to get the sending half regardless;
-it now needs the setting like everyone else.
+`diagnostics` in `server.json` (or `m_eDiagnostics` in `Configs/LC/Settings.conf`) is `OFF`, `REGULAR` or
+`COMPREHENSIVE`. The client's settings line says which: `diagnostics regular`.
+
+**REGULAR** (the default) logs only when something happens, plus a summary a minute. Ask for the player's
+console log first; it usually already holds the answer:
+
+```
+[LC] tx start CHANNEL radio 1234:0 45000 kHz on transmit key 1
+[LC] tx end CHANNEL after 2140 ms
+[LC] rx start player 7 on radio 1234:0 45000 kHz, quality 0.82
+[LC] rx end player 7 on radio 1234:0 after 3310 ms, worst quality 0.64
+[LC] tx refused: transmit key spam lockout
+[LC] radios [...]                      (the radio list, when it changes; checked every 3 s)
+[LC] rooms listener Barn_01 room 2, 96 m3 | layout 4 areas, 5 portals, ... done
+[LC] Plugin stopped answering: no new plugin_state for 3000 ms
+[LC] summary 60 s: writes 620, plugin states 240, nearby avg 3.2 max 6, muffle by rooms 1500 by trace 480, traces 310, room probes 0, tx 4 (8200 ms), rx 6, peers 11 | listener outdoors | layout none
+```
+
+- **tx / rx** — every transmission sent and heard. A transmission someone says they made that never shows as
+  `rx start` here never reached this client's plugin.
+- **summary** — `writes` and `plugin states` are the two halves of the bridge (a stalled plugin shows states
+  near 0); `room probes` above 0 means a building type was being mapped that minute.
+- The `Plugin ...` state line (always on) now includes `mic muted`.
+
+**COMPREHENSIVE** adds both sides of the bridge once a second, as the old `diagnosticLog` did. That
+includes a Game Master in the editor. Several kilobytes a second on a full server: for deliberate tests.
+An old `"diagnosticLog": true` in `server.json` still means COMPREHENSIVE; `false` is ignored.
 
 ## Room diagnostics
 

@@ -1,82 +1,107 @@
 //------------------------------------------------------------------------------------------------
-//! The "is this thing working" notice, shown once shortly after joining and again whenever the answer
-//! changes. Both halves of Lima Charlie have to be running and TeamSpeak has to be connected before a
-//! player can hear anything, and none of those failures announce themselves: without this, a player with
-//! TeamSpeak closed simply hears silence and assumes the mod is broken.
+//! The "is this thing working" notice, shown once per connection, shortly after the player first spawns
+//! in (or opens the Game Master editor). Both halves of Lima Charlie have to be running and TeamSpeak has
+//! to be connected before a player can hear anything, and none of those failures announce themselves:
+//! without this, a player with TeamSpeak closed simply hears silence and assumes the mod is broken.
+//! It is not re-shown when something changes later (a microphone toggle, a channel move): the HUD and
+//! TeamSpeak itself say that, and a notice for each was noise.
 class LC_StatusNotice
 {
-	//! How long to give the plugin to report itself before saying it is not there. The plugin writes at
-	//! least every 250 ms, so this is only generous for a machine still loading.
+	//! After spawning in, how long to give the plugin to report itself before saying it is not there.
+	//! The plugin writes at least every 250 ms, so this is only generous for a machine still loading.
 	protected static const int PLUGIN_GRACE_MS = 6000;
-	//! How long to wait for the server's session before reporting that it never came
+	//! After spawning in, how long to wait for the server's session before reporting that it never came
 	protected static const int SESSION_GRACE_MS = 15000;
-	//! A change is only worth interrupting someone for this often
-	protected static const int RESHOW_MS = 15000;
-	protected static const float HINT_SECONDS = 12;
+	//! The deploy menu and spawn fade are still closing when the character arrives; a hint shown then is missed
+	protected static const int SPAWN_SETTLE_MS = 1500;
+	protected static const int HINT_SECONDS = 12;
 
-	protected int m_iStartTick;
+	//! Tick the player was first seen in the world (character or editor), 0 before then
+	protected int m_iInWorldTick;
 	protected bool m_bShown;
-	protected int m_iLastShowTick;
-	protected bool m_bLastSession;
-	protected bool m_bLastPlugin;
-	protected bool m_bLastConnected;
-	protected bool m_bLastInChannel;
-	protected bool m_bLastMicMuted;
+	//! The hint we showed, and when to take it down ourselves: the Game Master editor makes every hint
+	//! endless (SCR_HintEditorComponent sets a duration override of -1), so its own timer cannot be trusted
+	protected SCR_HintUIInfo m_Hint;
+	protected int m_iHideTick;
 
 	//------------------------------------------------------------------------------------------------
 	void Update(int now, notnull LC_Client client)
 	{
-		if (m_iStartTick == 0)
-			m_iStartTick = now;
+		if (m_bShown)
+		{
+			UpdateHide(now);
+			return;
+		}
+
+		if (m_iInWorldTick == 0)
+		{
+			if (!IsInWorld(client))
+				return;
+
+			m_iInWorldTick = now;
+		}
+
+		int sinceSpawn = now - m_iInWorldTick;
+		if (sinceSpawn < SPAWN_SETTLE_MS)
+			return;
 
 		// Normally we wait for the session, so the channel name is known before saying anything. A session
 		// that never arrives is itself worth reporting: the mod is loaded here but the server is not
 		// answering, which looks exactly like the mod being broken.
 		if (!client.HasSession())
 		{
-			if (m_bShown || now - m_iStartTick < SESSION_GRACE_MS)
+			if (sinceSpawn < SESSION_GRACE_MS)
 				return;
 
 			m_bShown = true;
-			m_iLastShowTick = now;
-			m_bLastSession = false;
-			ShowNoSession();
+			ShowNoSession(now);
 			return;
 		}
 
 		LC_PluginStateReader reader = client.GetPluginState();
 		bool plugin = reader.IsPluginRunning(now);
+
+		// Shown as soon as the plugin answers, or once it has had long enough not to
+		if (!plugin && sinceSpawn < PLUGIN_GRACE_MS)
+			return;
+
+		m_bShown = true;
 		bool connected = plugin && reader.IsTeamSpeakConnected();
 		bool inChannel = plugin && reader.IsInGameChannel();
 		bool micMuted = plugin && reader.IsMicMuted();
-
-		if (!m_bShown)
-		{
-			// Shown as soon as the plugin answers, or once it has had long enough not to
-			if (!plugin && now - m_iStartTick < PLUGIN_GRACE_MS)
-				return;
-		}
-		else
-		{
-			// A session arriving after we gave up on it counts as a change worth correcting
-			bool changed = !m_bLastSession || plugin != m_bLastPlugin || connected != m_bLastConnected || inChannel != m_bLastInChannel || micMuted != m_bLastMicMuted;
-			if (!changed || now - m_iLastShowTick < RESHOW_MS)
-				return;
-		}
-
-		m_bShown = true;
-		m_iLastShowTick = now;
-		m_bLastSession = true;
-		m_bLastPlugin = plugin;
-		m_bLastConnected = connected;
-		m_bLastInChannel = inChannel;
-		m_bLastMicMuted = micMuted;
-
-		Show(client, reader, plugin, connected, inChannel, micMuted);
+		Show(now, client, reader, plugin, connected, inChannel, micMuted);
 	}
 
 	//------------------------------------------------------------------------------------------------
-	protected void Show(notnull LC_Client client, notnull LC_PluginStateReader reader, bool plugin, bool connected, bool inChannel, bool micMuted)
+	//! Spawned in as a character, or looking through the Game Master camera without one
+	protected bool IsInWorld(notnull LC_Client client)
+	{
+		if (client.GetControlledEntity())
+			return true;
+
+		SCR_EditorManagerEntity editorManager = SCR_EditorManagerEntity.GetInstance();
+		if (!editorManager)
+			return false;
+
+		return editorManager.IsOpened();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected void UpdateHide(int now)
+	{
+		if (m_iHideTick == 0 || now < m_iHideTick)
+			return;
+
+		m_iHideTick = 0;
+		// Hide only hides the hint passed in if it is still the latest one, so another mod's hint is safe
+		if (m_Hint)
+			SCR_HintManagerComponent.HideHint(m_Hint);
+
+		m_Hint = null;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected void Show(int now, notnull LC_Client client, notnull LC_PluginStateReader reader, bool plugin, bool connected, bool inChannel, bool micMuted)
 	{
 		bool allWell = plugin && connected && !micMuted;
 		string text = "Mod loaded: " + LC_Version.VERSION;
@@ -98,22 +123,21 @@ class LC_StatusNotice
 		else
 		{
 			text += "\nTeamSpeak: connected";
-			// Being muted in TeamSpeak looks exactly like the mod being broken, and a build before 1.0.7
-			// could leave it that way, having gated the microphone itself
+			// Being muted in TeamSpeak looks exactly like the mod being broken
 			if (micMuted)
 				text += "\nMicrophone: muted in TeamSpeak. Nobody can hear you until you unmute it.";
+			else
+				text += "\nMicrophone: on";
 			text += "\n" + DescribeChannel(client, inChannel);
 			// Nought is normal for whoever joins first, so it is reported without being treated as a fault
 			text += "\nOthers with the plugin here: " + reader.GetPeers().ToString();
 		}
 
 		// Silent when everything is in place, so a working session is not announced with a noise every time
-		bool shown = SCR_HintManagerComponent.ShowCustomHint(text, "Lima Charlie", HINT_SECONDS, allWell);
-
-		// Hints obey the player's "show hints" interface setting, and the player most in need of this notice
-		// is the one hearing nothing and wondering why, so fall back to a popup, which obeys a different one
-		if (!shown)
+		if (!ShowHint(now, text, allWell))
 		{
+			// Hints obey the player's "show hints" interface setting, and the player most in need of this
+			// notice is the one hearing nothing and wondering why, so fall back to a popup, which obeys a different one
 			SCR_PopUpNotification popup = SCR_PopUpNotification.GetInstance();
 			if (popup)
 				popup.PopupMsg("Lima Charlie " + LC_Version.VERSION, HINT_SECONDS, Summarise(plugin, connected, micMuted));
@@ -124,13 +148,12 @@ class LC_StatusNotice
 
 	//------------------------------------------------------------------------------------------------
 	//! The mod is running here, but the server has not answered with a session, so nothing can be heard
-	protected void ShowNoSession()
+	protected void ShowNoSession(int now)
 	{
 		string text = "Mod loaded: " + LC_Version.VERSION;
 		text += "\nServer: no Lima Charlie session. This server may not be running the mod, or the scenario has no game mode.";
 
-		bool shown = SCR_HintManagerComponent.ShowCustomHint(text, "Lima Charlie", HINT_SECONDS, false);
-		if (!shown)
+		if (!ShowHint(now, text, false))
 		{
 			SCR_PopUpNotification popup = SCR_PopUpNotification.GetInstance();
 			if (popup)
@@ -138,6 +161,21 @@ class LC_StatusNotice
 		}
 
 		Print("[LC] Status: " + text, LogLevel.WARNING);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! \return false when hints are switched off (or another hint outranks ours), so the caller can fall back
+	protected bool ShowHint(int now, string text, bool silent)
+	{
+		if (!SCR_HintManagerComponent.ShowCustomHint(text, "Lima Charlie", HINT_SECONDS, silent))
+			return false;
+
+		SCR_HintManagerComponent hintManager = SCR_HintManagerComponent.GetInstance();
+		if (hintManager)
+			m_Hint = hintManager.GetLatestHint();
+
+		m_iHideTick = now + HINT_SECONDS * 1000;
+		return true;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -151,9 +189,9 @@ class LC_StatusNotice
 			return "TeamSpeak not connected to a server";
 
 		if (micMuted)
-			return "Microphone muted in TeamSpeak";
+			return "Ready, but microphone muted in TeamSpeak";
 
-		return "Ready";
+		return "Ready, microphone on";
 	}
 
 	//------------------------------------------------------------------------------------------------

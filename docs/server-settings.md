@@ -47,7 +47,7 @@ edit:
     "gameMasterUnlimitedRange": true,
     "aiHearing": true,
     "unconsciousCanSpeak": false,
-    "diagnosticLog": false,
+    "diagnostics": "REGULAR",
     "roomDiagnosticLog": false,
     "channelNaming": "HYBRID",
     "channelLabels": ""
@@ -78,8 +78,8 @@ than half-applied.
 | `m_aChannelLabels` | empty | — | Named frequencies. One entry per net you want labelled. |
 | `m_eChannelNaming` | `HYBRID` | — | Where channel names come from: `LC_ONLY`, `HYBRID`, `VANILLA_ONLY`. |
 | `m_bGameMasterUnlimitedRange` | on | — | Game Masters transmit and receive without range or terrain limits while the editor is open. |
-| `m_bDiagnosticLog` | off | — | Every client logs its side of the bridge once a second. Troubleshooting only. |
-| `m_bRoomDiagnosticLog` | off | — | Every client logs what the engine's room model says about its neighbours, once a second. Troubleshooting only, and far quieter than the line above. |
+| `m_eDiagnostics` | `REGULAR` | `diagnostics` | How much every client logs: `OFF`, `REGULAR` (cheap event lines and a summary a minute; leave on) or `COMPREHENSIVE` (both sides of the bridge once a second; deliberate tests only). |
+| `m_bRoomDiagnosticLog` | off | `roomDiagnosticLog` | Every client logs what the engine's room model says about its neighbours, once a second. The most expensive diagnostic; troubleshooting only. Regular diagnostics already log entering a building and a room summary a minute. |
 | `m_bAIHearing` | on | — | Enemy AI turn towards players speaking out loud. |
 | `m_bUnconsciousCanSpeak` | off | — | Unconscious players can still be heard speaking out loud. Off by default, so someone bleeding out is silent. Radios are refused while unconscious either way, and the dead are always silent. |
 | `m_sTeamSpeakChannel` | `LimaCharlie` | — | Channel players are moved into, on whatever TeamSpeak server they are already on. Empty disables channel moves. |
@@ -136,8 +136,12 @@ deleting the list.
 
 ## Diagnostic logging
 
-Off by default and noisy — one line per second per client, plus a second line on the receive side. Turn it
-on only while investigating something, and take it back out afterwards: the sending half is the whole
-game state, which with 30 players nearby is around 3 KB a line.
+`diagnostics` has three levels. `REGULAR`, the default, is cheap enough to leave on: lines only when
+something happens, and one summary line a minute, so a player's log already says what happened when they
+report a problem. `COMPREHENSIVE` adds one line per second per client, plus a second line on the receive
+side; turn it on only while investigating something, and take it back out afterwards: the sending half is
+the whole game state, which with 30 players nearby is around 3 KB a line. `OFF` leaves the few lines every
+session has. A `server.json` from before 2.0.6 has `"diagnosticLog": false`; that is now ignored (`true`
+still means `COMPREHENSIVE`), so add `"diagnostics"` to change the level.
 
 See [troubleshooting.md](troubleshooting.md) for how to read the output.

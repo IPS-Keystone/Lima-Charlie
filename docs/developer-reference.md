@@ -147,7 +147,9 @@ Written atomically at 4 Hz or faster.
 
 Holds every server setting under a plain name: `teamspeakChannel`, `teamspeakChannelPassword`,
 `cleanRangePercent`, `beepRangePercent`, `terrainEffectPercent`, `gameMasterUnlimitedRange`, `aiHearing`,
-`diagnosticLog`, `roomDiagnosticLog`, `channelNaming`, `channelLabels`.
+`diagnostics` (`OFF`/`REGULAR`/`COMPREHENSIVE`; legacy `diagnosticLog: true` = `COMPREHENSIVE`),
+`roomDiagnosticLog`, `channelNaming`, `channelLabels`. On the session RPC these travel in the flags int:
+bit 0 comprehensive, bit 1 room log, bit 2 unconscious speech, bit 3 regular (set for comprehensive too).
 
 Read last, after the defaults, `Settings.conf` and the mission header, and it wins over all of them because
 it is the only layer an operator can change without republishing. Applied key by key through

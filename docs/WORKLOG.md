@@ -127,6 +127,25 @@ session; update after each meaningful step and before ending one. Never rewrite 
     errors; LCBench_Map in play mode: apartment 1.13 ms/write (was 3.6), 1,433 writes, all 310 portals found
     (270 usable, was 185), save/load/resume identical; house unchanged 0.45 ms. Radio ids correct in play-mode
     game_state.json. Docs: how-it-works, troubleshooting, CHANGELOG, whole-mod investigation follow-up.
-  - NOT tested in MP. Bench left out of ClaudeDevTools (EMCP_WB_Ping.c restored). Bench room files remain in the
+  - Pushed to origin/bugfix-2.0.6 (cd86857) on Duke's go. NOT tested in MP. Bench left out of ClaudeDevTools (EMCP_WB_Ping.c restored). Bench room files remain in the
     Workbench profile (`profile/LimaCharlie/rooms/`), written by the mod itself.
 
+
+## 2026-11-04 (bugfix-2.0.6, afternoon)
+- Duke's list: picker reopens radio menu; status notice lifetime + mic line; diagnostics rework.
+  - Picker: `LC_KeyAssignMenu` sets a flag on Choose/Back; `OnMenuClose` calls (100 ms later) modded
+    `SCR_VONMenu.LC_Reopen` → `m_RadialController.OnInputOpen()` (the VON menu is a toggle,
+    `m_bCloseOnReleaseOpen 0`; any ChimeraMenu open closes the radial via `SCR_RadialMenu.OnMenuOpened`).
+    Not reopened when something else closed the picker.
+  - Notice: root cause of "keeps displaying" = `SCR_HintEditorComponent` sets hint duration override -1
+    (endless) while the GM editor is active. Notice now: once per connection, 1.5 s after first spawn (or
+    editor open), hidden by us after 12 s (`HideHint(info)` only hides our own hint); no re-show on change;
+    "Microphone: on/muted" line.
+  - Diagnostics: `LC_EDiagnostics` OFF / REGULAR (default) / COMPREHENSIVE (= old diagnosticLog). Flags bit 3
+    = regular. server.json key `diagnostics`; legacy `diagnosticLog: true` → COMPREHENSIVE, `false` ignored
+    (every generated file has it). Regular = tx start/end, lockouts, rx start/end with worst quality, plugin
+    stale/back, radios on change (3 s check), listener building/room on change, 60 s summary of counters.
+    Room log: per-player part built only on the printing write.
+  - Evidence: enforce_check 37 files clean; Workbench (ClaudeDevTools → Lima Charlie) logs_2026-11-04_11-49-04
+    `11:49:11 OK 5697 files / 11159 classes`, no LC errors. NOT run in play: picker reopen, notice timing in
+    GM editor, regular log lines/volume all unverified in game. Workbench left running (launched by me).

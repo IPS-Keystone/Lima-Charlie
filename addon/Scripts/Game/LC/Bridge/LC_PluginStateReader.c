@@ -5,6 +5,9 @@ class LC_HeardTransmission
 	string m_sRadioId;
 	int m_iFrequency;
 	float m_fQuality;
+	//! Regular diagnostics: when it was first heard, and the worst quality since
+	int m_iStartTick;
+	float m_fWorstQuality;
 }
 
 //------------------------------------------------------------------------------------------------
@@ -37,13 +40,35 @@ class LC_PluginStateReader
 	protected ref map<int, vector> m_mRadioRequests = new map<int, vector>();
 	//! Transmitting player id -> the radio we are hearing them on, for the VON display
 	protected ref map<int, ref LC_HeardTransmission> m_mHeard = new map<int, ref LC_HeardTransmission>();
+	//! The previous read's transmissions, swapped with m_mHeard so a start and an end can be told apart
+	protected ref map<int, ref LC_HeardTransmission> m_mHeardBefore = new map<int, ref LC_HeardTransmission>();
+	//! Regular diagnostics
+	protected bool m_bDiagnostics;
+	protected bool m_bDiagRunning;
+	protected int m_iDiagStates;
+	protected int m_iDiagReceptions;
 	protected ref array<string> m_aSplit = {};
 	protected ref array<string> m_aFields = {};
 
 	//------------------------------------------------------------------------------------------------
-	//! \param diagnostic logs what the plugin reports hearing, once a second
-	void Update(int now, bool diagnostic = false)
+	//! \param regular logs radio receptions starting and ending, and the plugin going quiet or coming back
+	//! \param comprehensive also logs everything the plugin reports, once a second
+	void Update(int now, bool regular = false, bool comprehensive = false)
 	{
+		m_bDiagnostics = regular;
+		if (regular)
+		{
+			bool running = IsPluginRunning(now);
+			if (running != m_bDiagRunning)
+			{
+				m_bDiagRunning = running;
+				if (running)
+					Print("[LC] Plugin answering", LogLevel.NORMAL);
+				else if (m_iLastSeq >= 0)
+					Print("[LC] Plugin stopped answering: no new plugin_state for " + STALE_MS.ToString() + " ms", LogLevel.WARNING);
+			}
+		}
+
 		if (now < m_iNextPollTick)
 			return;
 
@@ -61,6 +86,7 @@ class LC_PluginStateReader
 
 		m_iLastSeq = seq;
 		m_iLastSeqTick = now;
+		m_iDiagStates++;
 
 		string pluginVersion;
 		bool teamSpeakConnected;
@@ -83,9 +109,9 @@ class LC_PluginStateReader
 		load.ReadValue("radioRx", radioRx);
 		load.ReadValue("radioHeard", radioHeard);
 
-		if (pluginVersion != m_sPluginVersion || teamSpeakConnected != m_bTeamSpeakConnected || teamSpeakClientId != m_iTeamSpeakClientId || inGameChannel != m_bInGameChannel || peers != m_iPeers)
+		if (pluginVersion != m_sPluginVersion || teamSpeakConnected != m_bTeamSpeakConnected || teamSpeakClientId != m_iTeamSpeakClientId || inGameChannel != m_bInGameChannel || peers != m_iPeers || micMuted != m_bMicMuted)
 		{
-			Print(string.Format("[LC] Plugin %1: TeamSpeak connected=%2, client id=%3, in game channel=%4, peers=%5", pluginVersion, teamSpeakConnected, teamSpeakClientId, inGameChannel, peers), LogLevel.NORMAL);
+			Print(string.Format("[LC] Plugin %1: TeamSpeak connected=%2, client id=%3, in game channel=%4, peers=%5, mic muted=%6", pluginVersion, teamSpeakConnected, teamSpeakClientId, inGameChannel, peers, micMuted), LogLevel.NORMAL);
 		}
 
 		m_sPluginVersion = pluginVersion;
@@ -97,8 +123,8 @@ class LC_PluginStateReader
 		m_bMicMuted = micMuted;
 		UpdateTalkingPlayers(talking);
 		UpdateRadioRequests(radioRx);
-		UpdateHeard(radioHeard);
-		LogDiagnostic(now, diagnostic, peers, selfTalking, talking, radioRx, radioHeard);
+		UpdateHeard(radioHeard, now);
+		LogDiagnostic(now, comprehensive, peers, selfTalking, talking, radioRx, radioHeard);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -157,8 +183,11 @@ class LC_PluginStateReader
 
 	//------------------------------------------------------------------------------------------------
 	//! "playerId,radioId,frequency,quality;playerId,radioId,frequency,quality;"
-	protected void UpdateHeard(string radioHeard)
+	protected void UpdateHeard(string radioHeard, int now)
 	{
+		map<int, ref LC_HeardTransmission> before = m_mHeardBefore;
+		m_mHeardBefore = m_mHeard;
+		m_mHeard = before;
 		m_mHeard.Clear();
 
 		m_aSplit.Clear();
@@ -179,7 +208,47 @@ class LC_PluginStateReader
 			heard.m_iFrequency = m_aFields[2].ToInt();
 			heard.m_fQuality = m_aFields[3].ToFloat();
 			m_mHeard.Set(playerId, heard);
+
+			if (!m_bDiagnostics)
+				continue;
+
+			// Carried over from the previous read while it is the same transmission on the same radio
+			LC_HeardTransmission previous = m_mHeardBefore.Get(playerId);
+			if (previous && previous.m_sRadioId == heard.m_sRadioId && previous.m_iFrequency == heard.m_iFrequency)
+			{
+				heard.m_iStartTick = previous.m_iStartTick;
+				heard.m_fWorstQuality = Math.Min(previous.m_fWorstQuality, heard.m_fQuality);
+				continue;
+			}
+
+			heard.m_iStartTick = now;
+			heard.m_fWorstQuality = heard.m_fQuality;
+			m_iDiagReceptions++;
+			Print(string.Format("[LC] rx start player %1 on radio %2 %3 kHz, quality %4", playerId, heard.m_sRadioId, heard.m_iFrequency, heard.m_fQuality.ToString(-1, 2)), LogLevel.NORMAL);
 		}
+
+		if (!m_bDiagnostics)
+			return;
+
+		foreach (int endedId, LC_HeardTransmission ended : m_mHeardBefore)
+		{
+			LC_HeardTransmission still = m_mHeard.Get(endedId);
+			if (still && still.m_sRadioId == ended.m_sRadioId && still.m_iFrequency == ended.m_iFrequency)
+				continue;
+
+			int length = now - ended.m_iStartTick;
+			Print(string.Format("[LC] rx end player %1 on radio %2 after %3 ms, worst quality %4", endedId, ended.m_sRadioId, length, ended.m_fWorstQuality.ToString(-1, 2)), LogLevel.NORMAL);
+		}
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Regular diagnostics: plugin states read and radio receptions started since the last call
+	void TakeStats(out int states, out int receptions)
+	{
+		states = m_iDiagStates;
+		receptions = m_iDiagReceptions;
+		m_iDiagStates = 0;
+		m_iDiagReceptions = 0;
 	}
 
 	//------------------------------------------------------------------------------------------------

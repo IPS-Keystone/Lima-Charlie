@@ -69,7 +69,7 @@ without one, so start the server once and then edit the file that appears:
     "gameMasterUnlimitedRange": true,
     "aiHearing": true,
     "unconsciousCanSpeak": false,
-    "diagnosticLog": false,
+    "diagnostics": "REGULAR",
     "roomDiagnosticLog": false,
     "channelNaming": "HYBRID",
     "channelLabels": ""
@@ -152,5 +152,5 @@ A Game Master with no character at all still hears. A dead player hears nothing.
 ## Troubleshooting
 
 [troubleshooting.md](troubleshooting.md) covers the diagnostic logs, including the two server switches
-(`diagnosticLog`, `roomDiagnosticLog`) and how to read what they print. Both are noisy; leave them off for
-normal play.
+(`diagnostics`, `roomDiagnosticLog`) and how to read what they print. Leave `diagnostics` on `REGULAR`
+(the default); `COMPREHENSIVE` and `roomDiagnosticLog` are noisy, for deliberate tests only.

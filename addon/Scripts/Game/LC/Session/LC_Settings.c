@@ -1,4 +1,19 @@
 //------------------------------------------------------------------------------------------------
+//! How much every client writes to its console log for troubleshooting. Room diagnostics are a separate
+//! switch, being the most expensive of all.
+enum LC_EDiagnostics
+{
+	//! Only the handful of lines every session has (version, settings, status, plugin state changes)
+	OFF,
+	//! Cheap, event-driven lines plus a summary a minute: on by default, so a player's log is useful
+	//! after the fact without asking them to play it again
+	REGULAR,
+	//! Regular, plus the whole bridge both ways once a second. Several kilobytes a second on a full
+	//! server: for deliberate tests.
+	COMPREHENSIVE
+}
+
+//------------------------------------------------------------------------------------------------
 //! Server side Lima Charlie settings. Defaults ship in Configs/LC/Settings.conf; a scenario can override them
 //! for itself through the mission header (see LC_MissionHeader).
 //!
@@ -33,10 +48,10 @@ class LC_Settings
 	[Attribute(defvalue: "0", desc: "Unconscious players can still be heard speaking out loud, at the same range as anyone else. Off by default: someone bleeding out on the floor is silent until they are treated. Radios are refused while unconscious either way. Dead players are always silent.")]
 	bool m_bUnconsciousCanSpeak;
 
-	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client writes a line a second to its console log: what the game told the plugin, and what the plugin reports hearing back. Leave off for normal play: with a full server it is several kilobytes a second of log on every client.")]
-	bool m_bDiagnosticLog;
+	[Attribute(defvalue: "1", uiwidget: UIWidgets.ComboBox, enums: ParamEnumArray.FromEnum(LC_EDiagnostics), desc: "What every client writes to its console log for troubleshooting. REGULAR (the default) is cheap enough to leave on: a line when something happens (transmitting, hearing a radio, radios changing, entering a building, TeamSpeak changing state) and a one line summary a minute, so a player's log after a problem already says what happened. COMPREHENSIVE adds everything sent to and heard from the plugin, once a second: several kilobytes a second of log on a full server, for deliberate tests. OFF keeps only the few lines every session has.")]
+	LC_EDiagnostics m_eDiagnostics;
 
-	[Attribute(defvalue: "0", desc: "Troubleshooting only. Every client logs one line a second about the engine's room model: which room it thinks each nearby player is in, how open the doorways of the building you are in are, how much of the mapping of that building type is done, and whether each player's muffling came from the rooms or from a trace. Far less noisy than the setting above.")]
+	[Attribute(defvalue: "0", desc: "Troubleshooting only, and the most expensive diagnostic: every client logs one line a second about the engine's room model: which room it thinks each nearby player is in, how open the doorways of the building you are in are, how much of the mapping of that building type is done, how each player's muffling was decided and what blocked each trace. Regular diagnostics already log which building you are in and a summary of the room model each minute.")]
 	bool m_bRoomDiagnosticLog;
 
 	[Attribute(defvalue: "LimaCharlie", desc: "TeamSpeak channel every player is moved into while in game, on whichever TeamSpeak server they are already connected to. Leave empty to disable automatic channel moves and let everyone sort out their own channel.")]
@@ -89,6 +104,7 @@ class LC_Settings
 		settings.m_fTerrainEffectPercent = 100;
 		settings.m_bGameMasterUnlimitedRange = true;
 		settings.m_bAIHearing = true;
+		settings.m_eDiagnostics = LC_EDiagnostics.REGULAR;
 		settings.m_sTeamSpeakChannel = "LimaCharlie";
 		return settings;
 	}

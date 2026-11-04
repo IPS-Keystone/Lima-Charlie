@@ -46,6 +46,26 @@ Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchang
 - **Room diagnostic log is cheaper.** With `roomDiagnosticLog` on, measuring how solid a blocker is (the
   `s0.42` figure) walked every collider of the blocking object, often a whole building, on every occlusion
   check. It is now measured only for the line about to be printed.
+- **The transmit key picker hands you back to the radio menu.** Choosing a key, or backing out with Escape,
+  now reopens the radio menu instead of leaving you in the game, so you can set the next channel straight away.
+- **The Lima Charlie status notice shows once, after you spawn in.** It used to appear when the server's
+  session arrived (often still in the deploy menu) and again every time something changed, including each
+  time you muted or unmuted in TeamSpeak. It now shows once per connection, shortly after you first spawn (or
+  open the Game Master editor), and says whether your microphone is on or muted. It also takes itself down
+  after 12 seconds: in the Game Master editor the game makes every hint stay until closed, which is why it
+  sometimes would not go away.
+- **Diagnostics are now three levels, with the cheap one on by default.** `diagnostics` (server.json) or
+  `m_eDiagnostics` (mod config) is `OFF`, `REGULAR` or `COMPREHENSIVE`. **REGULAR** (default) logs a line when
+  something happens - a transmission starting and ending, a radio transmission heard and how bad it got,
+  the radio list changing, entering or leaving a building (with how much of its room model is mapped), the
+  plugin stopping or coming back, a transmit key lockout - and a one line summary a minute (updates written,
+  plugin states read, nearby players, muffling by rooms or trace, traces, room probes, transmissions,
+  receptions). It reads only what the update already worked out, so a player's log after a problem is
+  useful without asking them to play it again. **COMPREHENSIVE** is the old `diagnosticLog`: both sides of
+  the bridge once a second, for deliberate tests. `roomDiagnosticLog` stays its own switch; its per-player
+  part is now built only for the line it prints. An old `"diagnosticLog": true` still works (as
+  COMPREHENSIVE); `false`, which every generated server.json has, no longer turns anything off. The plugin
+  state line now also says when TeamSpeak mutes your microphone.
 - **Voices behind walls no longer pump.** When people shuffle in a room, a voice can flip between clear and
   one wall behind every second or so; that was heard as a 5-8 dB step and the top end cutting in and out.
   The muffle and room echo now glide to the new value over about 200 ms.

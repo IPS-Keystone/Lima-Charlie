@@ -176,6 +176,14 @@ modded class SCR_VONController
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Opens the VON radial menu again (after the transmit key picker closed it)
+	void LC_ReopenMenu()
+	{
+		if (m_VONMenu)
+			m_VONMenu.LC_Reopen();
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! Redraws the radial menu entries after an Lima Charlie setting changed
 	void LC_RefreshMenu()
 	{
