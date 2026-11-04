@@ -185,3 +185,15 @@ session; update after each meaningful step and before ending one. Never rewrite 
   - Assumed, not seen: a picker value in a real .conf is linear like FromSRGBA (vanilla feeds picker colours
     straight to widgets). The example `m_CustomColour 0.0666 0.4508 1 1` in server-settings.md is computed
     from that assumption. Label look in game not seen.
+- Research: radio background bleed (battle sound heard behind a radio transmission):
+  docs/research/2026-11-04-radio-background-bleed.md. No Arma 3 TFAR/ACRE add-on found (TFAR #1440: devs
+  say real capture is impossible, one TS voice stream); Reforger precedent SH Battle Radio is gone (404, no
+  archive). Recommended: sender's game collects shots/explosions/vehicle state while transmitting, plugins
+  carry them by sendPluginCommand, receiver's plugin mixes samples into that speaker's radio path before
+  `radio_tick`. Vanilla has script-readable mixer loudness (`Submix_L4`/`L3`, untested live). No code changed.
+  Waiting on Duke: name of the Arma 3 mod; go/no-go and where it sits (after 3.0 suggested).
+- Radio background bleed **shelved** by Duke: not a focus, no good way to source the samples. Write-up kept.
+- Release notes written: docs/release-notes-2.0.6.md (bug fixes / performance / changes). Plugin
+  build/LimaCharlie_2.0.6.ts3_plugin (2026-11-03 22:54) is current with plugin/src. release_check 2.0.6:
+  0 errors, 3 warnings (VoiceLevel source PNGs without .meta, already in 2.0.5), enforce clean.
+- Duke: commit 2.0.6 and merge bugfix-2.0.6 into main on GitHub. Cover pictures left uncommitted.
