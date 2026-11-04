@@ -1,0 +1,36 @@
+building {BEF9077AF9F93AE7}Prefabs/Structures/Houses/Village/House_Mountain_E_1I01/House_Mountain_E_1I01.et areas 10 portals 26
+file $profile:LimaCharlie/rooms/BEF9077AF9F93AE7.txt present before: false
+full map: 85 writes, 10880 cells, 38 ms, 0.447 ms/write, worst write 1 ms, 3.49 us/cell
+  layout: 10 areas, 26 portals, 25 usable, 0 unfound, 10880 cells, done
+  file present after: true
+  | LC rooms 1
+  | 1.8.0.13
+  | {BEF9077AF9F93AE7}Prefabs/Structures/Houses/Village/House_Mountain_E_1I01/House_Mountain_E_1I01.et
+  | 10 26 33 20 19
+  | 23 9 16 10880 1 0
+  | 20 0 7 -5.36 1.23 -6.74
+  (30 lines, 709 chars)
+new session, first write 0 ms, spent 0 cells: 10 areas, 26 portals, 25 usable, 0 unfound, 10880 cells, done, saved
+  matches the mapped layout: true
+partial: after 150 writes: 10 areas, 26 portals, 25 usable, 0 unfound, 10880 cells, done; walked out (outdoors true)
+  new session before mapping: 10 areas, 26 portals, 25 usable, 0 unfound, 10880 cells, done, saved
+  resumed to done in 0 more writes (150 total vs 85): 10 areas, 26 portals, 25 usable, 0 unfound, 10880 cells, done, saved
+
+building {14E317F859842B3C}Prefabs/Structures/Houses/Prefabricated/ApartmentBuilding_5I01/ApartmentBuilding_USSR_5I01.et areas 117 portals 310
+file $profile:LimaCharlie/rooms/14E317F859842B3C.txt present before: false
+full map: 1433 writes, 54454 cells, 1620 ms, 1.130 ms/write, worst write 3 ms, 29.75 us/cell
+  layout: 117 areas, 310 portals, 270 usable, 0 unfound, 54454 cells, done
+  file present after: true
+  | LC rooms 1
+  | 1.8.0.13
+  | {14E317F859842B3C}Prefabs/Structures/Houses/Prefabricated/ApartmentBuilding_5I01/ApartmentBuilding_USSR_5I01.et
+  | 117 310 73 36 27
+  | 69 25 20 54454 1 0
+  | 20 0 86 -11.43 0.33 -7.97
+  (275 lines, 7012 chars)
+new session, first write 2 ms, spent 0 cells: 117 areas, 310 portals, 270 usable, 0 unfound, 54454 cells, done, saved
+  matches the mapped layout: true
+partial: after 400 writes: 117 areas, 310 portals, 109 usable, 0 unfound, 15200 cells, mapping; walked out (outdoors true)
+  new session before mapping: 117 areas, 310 portals, 109 usable, 0 unfound, 15200 cells, mapping, saved
+  resumed to done in 1033 more writes (1433 total vs 1433): 117 areas, 310 portals, 270 usable, 0 unfound, 54454 cells, done, saved
+

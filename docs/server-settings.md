@@ -47,8 +47,10 @@ edit:
     "gameMasterUnlimitedRange": true,
     "aiHearing": true,
     "unconsciousCanSpeak": false,
-    "diagnosticLog": false,
+    "diagnostics": "REGULAR",
     "roomDiagnosticLog": false,
+    "hideRadioRoles": true,
+    "hideDirectSpeechDisplay": true,
     "channelNaming": "HYBRID",
     "channelLabels": ""
 }
@@ -57,8 +59,9 @@ edit:
 - Percentages, not fractions, matching the mod's config.
 - `channelNaming` takes `LC_ONLY`, `HYBRID` or `VANILLA_ONLY`.
 - `channelLabels` is one string, `megahertz,colour,name` per channel, separated by semicolons:
-  `"45.5,RED,COMMAND;38,GREEN,MEDEVAC"`. Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`,
-  `BLUE`, `PURPLE`. A malformed entry is skipped with a warning; the rest of the list still loads.
+  `"45.5,RED,COMMAND;38,GREEN,MEDEVAC;52,#49B3FF,AIR"`. Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`,
+  `GREEN`, `CYAN`, `BLUE`, `PURPLE`, or any `#RRGGBB` hex colour. A malformed entry is skipped with a
+  warning, and a malformed colour falls back to white; the rest of the list still loads.
 - Delete a key to hand that setting back to the mod's config. Delete the file to hand all of them back —
   it will be written again next session.
 
@@ -77,9 +80,11 @@ than half-applied.
 | `m_fTerrainEffectPercent` | 100 | 0–300 | How much hills cost, by scaling every hill's height. At 100 a 30 m hill takes about a fifth of a radio's range and a 120 m one more than half (see how-it-works.md, Terrain). 0 ignores terrain, 200 makes every hill count as twice its height. |
 | `m_aChannelLabels` | empty | — | Named frequencies. One entry per net you want labelled. |
 | `m_eChannelNaming` | `HYBRID` | — | Where channel names come from: `LC_ONLY`, `HYBRID`, `VANILLA_ONLY`. |
+| `m_bHideRadioRoles` | on | `hideRadioRoles` | Incoming radio on the VON display shows the speaker's name and channel only, no group role or squad leader icon. |
+| `m_bHideDirectSpeechDisplay` | on | `hideDirectSpeechDisplay` | The VON display lists radio transmissions only, not people talking out loud nearby. The game's own server setting for this still applies when this is off. |
 | `m_bGameMasterUnlimitedRange` | on | — | Game Masters transmit and receive without range or terrain limits while the editor is open. |
-| `m_bDiagnosticLog` | off | — | Every client logs its side of the bridge once a second. Troubleshooting only. |
-| `m_bRoomDiagnosticLog` | off | — | Every client logs what the engine's room model says about its neighbours, once a second. Troubleshooting only, and far quieter than the line above. |
+| `m_eDiagnostics` | `REGULAR` | `diagnostics` | How much every client logs: `OFF`, `REGULAR` (cheap event lines and a summary a minute; leave on) or `COMPREHENSIVE` (both sides of the bridge once a second; deliberate tests only). |
+| `m_bRoomDiagnosticLog` | off | `roomDiagnosticLog` | Every client logs what the engine's room model says about its neighbours, once a second. The most expensive diagnostic; troubleshooting only. Regular diagnostics already log entering a building and a room summary a minute. |
 | `m_bAIHearing` | on | — | Enemy AI turn towards players speaking out loud. |
 | `m_bUnconsciousCanSpeak` | off | — | Unconscious players can still be heard speaking out loud. Off by default, so someone bleeding out is silent. Radios are refused while unconscious either way, and the dead are always silent. |
 | `m_sTeamSpeakChannel` | `LimaCharlie` | — | Channel players are moved into, on whatever TeamSpeak server they are already on. Empty disables channel moves. |
@@ -115,13 +120,23 @@ LC_Settings {
    m_sName "MEDEVAC"
    m_eColour GREEN
   }
+  LC_ChannelLabel {
+   m_fFrequencyMHz 52
+   m_sName "AIR"
+   m_eColour CUSTOM
+   m_CustomColour 0.0666 0.4508 1 1
+  }
  }
 }
 ```
 
 The frequency is in MHz exactly as it reads on the radio, so `45.5` matches a radio tuned to 45.500 MHz.
-Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`. Commas and semicolons
-are stripped from names, because the list is flattened to a delimited string for the trip to each client.
+Colours are `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`, or `CUSTOM`: then
+`m_CustomColour` is used, set with the Workbench colour picker (stored the way widgets take colours, which is
+why the example's numbers are not 73/179/255 divided by 255; pick it in the Workbench rather than typing it).
+Its transparency is ignored. In `server.json` a custom colour is written as hex instead, `#RRGGBB`. On the
+VON display the colour is the label's background at the game's own label opacity, with white or black text,
+whichever reads better on it (by brightness: of the named colours `RED`, `BLUE` and `PURPLE` get white). Commas and semicolons are stripped from names, because the list is flattened to a delimited string for the trip to each client.
 
 ## Naming modes
 
@@ -136,8 +151,12 @@ deleting the list.
 
 ## Diagnostic logging
 
-Off by default and noisy — one line per second per client, plus a second line on the receive side. Turn it
-on only while investigating something, and take it back out afterwards: the sending half is the whole
-game state, which with 30 players nearby is around 3 KB a line.
+`diagnostics` has three levels. `REGULAR`, the default, is cheap enough to leave on: lines only when
+something happens, and one summary line a minute, so a player's log already says what happened when they
+report a problem. `COMPREHENSIVE` adds one line per second per client, plus a second line on the receive
+side; turn it on only while investigating something, and take it back out afterwards: the sending half is
+the whole game state, which with 30 players nearby is around 3 KB a line. `OFF` leaves the few lines every
+session has. A `server.json` from before 2.0.6 has `"diagnosticLog": false`; that is now ignored (`true`
+still means `COMPREHENSIVE`), so add `"diagnostics"` to change the level.
 
 See [troubleshooting.md](troubleshooting.md) for how to read the output.

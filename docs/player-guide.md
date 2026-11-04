@@ -37,7 +37,7 @@ last word still goes out. A microphone you have muted in TeamSpeak stays muted.
 
 ## The status notice
 
-Shortly after you join, a panel tells you whether the whole chain is working, because none of these
+Shortly after you first spawn in (or open the Game Master editor), a panel tells you whether the whole chain is working, because none of these
 failures make a sound on their own:
 
 ```
@@ -45,13 +45,16 @@ Lima Charlie
 Mod loaded: 2.0.0
 TeamSpeak plugin: 2.0.0
 TeamSpeak: connected
+Microphone: on
 Channel: LimaCharlie
 Others with the plugin here: 3
 ```
 
 If something is missing it says so instead, with what to do about it — the plugin not running, TeamSpeak
-not connected to a server, or the channel move not having happened. It appears again if any of that changes
-later, so starting TeamSpeak after the game tells you when it has been picked up.
+not connected to a server, your microphone muted in TeamSpeak, or the channel move not having happened. It
+shows once per connection and goes after 12 seconds; it is not shown again when something changes later
+(TeamSpeak shows its own mute). Started TeamSpeak after the game? Rejoin to see it again, or
+read the `[LC] Plugin` line in `console.log`.
 
 `Others with the plugin here` counting 0 is normal if you are the first one in.
 
@@ -141,8 +144,11 @@ Per radio, kept for the session only — nothing is saved between sessions:
   beside you.
 - **Transmit key** — which of the four keys sends on it. Press `J` with the radio under the cursor and a
   picker opens beside the menu with five buttons: **None** and **1** to **4**. The key it is on now is lit.
+  Keys `1` to `4` pick that key and `Esc` picks **None**, the same as clicking the buttons. Either way the
+  radio menu comes back so you can set the next channel.
   Choosing a key takes it from whichever radio had it; **None** takes the radio off every key. A radio you
-  have never set defaults to its position in the list.
+  have never set defaults to its position in the list. The list keeps its order when a radio leaves it
+  (dropped, or the Game Master editor closed), and a Game Master's editor channels always come after their own radios.
 
 ### What a transmission sounds like
 

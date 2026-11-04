@@ -1,5 +1,89 @@
 # Changelog
 
+## 2.0.6 — mod 2.0.6, plugin 2.0.6 (testing, unreleased)
+
+Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchanged (9).
+
+- **Radio channels no longer swap places.** Closing the Game Master editor or dropping a radio used to
+  reshuffle the radio menu and move the transmit keys onto other channels: the game removes a
+  radio by moving the last one into its slot. Lima Charlie now puts the moved one back at the end, so the
+  order stays as it was. A Game Master's editor channels now come after their own radios, so opening the
+  editor no longer takes over TX 1-4.
+- **Smoother when several people talk on the radio at once.** With OTAC Core loaded, an incoming radio
+  speaker beyond the VON display's slots made OTAC's display code throw an error, and Lima Charlie raised it
+  again up to 20 times a second until a slot freed. Each error wrote a full stack trace to three log files.
+  It now happens once per overflow. The error itself is OTAC Core's to fix.
+- **Less work in big buildings.** The path through a building's rooms was worked out again on every update,
+  up to 20 times a second, across every doorway of the building. A Soviet apartment block has 117 rooms and
+  over 300 doorways and windows. Paths are now kept per building and only worked out again when a door or
+  window changes (checked four times a second), and the search only follows each room's own doorways.
+  Someone outdoors near several mapped buildings no longer throws one building's answer away for the next.
+  Up to 32 paths are kept (a town fight spread over more than 8 buildings used to work every one out again on
+  every update), and each building's doors and windows are read once per check however many rooms paths
+  start from.
+- **Less work for people on the move.** Finding which building someone is in used to run on every update for
+  anyone running or in a vehicle nearby. It now runs at most about 7 times a second per person, and asks each
+  building once rather than once for every door and window of it.
+- **Cheaper occlusion traces.** Each object a trace passes is measured first, and only something wide enough
+  to be cover is checked further (tree, fence, person); posts and props are passed straight away. Same result.
+- **A building with a different room model under the same name is left to tracing.** A copy of a building with
+  its model swapped, or a destroyed building, could be read with another model's doorway numbers. It now
+  falls back to traces, and is never used to map that building type.
+- **Room mapping stops when it has covered the building.** It used to carry on probing above the roof until
+  it hit its cap, whenever it could not find every doorway. That was a few extra seconds of mapping per
+  building type.
+- **No more hitching the first time you walk into a big building.** Mapping a building type's rooms cost a
+  fixed amount of probing per update, and each probe costs more the more doorways the building has: 3.6 ms
+  on every update for 15-30 seconds in a Soviet apartment block. It is now sized to the building, about 1 ms
+  per update, so a big building takes longer to map (a few minutes of standing in it) without hitching.
+  It also no longer gives up halfway along the apartment block with 87 of its doorways unfound.
+- **Mapped buildings are remembered.** Room maps are saved to `profile/LimaCharlie/rooms/`, one small file
+  per building type, including how far an unfinished one got. Each building type is mapped once per
+  player and game version instead of every session. Deleting the folder just means mapping again.
+- **Cheaper game state updates.** Each nearby player's entry is built on its own and added once, which made
+  building the update up to 30% faster with 60 players nearby. Each radio's id and duplex mode are read once
+  instead of several times per update and on every frame a transmit key is held.
+- **Room diagnostic log is cheaper.** With `roomDiagnosticLog` on, measuring how solid a blocker is (the
+  `s0.42` figure) walked every collider of the blocking object, often a whole building, on every occlusion
+  check. It is now measured only for the line about to be printed.
+- **The transmit key picker hands you back to the radio menu, and takes keys.** With the picker open, `1` to
+  `4` choose that transmit key and `Esc` chooses None, the same as the buttons. Either way the radio menu
+  reopens instead of leaving you in the game, so you can set the next channel straight away.
+- **VON display, folded in from OTAC Core (with their approval).** Named channels are drawn on a background
+  of their colour with white or black text to suit, instead of coloured text. A widget reused for an unnamed
+  channel gets the game's own colours back (it used to keep the last name's colour). Two new server settings,
+  both on by default: `hideRadioRoles` hides the group role and squad leader icon on incoming radio, and
+  `hideDirectSpeechDisplay` keeps people talking out loud off the VON display. OTAC's PLATOON / AIR /
+  COMMAND nets are not built in; set them in `channelLabels`, e.g. `"50,#FF0000,PLATOON;52,#49B3FF,AIR;60,#FFE02F,COMMAND"`.
+- **Channel labels can be any colour.** Alongside the named colours, `server.json` takes `#RRGGBB`
+  (`"52,#49B3FF,AIR"`), and the mod config has a `CUSTOM` colour with a colour picker. Text on a label is
+  now white or black by the colour's brightness, so a custom colour stays readable; the named colours keep
+  the split they had.
+- **The Lima Charlie status notice shows once, after you spawn in.** It used to appear when the server's
+  session arrived (often still in the deploy menu) and again every time something changed, including each
+  time you muted or unmuted in TeamSpeak. It now shows once per connection, shortly after you first spawn (or
+  open the Game Master editor), and says whether your microphone is on or muted. It also takes itself down
+  after 12 seconds: in the Game Master editor the game makes every hint stay until closed, which is why it
+  sometimes would not go away.
+- **Diagnostics are now three levels, with the cheap one on by default.** `diagnostics` (server.json) or
+  `m_eDiagnostics` (mod config) is `OFF`, `REGULAR` or `COMPREHENSIVE`. **REGULAR** (default) logs a line when
+  something happens - a transmission starting and ending, a radio transmission heard and how bad it got,
+  the radio list changing, entering or leaving a building (with how much of its room model is mapped), the
+  plugin stopping or coming back, a transmit key lockout - and a one line summary a minute (updates written,
+  plugin states read, nearby players, muffling by rooms or trace, traces, room probes, transmissions,
+  receptions). It reads only what the update already worked out, so a player's log after a problem is
+  useful without asking them to play it again. **COMPREHENSIVE** is the old `diagnosticLog`: both sides of
+  the bridge once a second, for deliberate tests. `roomDiagnosticLog` stays its own switch; its per-player
+  part is now built only for the line it prints. An old `"diagnosticLog": true` still works (as
+  COMPREHENSIVE); `false`, which every generated server.json has, no longer turns anything off. The plugin
+  state line now also says when TeamSpeak mutes your microphone.
+- **A leftover plugin file no longer counts as the plugin running.** With TeamSpeak closed, the
+  `plugin_state.json` from an earlier session was read once and counted as a live plugin for three seconds,
+  so the status notice could say "connected". The plugin now has to be seen writing twice.
+- **Voices behind walls no longer pump.** When people shuffle in a room, a voice can flip between clear and
+  one wall behind every second or so; that was heard as a 5-8 dB step and the top end cutting in and out.
+  The muffle and room echo now glide to the new value over about 200 ms.
+
 ## 2.0.5 — mod 2.0.5, plugin 2.0.5 (testing, unreleased)
 
 Since 2.0.4.

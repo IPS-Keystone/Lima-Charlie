@@ -69,8 +69,10 @@ without one, so start the server once and then edit the file that appears:
     "gameMasterUnlimitedRange": true,
     "aiHearing": true,
     "unconsciousCanSpeak": false,
-    "diagnosticLog": false,
+    "diagnostics": "REGULAR",
     "roomDiagnosticLog": false,
+    "hideRadioRoles": true,
+    "hideDirectSpeechDisplay": true,
     "channelNaming": "HYBRID",
     "channelLabels": ""
 }
@@ -104,8 +106,9 @@ receives on them. One string, `megahertz,colour,name` per channel, semicolons be
 "channelLabels": "45.5,RED,COMMAND;38,GREEN,MEDEVAC;50.2,CYAN,LOGI"
 ```
 
-Colours: `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`. A malformed entry is
-skipped with a warning and the rest still load.
+Colours: `WHITE`, `RED`, `ORANGE`, `YELLOW`, `GREEN`, `CYAN`, `BLUE`, `PURPLE`, or any hex colour
+as `#RRGGBB` (`"52,#49B3FF,AIR"`). A malformed entry is skipped with a warning (a malformed colour becomes
+white) and the rest still load.
 
 `channelNaming` decides what happens to frequencies you have not named: `HYBRID` (default) falls back to
 the game's own platoon and task net labels, `LC_ONLY` shows nothing for them, `VANILLA_ONLY` ignores your
@@ -152,5 +155,5 @@ A Game Master with no character at all still hears. A dead player hears nothing.
 ## Troubleshooting
 
 [troubleshooting.md](troubleshooting.md) covers the diagnostic logs, including the two server switches
-(`diagnosticLog`, `roomDiagnosticLog`) and how to read what they print. Both are noisy; leave them off for
-normal play.
+(`diagnostics`, `roomDiagnosticLog`) and how to read what they print. Leave `diagnostics` on `REGULAR`
+(the default); `COMPREHENSIVE` and `roomDiagnosticLog` are noisy, for deliberate tests only.

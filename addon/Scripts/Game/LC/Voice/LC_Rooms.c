@@ -12,6 +12,10 @@ class LC_RoomLocation
 	float m_fVolume;
 	int m_iCheckedTick;
 	vector m_vCheckedPosition;
+	//! The layout of that building's type, looked up once per building rather than by prefab name every write.
+	//! Null when it has none this building can use.
+	LC_RoomLayout m_Layout;
+	bool m_bLayoutKnown;
 
 	//------------------------------------------------------------------------------------------------
 	bool IsIndoors()
@@ -26,6 +30,8 @@ class LC_RoomLocation
 		m_Subscene = null;
 		m_iArea = LC_Rooms.AREA_NONE;
 		m_fVolume = 0;
+		m_Layout = null;
+		m_bLayoutKnown = false;
 	}
 }
 
@@ -47,6 +53,36 @@ class LC_RoomPortal
 }
 
 //------------------------------------------------------------------------------------------------
+//! What passing through each usable portal of one building costs right now. Shared by every path searched in
+//! that building, so its doors and windows are read once per recheck however many rooms paths start from.
+class LC_RoomCosts
+{
+	//! Weak: a building that streams out leaves this empty, and the slot is reused
+	WorldSubsceneComponent m_Subscene;
+	LC_RoomLayout m_Layout;
+	//! Per usable portal of the layout, by index
+	ref array<float> m_aCost = {};
+	//! Changes whenever any cost does, and is unique across buildings, so a path can tell its search is stale
+	int m_iRevision;
+	int m_iCheckedTick;
+	int m_iUsedTick;
+}
+
+//------------------------------------------------------------------------------------------------
+//! The cheapest muffle from one area of one building to every other area of it
+class LC_RoomPaths
+{
+	//! Weak: a building that streams out leaves this empty, and the slot is reused
+	WorldSubsceneComponent m_Subscene;
+	LC_RoomLayout m_Layout;
+	int m_iFrom = LC_Rooms.AREA_NONE;
+	ref array<float> m_aDistance = {};
+	//! The cost revision the distances were searched with
+	int m_iRevision = -1;
+	int m_iUsedTick;
+}
+
+//------------------------------------------------------------------------------------------------
 //! The room layout of one building type.
 //!
 //! The engine says which area a point is in and how open each portal is, but not which areas a portal
@@ -55,6 +91,10 @@ class LC_RoomPortal
 //!
 //! A layout belongs to the model, so it is discovered once per prefab and reused by every copy of that
 //! building on the map. Probing stops as soon as every portal the engine reports has been found.
+//!
+//! Layouts are saved to the player's profile, finished or not, so each building type is mapped once per
+//! client and game version rather than once per session. A big building takes minutes of standing in it to
+//! map at the rate the writer allows, and that is spread over as many sessions as it takes.
 class LC_RoomLayout
 {
 	//! Side of one probe box. Smaller finds narrow portals more reliably and costs more probes.
@@ -62,9 +102,20 @@ class LC_RoomLayout
 	//! How far to either side of a portal we look to see which areas it joins
 	protected static const float PROBE_M = 0.8;
 	//! Probing gives up after this many cells, so a building whose portals cannot be found this way stops
-	//! costing anything
-	protected static const int MAX_CELLS = 40000;
+	//! costing anything. Big enough for the five storey apartment block (about 71,000 cells), which at 40,000
+	//! used to stop halfway along it with 87 of its 310 portals unfound.
+	protected static const int MAX_CELLS = 120000;
 	protected static const int MAX_CELLS_PER_AXIS = 200;
+
+	//! One file per building type, named by its prefab's GUID
+	protected static const string PARENT_DIRECTORY = "$profile:LimaCharlie";
+	protected static const string DIRECTORY = "$profile:LimaCharlie/rooms";
+	protected static const string FILE_HEADER = "LC rooms";
+	//! Bump whenever probing changes what a layout would contain, so files from before are mapped again
+	protected static const int FILE_FORMAT = 1;
+	//! A layout being mapped is saved this often as well as when it is finished, so standing in a building for
+	//! a while is not wasted if the session ends before it is done
+	protected static const int SAVE_EVERY_CELLS = 4000;
 
 	string m_sPrefab;
 	int m_iAreaCount;
@@ -75,6 +126,10 @@ class LC_RoomLayout
 	//! through those doorways.
 	int m_iMissing;
 	int m_iCellsDone;
+	//! Cells done when it was last saved or loaded
+	protected int m_iSavedCells;
+	//! Read from a saved file this session rather than mapped from nothing
+	protected bool m_bLoaded;
 
 	protected vector m_vMins;
 	protected vector m_vMaxs;
@@ -85,6 +140,8 @@ class LC_RoomLayout
 	protected int m_iCellsY;
 	protected int m_iCellsZ;
 	protected ref map<int, ref LC_RoomPortal> m_mByPortal = new map<int, ref LC_RoomPortal>();
+	//! Per area, the indexes into m_aPortals of the portals touching it. Built when mapping finishes.
+	ref array<ref array<int>> m_aAreaPortals = {};
 
 	//------------------------------------------------------------------------------------------------
 	void Begin(string prefab, notnull IEntity building, notnull WorldSubsceneComponent subscene)
@@ -115,7 +172,10 @@ class LC_RoomLayout
 
 		float half = CELL_M * 0.5;
 		int spent;
-		while (spent < cellBudget)
+		// The grid running out ends the mapping too. It used to only end the batch, and the next write carried
+		// on probing past the top of the building until the cap stopped it.
+		bool exhausted;
+		while (spent < cellBudget && m_iCellsDone < MAX_CELLS)
 		{
 			vector cell = Vector(m_vMins[0] + (m_iCellX + 0.5) * CELL_M, m_vMins[1] + (m_iCellY + 0.5) * CELL_M, m_vMins[2] + (m_iCellZ + 0.5) * CELL_M);
 			vector mins = Vector(cell[0] - half, cell[1] - half, cell[2] - half);
@@ -129,13 +189,31 @@ class LC_RoomLayout
 				Record(subscene, portal, cell);
 
 			if (!Advance())
+			{
+				exhausted = true;
 				break;
+			}
 		}
 
-		if (m_aPortals.Count() >= m_iPortalCount || m_iCellsDone >= MAX_CELLS)
+		if (exhausted || m_aPortals.Count() >= m_iPortalCount || m_iCellsDone >= MAX_CELLS)
+		{
 			Finish();
+			Save();
+		}
+		else if (m_iCellsDone - m_iSavedCells >= SAVE_EVERY_CELLS)
+		{
+			Save();
+		}
 
 		return spent;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Saves a layout part way through mapping, if it got further since it was last saved
+	void SaveProgress()
+	{
+		if (!m_bComplete && m_iCellsDone > m_iSavedCells)
+			Save();
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -194,12 +272,221 @@ class LC_RoomLayout
 		if (m_iMissing < 0)
 			m_iMissing = 0;
 
-		// A portal whose two areas could not be established is no use for pathing
+		Index();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Drops the portals pathing cannot use and lists the rest per area. Done once a layout is complete, whether
+	//! it was mapped or loaded.
+	protected void Index()
+	{
+		// A portal whose two areas could not be established is no use for pathing, and nor is one naming an area
+		// the building does not have
 		for (int i = m_aPortals.Count() - 1; i >= 0; i--)
 		{
-			if (!m_aPortals[i].JoinsKnownAreas())
+			LC_RoomPortal found = m_aPortals[i];
+			if (!found.JoinsKnownAreas() || found.m_iAreaA >= m_iAreaCount || found.m_iAreaB >= m_iAreaCount)
 				m_aPortals.Remove(i);
 		}
+
+		// Each area's portals, by index into m_aPortals, so a path search only looks at the doorways it can use
+		m_aAreaPortals.Clear();
+		for (int area = 0; area < m_iAreaCount; area++)
+		{
+			m_aAreaPortals.Insert(new array<int>());
+		}
+
+		foreach (int index, LC_RoomPortal portal : m_aPortals)
+		{
+			m_aAreaPortals[portal.m_iAreaA].Insert(index);
+			m_aAreaPortals[portal.m_iAreaB].Insert(index);
+		}
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Where this building type's layout is saved, or empty for a prefab without a GUID
+	protected static string GetPath(string prefab)
+	{
+		if (!prefab.StartsWith("{") || prefab.IndexOf("}") != 17)
+			return string.Empty;
+
+		return DIRECTORY + "/" + prefab.Substring(1, 16) + ".txt";
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Plain text, a line per record: the header, the game version and prefab it was mapped on, the model's
+	//! counts and grid, how far mapping got, then one line per portal found
+	protected void Save()
+	{
+		string path = GetPath(m_sPrefab);
+		if (path.IsEmpty())
+			return;
+
+		FileIO.MakeDirectory(PARENT_DIRECTORY);
+		FileIO.MakeDirectory(DIRECTORY);
+		FileHandle file = FileIO.OpenFile(path, FileMode.WRITE);
+		if (!file)
+			return;
+
+		int complete = m_bComplete;
+		file.WriteLine(FILE_HEADER + " " + FILE_FORMAT.ToString());
+		file.WriteLine(GetGame().GetBuildVersion());
+		file.WriteLine(m_sPrefab);
+		file.WriteLine(string.Format("%1 %2 %3 %4 %5", m_iAreaCount, m_iPortalCount, m_iCellsX, m_iCellsY, m_iCellsZ));
+		file.WriteLine(string.Format("%1 %2 %3 %4 %5 %6", m_iCellX, m_iCellY, m_iCellZ, m_iCellsDone, complete, m_iMissing));
+		foreach (LC_RoomPortal portal : m_aPortals)
+		{
+			vector local = portal.m_vLocal;
+			file.WriteLine(string.Format("%1 %2 %3 %4 %5 %6", portal.m_iPortal, portal.m_iAreaA, portal.m_iAreaB, local[0].ToString(-1, 2), local[1].ToString(-1, 2), local[2].ToString(-1, 2)));
+		}
+
+		file.Close();
+		m_iSavedCells = m_iCellsDone;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Picks up this type's saved layout, finished or part way through. Only a file that matches this game
+	//! version, this prefab and this room model is used, and only if every line of it makes sense; otherwise
+	//! the layout is left as Begin made it and mapping starts from nothing.
+	bool Load()
+	{
+		string path = GetPath(m_sPrefab);
+		if (path.IsEmpty() || !FileIO.FileExists(path))
+			return false;
+
+		FileHandle file = FileIO.OpenFile(path, FileMode.READ);
+		if (!file)
+			return false;
+
+		bool loaded = Read(file);
+		file.Close();
+		return loaded;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected bool Read(notnull FileHandle file)
+	{
+		array<string> fields = {};
+		string line;
+		if (!ReadFields(file, fields, 3) || fields[0] + " " + fields[1] != FILE_HEADER || fields[2] != FILE_FORMAT.ToString())
+			return false;
+
+		if (file.ReadLine(line) < 0 || line.Trim() != GetGame().GetBuildVersion())
+			return false;
+
+		if (file.ReadLine(line) < 0 || line.Trim() != m_sPrefab)
+			return false;
+
+		array<int> model = {};
+		if (!ReadInts(file, fields, model, 5))
+			return false;
+
+		if (model[0] != m_iAreaCount || model[1] != m_iPortalCount || model[2] != m_iCellsX || model[3] != m_iCellsY || model[4] != m_iCellsZ)
+			return false;
+
+		array<int> progress = {};
+		if (!ReadInts(file, fields, progress, 6))
+			return false;
+
+		int cellX = progress[0];
+		int cellY = progress[1];
+		int cellZ = progress[2];
+		int cellsDone = progress[3];
+		int complete = progress[4];
+		int missing = progress[5];
+		if (cellX < 0 || cellX >= m_iCellsX || cellY < 0 || cellY >= m_iCellsY || cellZ < 0 || cellZ > m_iCellsZ)
+			return false;
+
+		if (cellsDone < 0 || cellsDone > MAX_CELLS || complete < 0 || complete > 1 || missing < 0 || missing > m_iPortalCount)
+			return false;
+
+		array<ref LC_RoomPortal> portals = {};
+		map<int, ref LC_RoomPortal> byPortal = new map<int, ref LC_RoomPortal>();
+		// To the end of the file. A line that is not a portal fails the whole file rather than ending it early, so
+		// a file cut short mid-line is mapped again instead of being taken as finished with portals missing.
+		while (file.ReadLine(line) >= 0)
+		{
+			if (!SplitFields(line, fields))
+				continue;
+
+			if (fields.Count() != 6)
+				return false;
+
+			LC_RoomPortal portal = new LC_RoomPortal();
+			portal.m_iPortal = fields[0].ToInt();
+			portal.m_iAreaA = fields[1].ToInt();
+			portal.m_iAreaB = fields[2].ToInt();
+			portal.m_vLocal = Vector(fields[3].ToFloat(), fields[4].ToFloat(), fields[5].ToFloat());
+			if (portal.m_iPortal < 0 || portal.m_iPortal >= m_iPortalCount || byPortal.Contains(portal.m_iPortal))
+				return false;
+
+			if (!IsAreaOrNone(portal.m_iAreaA) || !IsAreaOrNone(portal.m_iAreaB))
+				return false;
+
+			portals.Insert(portal);
+			byPortal.Set(portal.m_iPortal, portal);
+		}
+
+		m_aPortals = portals;
+		m_mByPortal = byPortal;
+		m_iCellX = cellX;
+		m_iCellY = cellY;
+		m_iCellZ = cellZ;
+		m_iCellsDone = cellsDone;
+		m_iSavedCells = cellsDone;
+		m_bLoaded = true;
+		if (complete == 1)
+		{
+			m_bComplete = true;
+			m_iMissing = missing;
+			Index();
+		}
+
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected bool IsAreaOrNone(int area)
+	{
+		return area == LC_Rooms.AREA_NONE || (area >= 0 && area < m_iAreaCount);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Splits the next line on spaces; false at the end of the file or if it has the wrong number of fields.
+	//! An empty field cannot get through, which matters because "".ToInt() throws.
+	protected static bool ReadFields(notnull FileHandle file, notnull array<string> fields, int count)
+	{
+		string line;
+		if (file.ReadLine(line) < 0)
+			return false;
+
+		SplitFields(line, fields);
+		return fields.Count() == count;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! False for a blank line
+	protected static bool SplitFields(string line, notnull array<string> fields)
+	{
+		fields.Clear();
+		string trimmed = line.Trim();
+		trimmed.Split(" ", fields, true);
+		return !fields.IsEmpty();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected static bool ReadInts(notnull FileHandle file, notnull array<string> fields, notnull array<int> values, int count)
+	{
+		if (!ReadFields(file, fields, count))
+			return false;
+
+		values.Clear();
+		foreach (string field : fields)
+		{
+			values.Insert(field.ToInt());
+		}
+
+		return true;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -208,6 +495,9 @@ class LC_RoomLayout
 		string state = "mapping";
 		if (m_bComplete)
 			state = "done";
+
+		if (m_bLoaded)
+			state += ", saved";
 
 		return string.Format("%1 areas, %2 portals, %3 usable, %4 unfound, %5 cells, %6", m_iAreaCount, m_iPortalCount, m_aPortals.Count(), m_iMissing, m_iCellsDone, state);
 	}
@@ -248,38 +538,64 @@ class LC_Rooms
 	//! A location is rechecked after this long, or once its owner has moved this far
 	protected static const int RECHECK_MS = 500;
 	protected static const float RECHECK_MOVE_M = 0.5;
-	//! Probe cells spent per game state write while the local player stands in an unmapped building
-	protected static const int BUILD_BUDGET = 128;
+	//! But never sooner than this. Anyone running or in a vehicle crosses the distance above every write, and
+	//! outdoors every recheck is a sphere query; at this rate a doorway is still noticed within a stride.
+	protected static const int RECHECK_MIN_MS = 150;
+	//! Mapping work per game state write while the local player stands in an unmapped building. A probe costs
+	//! about 0.09 us for every portal the building has (28 us in the 310 portal apartment block, 3 us in a
+	//! village house), so the cells probed are sized to the building: about 1 ms a write whatever it is,
+	//! instead of a fixed 128 cells costing 3.6 ms a write in the apartment.
+	protected static const int BUILD_PORTAL_TESTS = 12000;
+	protected static const int BUILD_MIN_CELLS = 8;
+	protected static const int BUILD_MAX_CELLS = 128;
 	protected static const float SEARCH_RADIUS_M = 0.5;
 
 	//! Muffle standing for "no path at all". Anything at or above it means the graph cannot connect the two
 	//! areas, which is a reason to trace rather than to silence anybody.
 	protected static const float UNREACHABLE = 99;
+	//! Doors and windows are read again this often for paths already found, so a door opening or a window
+	//! breaking reaches the muffle within a quarter second
+	protected static const int PORTAL_RECHECK_MS = 250;
+	//! Paths kept at once: one per building and source area in use. An outdoor listener needs one for every
+	//! building a nearby speaker is in, and a town spread over more buildings than this re-searches every one
+	//! of them every write, so it is set well above any plausible count. Each is a float per area.
+	protected static const int MAX_PATHS = 32;
+	//! Portal cost tables kept at once: one per building in use
+	protected static const int MAX_COSTS = 16;
 
 	protected ref map<string, ref LC_RoomLayout> m_mLayouts = new map<string, ref LC_RoomLayout>();
-	//! Muffle from one source area to every area of one building, reused by every speaker in it this write
-	protected ref array<float> m_aDistance = {};
-	protected ref array<float> m_aCost = {};
-	protected WorldSubsceneComponent m_SearchSubscene;
-	protected int m_iSearchArea = AREA_NONE;
-	protected int m_iSearchGeneration = -1;
-	protected int m_iGeneration;
+	protected ref array<ref LC_RoomPaths> m_aPaths = {};
+	protected ref array<ref LC_RoomCosts> m_aCosts = {};
+	//! Last revision handed to a cost table
+	protected int m_iCostRevision;
+	//! Search scratch, reused rather than rebuilt
+	protected ref array<int> m_aQueue = {};
+	protected ref array<bool> m_aQueued = {};
 
 	//! Where the sphere query is looking and what it found, since a query callback carries nothing itself
 	protected vector m_vQueryPosition;
 	protected IEntity m_QueryBuilding;
 	protected WorldSubsceneComponent m_QuerySubscene;
 	protected int m_iQueryArea;
+	//! Entities this query has already walked to: a building's doors and windows are each returned on their
+	//! own, and would otherwise each walk up to the building and ask it the same question again
+	protected ref array<IEntity> m_aQueryVisited = {};
 
 	protected int m_iBuildSpent;
+	//! The layout mapped on the last write, if it is not finished
+	protected LC_RoomLayout m_Mapping;
 
 	//------------------------------------------------------------------------------------------------
 	//! Updates where this position is, reusing the last answer while it is still fresh. The building the
 	//! location was last in is asked first, which answers it for anyone who has not left that building.
 	void Locate(notnull LC_RoomLocation location, vector position, int now)
 	{
+		int age = now - location.m_iCheckedTick;
+		if (age < RECHECK_MIN_MS)
+			return;
+
 		bool moved = vector.DistanceSq(location.m_vCheckedPosition, position) > RECHECK_MOVE_M * RECHECK_MOVE_M;
-		if (!moved && now - location.m_iCheckedTick < RECHECK_MS)
+		if (!moved && age < RECHECK_MS)
 			return;
 
 		location.m_iCheckedTick = now;
@@ -310,12 +626,20 @@ class LC_Rooms
 		m_QueryBuilding = null;
 		m_QuerySubscene = null;
 		m_iQueryArea = AREA_NONE;
+		m_aQueryVisited.Clear();
 		world.QueryEntitiesBySphere(position, SEARCH_RADIUS_M, OnQueryEntity, null, EQueryEntitiesFlags.STATIC);
+		m_aQueryVisited.Clear();
 
 		if (!m_QuerySubscene)
 		{
 			location.Clear();
 			return;
+		}
+
+		if (location.m_Building != m_QueryBuilding || location.m_Subscene != m_QuerySubscene)
+		{
+			location.m_Layout = null;
+			location.m_bLayoutKnown = false;
 		}
 
 		location.m_Building = m_QueryBuilding;
@@ -331,6 +655,11 @@ class LC_Rooms
 		IEntity parent = entity;
 		while (parent)
 		{
+			// Reached by an earlier entity of this query, which already asked everything above it
+			if (m_aQueryVisited.Contains(parent))
+				return true;
+
+			m_aQueryVisited.Insert(parent);
 			WorldSubsceneComponent subscene = WorldSubsceneComponent.Cast(parent.FindComponent(WorldSubsceneComponent));
 			if (subscene)
 			{
@@ -366,20 +695,43 @@ class LC_Rooms
 	//! yet. Called once per game state write.
 	void Update(notnull LC_RoomLocation listener)
 	{
-		// Door states change, so a path found last write is not reused in this one
-		m_iGeneration++;
 		m_iBuildSpent = 0;
-		if (!listener.IsIndoors())
+		LC_RoomLayout layout;
+		if (listener.IsIndoors())
+			layout = GetLayout(listener);
+
+		if (layout && layout.m_bComplete)
+			layout = null;
+
+		// Walking out part way through mapping keeps what was found, in case the session ends before the next
+		// building of that type
+		if (m_Mapping && m_Mapping != layout)
+			m_Mapping.SaveProgress();
+
+		m_Mapping = layout;
+		if (!layout)
 			return;
 
-		LC_RoomLayout layout = GetLayout(listener.m_Building, listener.m_Subscene);
-		if (layout && !layout.m_bComplete)
-			m_iBuildSpent = layout.Build(listener.m_Building, listener.m_Subscene, BUILD_BUDGET);
+		int cells = Math.ClampInt(BUILD_PORTAL_TESTS / Math.Max(layout.m_iPortalCount, 1), BUILD_MIN_CELLS, BUILD_MAX_CELLS);
+		m_iBuildSpent = layout.Build(listener.m_Building, listener.m_Subscene, cells);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! The layout of the building this location is in, looked up the first time it is needed there
+	protected LC_RoomLayout GetLayout(notnull LC_RoomLocation location)
+	{
+		if (!location.m_bLayoutKnown)
+		{
+			location.m_Layout = FindLayout(location.m_Building, location.m_Subscene);
+			location.m_bLayoutKnown = true;
+		}
+
+		return location.m_Layout;
 	}
 
 	//------------------------------------------------------------------------------------------------
 	//! The layout for this building's type, started the first time we are inside one of them
-	LC_RoomLayout GetLayout(IEntity building, WorldSubsceneComponent subscene)
+	protected LC_RoomLayout FindLayout(IEntity building, WorldSubsceneComponent subscene)
 	{
 		if (!building || !subscene)
 			return null;
@@ -389,12 +741,23 @@ class LC_Rooms
 			return null;
 
 		LC_RoomLayout layout = m_mLayouts.Get(prefab);
-		if (layout)
-			return layout;
+		if (!layout)
+		{
+			layout = new LC_RoomLayout();
+			layout.Begin(prefab, building, subscene);
+			if (!layout.m_bComplete)
+				layout.Load();
 
-		layout = new LC_RoomLayout();
-		layout.Begin(prefab, building, subscene);
-		m_mLayouts.Set(prefab, layout);
+			m_mLayouts.Set(prefab, layout);
+			return layout;
+		}
+
+		// The map belongs to the prefab, but an instance can carry a different room model under the same name: a
+		// placed copy with its mesh swapped, or a destroyed building once its model is gone. Its portal and area
+		// numbers mean something else there, so it gets no map, neither used nor added to.
+		if (layout.m_iAreaCount != subscene.GetAreaCount() || layout.m_iPortalCount != subscene.GetPortalCount())
+			return null;
+
 		return layout;
 	}
 
@@ -406,7 +769,7 @@ class LC_Rooms
 	//! clearer, since a path cost cannot know whether the two can simply see each other. 0 needs no trace,
 	//! because nothing can beat it.
 	//! \return false when the room model cannot answer, so tracing alone decides
-	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, out float muffle)
+	bool GetMuffle(notnull LC_RoomLocation listener, notnull LC_RoomLocation speaker, float distanceSq, int now, out float muffle)
 	{
 		muffle = 0;
 
@@ -416,8 +779,7 @@ class LC_Rooms
 
 		// Whoever is indoors owns the room model both are placed in. With two buildings involved there is
 		// no single model to path through.
-		WorldSubsceneComponent subscene = listener.m_Subscene;
-		IEntity building = listener.m_Building;
+		LC_RoomLocation inside = listener;
 		int listenerArea = listener.m_iArea;
 		int speakerArea = AREA_OUTSIDE;
 		if (listener.IsIndoors() && speaker.IsIndoors())
@@ -429,8 +791,7 @@ class LC_Rooms
 		}
 		else if (!listener.IsIndoors())
 		{
-			subscene = speaker.m_Subscene;
-			building = speaker.m_Building;
+			inside = speaker;
 			listenerArea = AREA_OUTSIDE;
 			speakerArea = speaker.m_iArea;
 		}
@@ -438,17 +799,18 @@ class LC_Rooms
 		if (listenerArea == speakerArea)
 			return true;
 
-		LC_RoomLayout layout = GetLayout(building, subscene);
+		LC_RoomLayout layout = GetLayout(inside);
 		if (!layout || !layout.m_bComplete || layout.m_aPortals.IsEmpty())
-			return false;
-
-		if (!EnsureDistances(subscene, layout, listenerArea))
 			return false;
 
 		if (speakerArea < 0 || speakerArea >= layout.m_iAreaCount)
 			return false;
 
-		float distance = m_aDistance[speakerArea];
+		LC_RoomPaths paths = FindPaths(inside.m_Subscene, layout, listenerArea, now);
+		if (!paths)
+			return false;
+
+		float distance = paths.m_aDistance[speakerArea];
 
 		// A pair the graph cannot connect - a doorway probing never found, or a room reachable only through
 		// one - is not silenced. It falls back to tracing, which is what happens without a room model at all.
@@ -497,81 +859,182 @@ class LC_Rooms
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Cheapest muffle from one area to every other, across the portals between them, computed once per
-	//! write and reused by every speaker measured from the same area. Doing it per speaker instead meant
-	//! reading every portal's state once per relaxation pass per listener, which is thousands of engine
-	//! calls a second in a building with a few rooms in it.
-	//!
-	//! There are only ever a handful of areas, so every edge is relaxed repeatedly rather than kept in a
-	//! sorted queue.
-	protected bool EnsureDistances(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, int from)
+	//! Cheapest muffle from one area to every other area of one building, across the portals between them.
+	//! Kept per building and source area, so an outdoor listener with speakers in several buildings does not
+	//! throw one answer away for the next, and reused across writes: the building's portals are read again
+	//! every PORTAL_RECHECK_MS, and the paths are only searched again when one of them has changed. Searching
+	//! every write took a full pass over every portal per area; a block of flats has over a hundred of each.
+	protected LC_RoomPaths FindPaths(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, int from, int now)
 	{
-		int areaCount = layout.m_iAreaCount;
-		if (from < 0 || from >= areaCount)
-			return false;
+		if (from < 0 || from >= layout.m_iAreaCount || layout.m_aAreaPortals.Count() < layout.m_iAreaCount)
+			return null;
 
-		if (m_SearchSubscene == subscene && m_iSearchArea == from && m_iSearchGeneration == m_iGeneration)
-			return true;
+		LC_RoomCosts costs = FindCosts(subscene, layout, now);
 
-		m_SearchSubscene = subscene;
-		m_iSearchArea = from;
-		m_iSearchGeneration = m_iGeneration;
-
-		// Reused rather than rebuilt: this runs every write
-		while (m_aDistance.Count() < areaCount)
+		LC_RoomPaths paths;
+		LC_RoomPaths oldest;
+		foreach (LC_RoomPaths candidate : m_aPaths)
 		{
-			m_aDistance.Insert(UNREACHABLE);
-		}
-
-		for (int i = 0; i < areaCount; i++)
-		{
-			m_aDistance[i] = UNREACHABLE;
-		}
-
-		while (m_aCost.Count() < layout.m_aPortals.Count())
-		{
-			m_aCost.Insert(0);
-		}
-
-		// Each portal's state is read once, not once per pass
-		foreach (int index, LC_RoomPortal portal : layout.m_aPortals)
-		{
-			m_aCost[index] = PortalMuffle(subscene, portal.m_iPortal);
-		}
-
-		m_aDistance[from] = 0;
-		for (int pass = 0; pass < areaCount; pass++)
-		{
-			bool changed = false;
-			foreach (int index, LC_RoomPortal portal : layout.m_aPortals)
+			if (candidate.m_Subscene == subscene && candidate.m_Layout == layout && candidate.m_iFrom == from)
 			{
-				if (portal.m_iAreaA >= areaCount || portal.m_iAreaB >= areaCount)
-					continue;
-
-				if (Relax(portal.m_iAreaA, portal.m_iAreaB, m_aCost[index]))
-					changed = true;
-
-				if (Relax(portal.m_iAreaB, portal.m_iAreaA, m_aCost[index]))
-					changed = true;
+				paths = candidate;
+				break;
 			}
 
-			if (!changed)
-				break;
+			// A building that has streamed out leaves its slot free
+			if (!oldest || !candidate.m_Subscene || (oldest.m_Subscene && candidate.m_iUsedTick < oldest.m_iUsedTick))
+				oldest = candidate;
 		}
 
-		return true;
+		if (!paths)
+		{
+			if (m_aPaths.Count() < MAX_PATHS)
+			{
+				paths = new LC_RoomPaths();
+				m_aPaths.Insert(paths);
+			}
+			else
+			{
+				paths = oldest;
+			}
+
+			paths.m_Subscene = subscene;
+			paths.m_Layout = layout;
+			paths.m_iFrom = from;
+			paths.m_iRevision = -1;
+		}
+
+		paths.m_iUsedTick = now;
+		if (paths.m_iRevision != costs.m_iRevision)
+		{
+			Search(layout, paths, costs.m_aCost);
+			paths.m_iRevision = costs.m_iRevision;
+		}
+
+		return paths;
 	}
 
 	//------------------------------------------------------------------------------------------------
-	protected bool Relax(int from, int to, float cost)
+	//! This building's portal costs, read again if they are more than PORTAL_RECHECK_MS old
+	protected LC_RoomCosts FindCosts(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, int now)
 	{
-		float candidate = m_aDistance[from] + cost;
-		if (candidate >= m_aDistance[to])
-			return false;
+		LC_RoomCosts costs;
+		LC_RoomCosts oldest;
+		foreach (LC_RoomCosts candidate : m_aCosts)
+		{
+			if (candidate.m_Subscene == subscene && candidate.m_Layout == layout)
+			{
+				costs = candidate;
+				break;
+			}
 
-		m_aDistance[to] = candidate;
-		return true;
+			if (!oldest || !candidate.m_Subscene || (oldest.m_Subscene && candidate.m_iUsedTick < oldest.m_iUsedTick))
+				oldest = candidate;
+		}
+
+		bool read;
+		if (!costs)
+		{
+			if (m_aCosts.Count() < MAX_COSTS)
+			{
+				costs = new LC_RoomCosts();
+				m_aCosts.Insert(costs);
+			}
+			else
+			{
+				costs = oldest;
+			}
+
+			costs.m_Subscene = subscene;
+			costs.m_Layout = layout;
+			costs.m_aCost.Clear();
+			read = true;
+		}
+
+		costs.m_iUsedTick = now;
+		if (!read && now - costs.m_iCheckedTick < PORTAL_RECHECK_MS)
+			return costs;
+
+		costs.m_iCheckedTick = now;
+		if (ReadCosts(subscene, layout, costs.m_aCost) || read)
+		{
+			m_iCostRevision++;
+			costs.m_iRevision = m_iCostRevision;
+		}
+
+		return costs;
 	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Each usable portal's current cost; true if any differs from what the array held
+	protected bool ReadCosts(notnull WorldSubsceneComponent subscene, notnull LC_RoomLayout layout, notnull array<float> costs)
+	{
+		int count = layout.m_aPortals.Count();
+		bool changed = costs.Count() != count;
+		costs.Resize(count);
+		foreach (int index, LC_RoomPortal portal : layout.m_aPortals)
+		{
+			float cost = PortalMuffle(subscene, portal.m_iPortal);
+			if (cost != costs[index])
+			{
+				costs[index] = cost;
+				changed = true;
+			}
+		}
+
+		return changed;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Cheapest path from the source area to every area. An area goes back on the queue only when its
+	//! distance improves, so each search looks at a few hundred portal ends rather than every portal once per
+	//! area. Every cost is positive, which is what lets it finish.
+	protected void Search(notnull LC_RoomLayout layout, notnull LC_RoomPaths paths, notnull array<float> costs)
+	{
+		int areaCount = layout.m_iAreaCount;
+		array<float> distance = paths.m_aDistance;
+		distance.Resize(areaCount);
+		m_aQueued.Resize(areaCount);
+		for (int i = 0; i < areaCount; i++)
+		{
+			distance[i] = UNREACHABLE;
+			m_aQueued[i] = false;
+		}
+
+		m_aQueue.Clear();
+		m_aQueue.Insert(paths.m_iFrom);
+		m_aQueued[paths.m_iFrom] = true;
+		distance[paths.m_iFrom] = 0;
+
+		int head;
+		while (head < m_aQueue.Count())
+		{
+			int area = m_aQueue[head];
+			head++;
+			m_aQueued[area] = false;
+
+			array<int> links = layout.m_aAreaPortals[area];
+			foreach (int index : links)
+			{
+				LC_RoomPortal portal = layout.m_aPortals[index];
+				int next = portal.m_iAreaA;
+				if (next == area)
+					next = portal.m_iAreaB;
+
+				float reached = distance[area] + costs[index];
+				if (reached >= distance[next])
+					continue;
+
+				distance[next] = reached;
+				if (!m_aQueued[next])
+				{
+					m_aQueue.Insert(next);
+					m_aQueued[next] = true;
+				}
+			}
+		}
+	}
+
 
 	//------------------------------------------------------------------------------------------------
 	//! What passing through one portal costs. A door reports how open it is; a window reports whether it
@@ -622,7 +1085,7 @@ class LC_Rooms
 		if (!location.IsIndoors())
 			return "none";
 
-		LC_RoomLayout layout = GetLayout(location.m_Building, location.m_Subscene);
+		LC_RoomLayout layout = GetLayout(location);
 		if (!layout)
 			return "none";
 

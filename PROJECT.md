@@ -6,13 +6,14 @@ Enfusion addon + a TS3 plugin (plain C), bridged by JSON files in `$profile:Lima
 ## Key facts
 | | |
 |---|---|
-| Addon | `Documents\My Games\ArmaReforgerWorkbench\addons\Lima Charlie` (junction: `addon\`) |
+| Addon | `Documents\My Games\ArmaReforgerWorkbench\addons\Lima Charlie` (junction: `addon\`) = the 2.0.x line (`main`, `bugfix-*`) |
+| DEV addon | `...\addons\Lima Charlie DEV` (junction: `addon-dev\`, local, untracked) = 3.0 dev builds; ID `LimaCharlieDEV`, GUID `6AC643FAF3F385E3` |
 | Addon GUID / gproj ID | `6A5C69DDFCAAC5B3` / `LimaCharlie` (published folder `LimaCharlie_6A5C69DDFCAAC5B3`) |
 | Script prefix / log tag | `LC_` / `[LC]` |
 | Plugin | `plugin\` (src `lc_*.c`, DLL `limacharlie_win64.dll`, TS cmd prefix `LC1|`, build `plugin\build.bat`, packager `plugin\package.py`) |
 | Toolchain | MSVC 2022 Build Tools |
 | Repo | github.com/IPS-Keystone/Lima-Charlie (`main`), repo root = this folder |
-| Status (2026-10-11) | mod + plugin 2.0.4 released; protocol `LC_PROTOCOL_VERSION` 9; 2.0.5 hearing hook on branch `hearing-hook` |
+| Status (2026-11-03) | mod + plugin 2.0.5 released; protocol `LC_PROTOCOL_VERSION` 9; 2.0.6 fixes on `bugfix-2.0.6`; 3.0 on `feature/3.0-comms` (DEV addon) |
 | Licence | as published (check repo LICENSE before changing); third-party: TFAR/ACRE sounds with licences in `plugin\sounds` |
 | Target | TeamSpeak **3** (not 6), PC only, MP dedicated servers |
 

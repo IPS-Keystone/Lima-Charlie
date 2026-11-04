@@ -29,10 +29,14 @@ class LC_ServerSettings
 	bool m_bAIHearing = true;
 	//! Unconscious characters can still be heard speaking out loud
 	bool m_bUnconsciousCanSpeak;
-	//! Troubleshooting: every client logs what it sends the plugin and what it hears back
-	bool m_bDiagnosticLog;
+	//! Troubleshooting: how much every client logs about the bridge
+	LC_EDiagnostics m_eDiagnostics = LC_EDiagnostics.REGULAR;
 	//! Troubleshooting: every client logs what the engine's room model says about its neighbours
 	bool m_bRoomDiagnosticLog;
+	//! VON display: incoming radio hides the speaker's role and squad leader icon
+	bool m_bHideRadioRoles = true;
+	//! VON display: no entries for direct speech
+	bool m_bHideDirectSpeechDisplay = true;
 	//! Named frequencies, packed as "frequencyKHz,colour,name;" for the session RPC
 	string m_sChannelLabels;
 	//! Where channel names come from: the list above, the game's own, or both
@@ -40,19 +44,29 @@ class LC_ServerSettings
 
 	//------------------------------------------------------------------------------------------------
 	//! The settings that are a single bit, packed into one value, because the settings RPC is at the
-	//! vanilla limit of eight arguments. Bit 0 is the bridge log, bit 1 the room model log, bit 2
-	//! unconscious speech.
+	//! vanilla limit of eight arguments. Bit 0 is comprehensive diagnostics, bit 1 the room model log,
+	//! bit 2 unconscious speech, bit 3 regular diagnostics (set for comprehensive too), bit 4 hide radio
+	//! roles, bit 5 hide the direct speech display.
 	int GetFlags()
 	{
 		int flags;
-		if (m_bDiagnosticLog)
+		if (m_eDiagnostics == LC_EDiagnostics.COMPREHENSIVE)
 			flags |= 1;
+
+		if (m_eDiagnostics != LC_EDiagnostics.OFF)
+			flags |= 8;
 
 		if (m_bRoomDiagnosticLog)
 			flags |= 2;
 
 		if (m_bUnconsciousCanSpeak)
 			flags |= 4;
+
+		if (m_bHideRadioRoles)
+			flags |= 16;
+
+		if (m_bHideDirectSpeechDisplay)
+			flags |= 32;
 
 		return flags;
 	}
@@ -84,7 +98,9 @@ class LC_ServerSettings
 		m_bGameMasterUnlimitedRange = configured.m_bGameMasterUnlimitedRange;
 		m_bAIHearing = configured.m_bAIHearing;
 		m_bUnconsciousCanSpeak = configured.m_bUnconsciousCanSpeak;
-		m_bDiagnosticLog = configured.m_bDiagnosticLog;
+		m_eDiagnostics = configured.m_eDiagnostics;
+		m_bHideRadioRoles = configured.m_bHideRadioRoles;
+		m_bHideDirectSpeechDisplay = configured.m_bHideDirectSpeechDisplay;
 		m_bRoomDiagnosticLog = configured.m_bRoomDiagnosticLog;
 		m_sChannelLabels = configured.GetPackedChannelLabels();
 		m_eChannelNaming = configured.m_eChannelNaming;
@@ -138,11 +154,19 @@ class LC_ServerSettings
 		if (ReadBool(load, "unconsciousCanSpeak", m_bUnconsciousCanSpeak))
 			overridden += " unconsciousCanSpeak";
 
-		if (ReadBool(load, "diagnosticLog", m_bDiagnosticLog))
+		if (ReadDiagnostics(load, "diagnostics"))
+			overridden += " diagnostics";
+		else if (ReadLegacyDiagnosticLog(load))
 			overridden += " diagnosticLog";
 
 		if (ReadBool(load, "roomDiagnosticLog", m_bRoomDiagnosticLog))
 			overridden += " roomDiagnosticLog";
+
+		if (ReadBool(load, "hideRadioRoles", m_bHideRadioRoles))
+			overridden += " hideRadioRoles";
+
+		if (ReadBool(load, "hideDirectSpeechDisplay", m_bHideDirectSpeechDisplay))
+			overridden += " hideDirectSpeechDisplay";
 
 		if (ReadNaming(load, "channelNaming"))
 			overridden += " channelNaming";
@@ -278,8 +302,10 @@ class LC_ServerSettings
 		save.WriteValue("gameMasterUnlimitedRange", m_bGameMasterUnlimitedRange);
 		save.WriteValue("aiHearing", m_bAIHearing);
 		save.WriteValue("unconsciousCanSpeak", m_bUnconsciousCanSpeak);
-		save.WriteValue("diagnosticLog", m_bDiagnosticLog);
+		save.WriteValue("diagnostics", DiagnosticsName(m_eDiagnostics));
 		save.WriteValue("roomDiagnosticLog", m_bRoomDiagnosticLog);
+		save.WriteValue("hideRadioRoles", m_bHideRadioRoles);
+		save.WriteValue("hideDirectSpeechDisplay", m_bHideDirectSpeechDisplay);
 		save.WriteValue("channelNaming", NamingName(m_eChannelNaming));
 		save.WriteValue("channelLabels", LC_ChannelLabels.UnpackToText(m_sChannelLabels));
 
@@ -287,6 +313,67 @@ class LC_ServerSettings
 			Print("[LC] No " + PATH + " found, so it has been generated from this session's settings; edit it to override the mod's config", LogLevel.NORMAL);
 		else
 			Print("[LC] No " + PATH + " found and it could not be written, so the mod's config stands", LogLevel.WARNING);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! "OFF", "REGULAR" or "COMPREHENSIVE", or the number of one of them
+	protected bool ReadDiagnostics(notnull JsonLoadContext load, string key)
+	{
+		if (!load.DoesKeyExist(key))
+			return false;
+
+		string read;
+		if (!load.ReadValue(key, read))
+			return false;
+
+		read.TrimInPlace();
+		if (read.Compare("OFF", false) == 0 || read == "0")
+		{
+			m_eDiagnostics = LC_EDiagnostics.OFF;
+			return true;
+		}
+
+		if (read.Compare("REGULAR", false) == 0 || read == "1")
+		{
+			m_eDiagnostics = LC_EDiagnostics.REGULAR;
+			return true;
+		}
+
+		if (read.Compare("COMPREHENSIVE", false) == 0 || read == "2")
+		{
+			m_eDiagnostics = LC_EDiagnostics.COMPREHENSIVE;
+			return true;
+		}
+
+		Print("[LC] server.json diagnostics '" + read + "' is not OFF, REGULAR or COMPREHENSIVE; ignored", LogLevel.WARNING);
+		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Files written before 2.0.6 have "diagnosticLog": true or false. True was the full once-a-second log,
+	//! now COMPREHENSIVE. False is ignored: every generated file has it, and honouring it would switch
+	//! regular diagnostics off on every server that ever ran an older version.
+	protected bool ReadLegacyDiagnosticLog(notnull JsonLoadContext load)
+	{
+		bool legacy;
+		if (!ReadBool(load, "diagnosticLog", legacy) || !legacy)
+			return false;
+
+		m_eDiagnostics = LC_EDiagnostics.COMPREHENSIVE;
+		Print("[LC] server.json diagnosticLog is replaced by \"diagnostics\": OFF, REGULAR or COMPREHENSIVE; true is taken as COMPREHENSIVE", LogLevel.WARNING);
+		return true;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	static string DiagnosticsName(LC_EDiagnostics diagnostics)
+	{
+		if (diagnostics == LC_EDiagnostics.OFF)
+			return "OFF";
+
+		if (diagnostics == LC_EDiagnostics.COMPREHENSIVE)
+			return "COMPREHENSIVE";
+
+		return "REGULAR";
 	}
 
 	//------------------------------------------------------------------------------------------------

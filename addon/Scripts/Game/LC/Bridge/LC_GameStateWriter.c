@@ -51,6 +51,11 @@ class LC_GameStateWriter
 	protected static const int DIAGNOSTIC_INTERVAL_MS = 1000;
 	//! Nearby players listed in one room diagnostic line
 	protected static const int DIAGNOSTIC_MAX_PLAYERS = 6;
+	//! Regular diagnostics: one summary line this often
+	protected static const int SUMMARY_INTERVAL_MS = 60000;
+	//! Regular diagnostics: the radio list and the listener's building are checked this often, and a
+	//! change logged; fast enough to place an event, slow enough that scrolling a frequency is one line
+	protected static const int CHANGE_CHECK_MS = 3000;
 
 	protected int m_iSeq;
 	protected int m_iNextWriteTick;
@@ -70,9 +75,25 @@ class LC_GameStateWriter
 	protected ref LC_RoomLocation m_ListenerRoom = new LC_RoomLocation();
 	protected int m_iNextRoomDiagnosticTick;
 	protected bool m_bRoomDiagnostics;
+	//! This write prints the room line, so the costly parts of the cover description are worth working out
+	protected bool m_bRoomLineDue;
 	protected int m_iRoomsResolved;
 	protected int m_iRoomsTraced;
 	protected string m_sRoomDiagnostic;
+
+	//! Regular diagnostics: what was last logged, and the counts the summary line reports
+	protected int m_iNextSummaryTick;
+	protected int m_iNextChangeCheckTick;
+	protected string m_sDiagRadios;
+	protected IEntity m_DiagBuilding;
+	protected int m_iDiagArea = -1;
+	protected int m_iDiagWrites;
+	protected int m_iDiagNearbySum;
+	protected int m_iDiagNearbyMax;
+	protected int m_iDiagFromRooms;
+	protected int m_iDiagFromTraces;
+	protected int m_iDiagTraces;
+	protected int m_iDiagProbes;
 
 	//------------------------------------------------------------------------------------------------
 	void LC_GameStateWriter()
@@ -124,10 +145,13 @@ class LC_GameStateWriter
 
 		m_sRoomDiagnostic = string.Empty;
 		m_bRoomDiagnostics = client.GetRoomDiagnostics();
+		m_bRoomLineDue = m_bRoomDiagnostics && now >= m_iNextRoomDiagnosticTick;
 		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, radios, now, unlimitedRange);
 		WriteFile(json);
-		LogDiagnostic(now, json, client.GetDiagnosticLog());
-		LogRoomDiagnostic(now, client.GetRoomDiagnostics());
+		LogDiagnostic(now, json, client.IsComprehensiveDiagnostics());
+		LogRoomDiagnostic(now, m_bRoomDiagnostics);
+		if (client.IsRegularDiagnostics())
+			UpdateRegularDiagnostics(now, client, radios);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -265,18 +289,22 @@ class LC_GameStateWriter
 				continue;
 
 			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, distanceSq, reader.IsPlayerTalking(playerId), now);
-			if (m_bRoomDiagnostics)
+			// Built only for the write that prints it: the line is once a second, writes are up to 20
+			if (m_bRoomLineDue)
 				AppendRoomDiagnostic(playerId, muffle);
 
+			// Built on its own and appended once: every append copies the whole document so far, which with 60
+			// players nearby made this loop 30% slower
+			string player = "{\"id\":" + playerId.ToString();
+			player += ",\"alive\":" + LC_Json.Bool(LC_Life.CanSpeak(entity));
+			player += ",\"pos\":" + LC_Json.Position(position);
+			player += ",\"muffle\":" + muffle.ToString(-1, 2);
+			player += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2) + "}";
 			if (!first)
-				json += ",";
+				player = "," + player;
 
 			first = false;
-			json += "{\"id\":" + playerId.ToString();
-			json += ",\"alive\":" + LC_Json.Bool(LC_Life.CanSpeak(entity));
-			json += ",\"pos\":" + LC_Json.Position(position);
-			json += ",\"muffle\":" + muffle.ToString(-1, 2);
-			json += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2) + "}";
+			json += player;
 		}
 
 		json += "],\"links\":" + client.GetRadioLinks().BuildJson() + "}";
@@ -304,7 +332,7 @@ class LC_GameStateWriter
 
 		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
 		float roomMuffle;
-		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, roomMuffle))
+		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, now, roomMuffle))
 		{
 			sample.m_bFromRooms = true;
 			m_iRoomsResolved++;
@@ -346,9 +374,10 @@ class LC_GameStateWriter
 			return sample.m_fMuffle;
 
 		m_iTraceBudget--;
+		m_iDiagTraces++;
 		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
 		if (m_bRoomDiagnostics)
-			sample.m_sCover = m_Occlusion.DescribeCover();
+			sample.m_sCover = m_Occlusion.DescribeCover(m_bRoomLineDue);
 		sample.m_vListener = listenerPosition;
 		sample.m_vSpeaker = speakerPosition;
 		sample.m_iTracedTick = now;
@@ -419,6 +448,94 @@ class LC_GameStateWriter
 
 		// PrintFormat, because Print of a bare variable logs it as "string line = '...'"
 		PrintFormat("%1", line);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Regular diagnostics, after each write: counters for the summary, a line when the radios or the
+	//! listener's building change (checked every few seconds), and the summary itself once a minute.
+	//! Nothing here traces, queries or walks the players again; it reads what the write already worked out.
+	protected void UpdateRegularDiagnostics(int now, notnull LC_Client client, string radios)
+	{
+		int nearby = m_iRoomsResolved + m_iRoomsTraced;
+		m_iDiagWrites++;
+		m_iDiagNearbySum += nearby;
+		if (nearby > m_iDiagNearbyMax)
+			m_iDiagNearbyMax = nearby;
+
+		m_iDiagFromRooms += m_iRoomsResolved;
+		m_iDiagFromTraces += m_iRoomsTraced;
+		m_iDiagProbes += m_Rooms.GetBuildSpent();
+
+		if (now >= m_iNextChangeCheckTick)
+		{
+			m_iNextChangeCheckTick = now + CHANGE_CHECK_MS;
+			if (radios != m_sDiagRadios)
+			{
+				m_sDiagRadios = radios;
+				PrintFormat("[LC] radios %1", radios);
+			}
+
+			int area = -1;
+			if (m_ListenerRoom.IsIndoors())
+				area = m_ListenerRoom.m_iArea;
+
+			if (m_ListenerRoom.m_Building != m_DiagBuilding || area != m_iDiagArea)
+			{
+				// A new building gets its layout too; a new room in the same one only says where
+				string line = "[LC] rooms listener " + m_Rooms.Describe(m_ListenerRoom);
+				if (m_ListenerRoom.m_Building != m_DiagBuilding)
+					line += " | layout " + m_Rooms.DescribeLayout(m_ListenerRoom);
+
+				m_DiagBuilding = m_ListenerRoom.m_Building;
+				m_iDiagArea = area;
+				PrintFormat("%1", line);
+			}
+		}
+
+		if (m_iNextSummaryTick == 0)
+			m_iNextSummaryTick = now + SUMMARY_INTERVAL_MS;
+
+		if (now < m_iNextSummaryTick)
+			return;
+
+		m_iNextSummaryTick = now + SUMMARY_INTERVAL_MS;
+		LogSummary(client);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! One line a minute: how busy the bridge was, what decided the muffling, and what the plugin did
+	protected void LogSummary(notnull LC_Client client)
+	{
+		int states;
+		int receptions;
+		client.GetPluginState().TakeStats(states, receptions);
+
+		int transmissions;
+		int transmitMs;
+		client.TakeTransmitStats(transmissions, transmitMs);
+
+		float nearbyAverage = m_iDiagNearbySum;
+		if (m_iDiagWrites > 0)
+			nearbyAverage /= m_iDiagWrites;
+
+		int seconds = SUMMARY_INTERVAL_MS / 1000;
+		string line = "[LC] summary " + seconds.ToString() + " s: writes " + m_iDiagWrites.ToString();
+		line += ", plugin states " + states.ToString();
+		line += ", nearby avg " + nearbyAverage.ToString(-1, 1) + " max " + m_iDiagNearbyMax.ToString();
+		line += ", muffle by rooms " + m_iDiagFromRooms.ToString() + " by trace " + m_iDiagFromTraces.ToString();
+		line += ", traces " + m_iDiagTraces.ToString() + ", room probes " + m_iDiagProbes.ToString();
+		line += ", tx " + transmissions.ToString() + " (" + transmitMs.ToString() + " ms), rx " + receptions.ToString();
+		line += ", peers " + client.GetPluginState().GetPeers().ToString();
+		line += " | listener " + m_Rooms.Describe(m_ListenerRoom) + " | layout " + m_Rooms.DescribeLayout(m_ListenerRoom);
+		PrintFormat("%1", line);
+
+		m_iDiagWrites = 0;
+		m_iDiagNearbySum = 0;
+		m_iDiagNearbyMax = 0;
+		m_iDiagFromRooms = 0;
+		m_iDiagFromTraces = 0;
+		m_iDiagTraces = 0;
+		m_iDiagProbes = 0;
 	}
 
 	//------------------------------------------------------------------------------------------------

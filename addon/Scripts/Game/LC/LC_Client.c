@@ -66,8 +66,17 @@ class LC_Client
 	protected float m_fBeepFraction = 0.9;
 	//! Server setting: a Game Master transmits without a range or terrain limit while the editor is open
 	protected bool m_bGameMasterUnlimitedRange = true;
-	//! Server setting: log what we send the plugin and what it reports hearing, for troubleshooting
-	protected bool m_bDiagnosticLog;
+	//! Server setting (LC_EDiagnostics): cheap event lines and a summary a minute
+	protected bool m_bRegularDiagnostics;
+	//! Server setting: also log everything we send the plugin and what it reports hearing, once a second
+	protected bool m_bComprehensiveDiagnostics;
+	//! Regular diagnostics: the transmission last logged, so a start and an end each get one line
+	protected EVONTransmitType m_eDiagTransmitType = EVONTransmitType.NONE;
+	protected SCR_VONEntryRadio m_DiagTransmitEntry;
+	protected int m_iDiagTransmitStartTick;
+	//! Regular diagnostics: transmissions and their total length since the last summary
+	protected int m_iDiagTransmissions;
+	protected int m_iDiagTransmitMs;
 	//! Server setting: log what the engine's room model says about the people nearby
 	protected bool m_bRoomDiagnosticLog;
 
@@ -189,10 +198,12 @@ class LC_Client
 		RefreshRadioEntries();
 		ReleaseStuckRadioPTT();
 		UpdateTransmit(now);
+		if (m_bRegularDiagnostics)
+			LogTransmitChange(now);
 		UpdateRadioVolumeInput();
 		m_FrequencyInput.Update();
 
-		m_Reader.Update(now, m_bDiagnosticLog);
+		m_Reader.Update(now, m_bRegularDiagnostics, m_bComprehensiveDiagnostics);
 		UpdateAIHearing(now);
 		m_RadioLinks.Update(now, m_Reader.GetRadioRequests(), GetRadioPosition(), m_fTerrainFactor);
 		m_Writer.Update(now, this);
@@ -265,7 +276,11 @@ class LC_Client
 		bool wantsRadio = entry && (transmitType == EVONTransmitType.CHANNEL || transmitType == EVONTransmitType.LONG_RANGE);
 		bool locked = now < m_iLockoutUntilTick;
 		if (wantsRadio && !m_bWantedRadio && locked)
+		{
 			PlayUiSound("deny");
+			if (m_bRegularDiagnostics)
+				Print("[LC] tx refused: transmit key spam lockout", LogLevel.NORMAL);
+		}
 
 		if (!wantsRadio && m_bWantedRadio && !locked)
 			CountKeyUp(now);
@@ -298,6 +313,60 @@ class LC_Client
 		m_aKeyUpTicks.Clear();
 		m_iLockoutUntilTick = now + KEY_SPAM_LOCKOUT_MS;
 		PlayUiSound("deny");
+		if (m_bRegularDiagnostics)
+			Print("[LC] tx lockout: more than " + KEY_SPAM_MAX_KEY_UPS.ToString() + " transmit key releases in " + KEY_SPAM_WINDOW_MS.ToString() + " ms", LogLevel.NORMAL);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Regular diagnostics: one line when a transmission starts or changes, one when it ends
+	protected void LogTransmitChange(int now)
+	{
+		if (m_eTransmitType == m_eDiagTransmitType && m_TransmitEntry == m_DiagTransmitEntry)
+			return;
+
+		if (m_eDiagTransmitType != EVONTransmitType.NONE)
+		{
+			int length = now - m_iDiagTransmitStartTick;
+			m_iDiagTransmissions++;
+			m_iDiagTransmitMs += length;
+			Print("[LC] tx end " + typename.EnumToString(EVONTransmitType, m_eDiagTransmitType) + " after " + length.ToString() + " ms", LogLevel.NORMAL);
+		}
+
+		m_eDiagTransmitType = m_eTransmitType;
+		m_DiagTransmitEntry = m_TransmitEntry;
+		m_iDiagTransmitStartTick = now;
+		if (m_eTransmitType == EVONTransmitType.NONE)
+			return;
+
+		string line = "[LC] tx start " + typename.EnumToString(EVONTransmitType, m_eTransmitType);
+		if (m_TransmitEntry)
+		{
+			BaseTransceiver transceiver = m_TransmitEntry.GetTransceiver();
+			if (transceiver)
+				line += " radio " + LC_Radio.GetId(m_TransmitEntry) + " " + transceiver.GetFrequency().ToString() + " kHz";
+		}
+
+		if (m_iRadioPTTKey >= 0)
+		{
+			int key = m_iRadioPTTKey + 1;
+			line += " on transmit key " + key.ToString();
+		}
+		else
+		{
+			line += " on the game's VON keys";
+		}
+
+		PrintFormat("%1", line);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Regular diagnostics: transmissions finished since the last call, and their total length in ms
+	void TakeTransmitStats(out int transmissions, out int transmitMs)
+	{
+		transmissions = m_iDiagTransmissions;
+		transmitMs = m_iDiagTransmitMs;
+		m_iDiagTransmissions = 0;
+		m_iDiagTransmitMs = 0;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -528,14 +597,18 @@ class LC_Client
 		m_fTerrainFactor = terrainFactor;
 		m_bAIHearing = aiHearing;
 		m_bGameMasterUnlimitedRange = gameMasterUnlimitedRange;
-		m_bDiagnosticLog = (flags & 1) != 0;
+		m_bComprehensiveDiagnostics = (flags & 1) != 0;
+		m_bRegularDiagnostics = m_bComprehensiveDiagnostics || (flags & 8) != 0;
 		m_bRoomDiagnosticLog = (flags & 2) != 0;
 		LC_Life.SetUnconsciousCanSpeak((flags & 4) != 0);
+		bool hideRadioRoles = (flags & 16) != 0;
+		bool hideDirectSpeech = (flags & 32) != 0;
+		SCR_VonDisplay.LC_SetOptions(hideRadioRoles, hideDirectSpeech);
 
 		int cleanPercent = Math.Round(cleanFraction * 100);
 		int beepPercent = Math.Round(beepFraction * 100);
 		int terrainPercent = Math.Round(terrainFactor * 100);
-		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", unconscious speech " + LC_Life.GetUnconsciousCanSpeak().ToString() + ", diagnostic log " + m_bDiagnosticLog.ToString() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString(), LogLevel.NORMAL);
+		Print("[LC] Clean radio range " + cleanPercent.ToString() + " percent, beep range " + beepPercent.ToString() + " percent, terrain effect " + terrainPercent.ToString() + " percent, AI hearing " + aiHearing.ToString() + ", Game Master unlimited range " + gameMasterUnlimitedRange.ToString() + ", unconscious speech " + LC_Life.GetUnconsciousCanSpeak().ToString() + ", diagnostics " + DescribeDiagnostics() + ", room diagnostic log " + m_bRoomDiagnosticLog.ToString() + ", hide radio roles " + hideRadioRoles.ToString() + ", hide direct speech display " + hideDirectSpeech.ToString(), LogLevel.NORMAL);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -567,10 +640,29 @@ class LC_Client
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Whether the server asked every client to log its side of the bridge
-	bool GetDiagnosticLog()
+	//! Whether the server asked every client for regular diagnostics (also true for comprehensive)
+	bool IsRegularDiagnostics()
 	{
-		return m_bDiagnosticLog;
+		return m_bRegularDiagnostics;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether the server asked every client to log its whole side of the bridge once a second
+	bool IsComprehensiveDiagnostics()
+	{
+		return m_bComprehensiveDiagnostics;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	protected string DescribeDiagnostics()
+	{
+		if (m_bComprehensiveDiagnostics)
+			return "comprehensive";
+
+		if (m_bRegularDiagnostics)
+			return "regular";
+
+		return "off";
 	}
 
 	//------------------------------------------------------------------------------------------------
