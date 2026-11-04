@@ -149,3 +149,15 @@ session; update after each meaningful step and before ending one. Never rewrite 
   - Evidence: enforce_check 37 files clean; Workbench (ClaudeDevTools → Lima Charlie) logs_2026-11-04_11-49-04
     `11:49:11 OK 5697 files / 11159 classes`, no LC errors. NOT run in play: picker reopen, notice timing in
     GM editor, regular log lines/volume all unverified in game. Workbench left running (launched by me).
+- Play-mode check (testWorld, Workbench via ClaudeDevTools, no TeamSpeak running):
+  - logs_2026-11-04_11-49-04: settings line `diagnostics regular` with the old server.json
+    (`diagnosticLog: false` ignored as intended); notice 1.6 s after `Client started`; `[LC] radios` line;
+    `Plugin stopped answering` warning; `[LC] summary 60 s: writes 138, plugin states 1, ...` (2.3 Hz = the
+    no-plugin rate). Found: the leftover plugin_state.json (2.0.1, connected) read once counted as a running
+    plugin, so the notice said "connected".
+  - Fix: `LC_PluginStateReader.IsPluginRunning` needs two different seqs read. Workbench restarted (my
+    instance ignored a polite close; force-closed, no edits in it). logs_2026-11-04_11-59-29: Game module OK
+    5697 / 11159, notice at 12:04:31.85 = 6 s grace after `Client started` and says "plugin: not running";
+    no LC script errors.
+  - Still NOT verified: picker reopen (needs real input), the hint actually disappearing after 12 s in the GM
+    editor, tx/rx/building lines (need TeamSpeak + another player / a building).

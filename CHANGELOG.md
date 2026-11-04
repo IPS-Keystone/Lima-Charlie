@@ -66,6 +66,9 @@ Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchang
   part is now built only for the line it prints. An old `"diagnosticLog": true` still works (as
   COMPREHENSIVE); `false`, which every generated server.json has, no longer turns anything off. The plugin
   state line now also says when TeamSpeak mutes your microphone.
+- **A leftover plugin file no longer counts as the plugin running.** With TeamSpeak closed, the
+  `plugin_state.json` from an earlier session was read once and counted as a live plugin for three seconds,
+  so the status notice could say "connected". The plugin now has to be seen writing twice.
 - **Voices behind walls no longer pump.** When people shuffle in a room, a voice can flip between clear and
   one wall behind every second or so; that was heard as a 5-8 dB step and the top end cutting in and out.
   The muffle and room echo now glide to the new value over about 200 ms.

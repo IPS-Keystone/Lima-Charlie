@@ -25,6 +25,9 @@ class LC_PluginStateReader
 	protected int m_iNextPollTick;
 	protected int m_iLastSeq = -1;
 	protected int m_iLastSeqTick;
+	//! Different states read this launch. A file left over from an earlier session reads once and then
+	//! never changes, so one state alone does not mean the plugin is running.
+	protected int m_iSeqsRead;
 	protected int m_iNextDiagnosticTick;
 
 	protected string m_sPluginVersion;
@@ -86,6 +89,8 @@ class LC_PluginStateReader
 
 		m_iLastSeq = seq;
 		m_iLastSeqTick = now;
+		if (m_iSeqsRead < 2)
+			m_iSeqsRead++;
 		m_iDiagStates++;
 
 		string pluginVersion;
@@ -261,7 +266,7 @@ class LC_PluginStateReader
 	//------------------------------------------------------------------------------------------------
 	bool IsPluginRunning(int now)
 	{
-		return m_iLastSeq >= 0 && now - m_iLastSeqTick < STALE_MS;
+		return m_iSeqsRead >= 2 && now - m_iLastSeqTick < STALE_MS;
 	}
 
 	//------------------------------------------------------------------------------------------------
