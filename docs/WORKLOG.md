@@ -20,7 +20,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
   `main` 2.0.5 merged in 2026-10-31. Next: survey (vehicle radios, VON entry API, compartments), then the
   foundation (radio source/position, leases, one quality function).
   Handover with current state, collisions (`radio-tuning`) and next steps: docs/design/3.0-handover.md.
-- Bugfixes keep shipping from `main` as 2.x.y; merge `main` into the feature branch after each release.
+- Bugfixes keep shipping from `main` as 2.x.y; merge `main` into the feature branch after each release. `bugfix-2.0.6` (c56799c) merged in 2026-11-04, before its release; merge `main` again once 2.0.6 lands there.
 - Not yet tested: retail game client with BattlEye.
 - Decide whether `WorkshopCoverPicture.*` and the new `PROJECT.md` / `docs/research/` / this file get committed.
 
@@ -364,6 +364,26 @@ session; update after each meaningful step and before ending one. Never rewrite 
   (`LimaCharlie_3.0-dev-01.ts3_plugin`, "All checks passed"). Addon files copied to Duke's new Workbench project
   `addons\Lima Charlie DEV` (ID LimaCharlieDEV, GUID 6AC643FAF3F385E3), all but its own addon.gproj / .rdb;
   diff -rq shows only those two differ. Not yet opened/compiled in Workbench as the DEV project.
+
+## 2026-11-04 (feature/3.0-comms: 2.0.6 merged in)
+- Merged `bugfix-2.0.6` (c56799c, all of 2.0.6: fixes, performance, diagnostics, picker, VON display, colours)
+  into feature/3.0-comms at 17bf712 (merge 0603fc5), in a separate worktree so the 2.0.6 checkout was untouched.
+- Conflicts: writer (3.0 builds radios inside BuildInGameJson for antenna positions; kept, string kept in
+  `m_sWrittenRadios` for the regular-diagnostics radios line; per-player JSON built alone with 3.0's `ic`),
+  plugin direct voice (2.0.6 muffle/room glide feeds 3.0's intercom-aware compute; both helpers kept), VON menu
+  (OnAdjustEntry + LC_Reopen), versions (stay `3.0-dev-01`, protocol 10), CHANGELOG (3.0 above 2.0.6), PROJECT, this log.
+- Found beyond the textual conflicts: (1) leased radios were appended after 2.0.6's "editor channels last" list;
+  now own radios, leased, then GM editor channels (`SCR_VONController.LC_AppendRadioEntries`). (2) Both branches
+  had taken config object IDs `{6A5C69DD1000004E..51}` (3.0 LC_RadioKeyFill input + keybind entry; 2.0.6 picker
+  keys 1-2); 3.0's moved to `{6A5C69DD1000005A..5D}`. No duplicate `{6A5C69DD...}` ids left in .conf/.et/.layout/.emat.
+- DEV addon: only the 19 changed addon files copied (not addon.gproj/.rdb); `diff -r --strip-trailing-cr` against
+  the branch shows only DEV's own gproj/rdb and the two known `.edds.meta` newlines.
+- Evidence: enforce_check 49 files clean; plugin build /W4 clean, "All checks passed",
+  `LimaCharlie_3.0-dev-01.ts3_plugin`; second Workbench on the DEV gproj logs_2026-11-04_13-46-12
+  `13:46:17 Module: Game; loaded 5709x files; 11201x classes`, no SCRIPT (E) (closed again; Duke's instance untouched).
+- NOT tested in play or MP: everything 2.0.6 lists as untested, plus the combined order (editor + vehicle +
+  leased radios), the keybind for Load Radio Key under its new entry id, and the glide on intercom speech.
+- Duke's call: whether this build is `3.0-dev-02` (left at `3.0-dev-01`).
 
 ## 2026-11-03 (bugfix-2.0.6)
 - Unit session logs (2.0.5, 4 clients) triaged before reading the external handover:
