@@ -20,7 +20,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
   `main` 2.0.5 merged in 2026-10-31. Next: survey (vehicle radios, VON entry API, compartments), then the
   foundation (radio source/position, leases, one quality function).
   Handover with current state, collisions (`radio-tuning`) and next steps: docs/design/3.0-handover.md.
-- Bugfixes keep shipping from `main` as 2.x.y; merge `main` into the feature branch after each release. `bugfix-2.0.6` (c56799c) merged in 2026-11-04, before its release; merge `main` again once 2.0.6 lands there.
+- Bugfixes keep shipping from `main` as 2.x.y; merge `main` into the feature branch after each release. `bugfix-2.0.6` (c56799c) merged in 2026-11-04, then `main` (2.0.6 release, 18d6afe) the same day.
 - Not yet tested: retail game client with BattlEye.
 - Decide whether `WorkshopCoverPicture.*` and the new `PROJECT.md` / `docs/research/` / this file get committed.
 
@@ -388,6 +388,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
   "All checks passed", `LimaCharlie_3.0-dev-02.ts3_plugin` (package.ini and DLL carry 3.0-dev-02); DEV addon's
   LC_Version.c copied; enforce_check (DEV) 49 files clean; second Workbench on the DEV gproj logs_2026-11-04_22-27-11
   `22:27:16 Module: Game; loaded 5709x files; 11201x classes`, no SCRIPT (E) (closed again). Not run in play.
+- Merged `main` 18d6afe (2.0.6 release: release notes, radio bleed research, worklog; no addon or plugin change).
 
 ## 2026-11-03 (bugfix-2.0.6)
 - Unit session logs (2.0.5, 4 clients) triaged before reading the external handover:
@@ -504,3 +505,15 @@ session; update after each meaningful step and before ending one. Never rewrite 
   - Assumed, not seen: a picker value in a real .conf is linear like FromSRGBA (vanilla feeds picker colours
     straight to widgets). The example `m_CustomColour 0.0666 0.4508 1 1` in server-settings.md is computed
     from that assumption. Label look in game not seen.
+- Research: radio background bleed (battle sound heard behind a radio transmission):
+  docs/research/2026-11-04-radio-background-bleed.md. No Arma 3 TFAR/ACRE add-on found (TFAR #1440: devs
+  say real capture is impossible, one TS voice stream); Reforger precedent SH Battle Radio is gone (404, no
+  archive). Recommended: sender's game collects shots/explosions/vehicle state while transmitting, plugins
+  carry them by sendPluginCommand, receiver's plugin mixes samples into that speaker's radio path before
+  `radio_tick`. Vanilla has script-readable mixer loudness (`Submix_L4`/`L3`, untested live). No code changed.
+  Waiting on Duke: name of the Arma 3 mod; go/no-go and where it sits (after 3.0 suggested).
+- Radio background bleed **shelved** by Duke: not a focus, no good way to source the samples. Write-up kept.
+- Release notes written: docs/release-notes-2.0.6.md (bug fixes / performance / changes). Plugin
+  build/LimaCharlie_2.0.6.ts3_plugin (2026-11-03 22:54) is current with plugin/src. release_check 2.0.6:
+  0 errors, 3 warnings (VoiceLevel source PNGs without .meta, already in 2.0.5), enforce clean.
+- Duke: commit 2.0.6 and merge bugfix-2.0.6 into main on GitHub. Cover pictures left uncommitted.
