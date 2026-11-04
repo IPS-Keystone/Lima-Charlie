@@ -142,20 +142,17 @@ class LC_Occlusion
 	//------------------------------------------------------------------------------------------------
 	//! The engine calls this for each entity the trace meets; false ignores that one and the trace carries
 	//! on behind it. Measured on the wider of its two horizontal sides, so a fence panel or a wall section
-	//! still counts while a post does not.
+	//! still counts while a post does not. The width comes first because it is the cheap test and rules out
+	//! most of what a trace meets; the casts and the prefab name are only worth it for something wide.
 	protected bool FilterCover(notnull IEntity entity, vector start = "0 0 0", vector dir = "0 0 0")
 	{
-		if (IsNeverCover(entity))
+		if (Width(entity) < NARROW_M || IsNeverCover(entity))
 		{
 			m_iSkipped++;
 			return false;
 		}
 
-		if (Width(entity) >= NARROW_M)
-			return true;
-
-		m_iSkipped++;
-		return false;
+		return true;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -248,7 +245,9 @@ class LC_Occlusion
 
 	//------------------------------------------------------------------------------------------------
 	//! What blocked the last trace and how many props it ignored on the way, for the diagnostic line
-	string DescribeCover()
+	//! \param solidity also measure how much of the blocker's box its colliders fill. That walks every collider
+	//! of the entity, often a whole block of flats, so it is only worth doing for a line about to be printed.
+	string DescribeCover(bool solidity = false)
 	{
 		string text;
 		if (m_CoverEntity)
@@ -264,7 +263,9 @@ class LC_Occlusion
 			if (prefab.IsEmpty())
 				prefab = "unnamed";
 
-			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m " + DescribeSolidity(m_CoverEntity);
+			text = prefab + " " + m_fCoverWidth.ToString(-1, 1) + "m";
+			if (solidity)
+				text += " " + DescribeSolidity(m_CoverEntity);
 		}
 		else if (m_bCoverIsWorld)
 		{

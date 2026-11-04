@@ -19,3 +19,11 @@ int lc_direct_voice_compute(const float listenerPos[3], const float listenerDir[
    distance, direction or muffling, since it comes through the listener's headset. 0 unless the two share a
    channel. The game only gives a speaker channels when they are on the listener's own vehicle. */
 float lc_intercom_gain(int listenerChannels, int speakerChannels);
+
+/* How long a speaker's muffle and room share take to follow the game: the time constant of an exponential
+   glide, so a change is 63% done after this long and 95% after three times it. */
+#define LC_MUFFLE_SMOOTH_MS 200.0f
+
+/* current moved toward target as an exponential glide with the given time constant over elapsedMs.
+   No time passing leaves it where it is; a time constant of zero or less jumps straight to the target. */
+float lc_direct_voice_ease(float current, float target, float elapsedMs, float timeConstantMs);

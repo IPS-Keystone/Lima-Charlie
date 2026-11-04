@@ -45,7 +45,9 @@ speaker from its own copy of the positions:
 - Falls off to **−30 dB** at the edge of range, with a fade over the last 15%.
 - **Equal-power pan** from the listener's facing, width 0.85.
 - **Behind attenuation** of 0.25, so someone at your back is quieter than someone in front.
-- **Muffle** from occlusion: up to −9 dB plus a low-pass sliding from 8 kHz down to 700 Hz.
+- **Muffle** from occlusion: up to −9 dB plus a low-pass sliding from 8 kHz down to 700 Hz. Muffle and room echo
+  glide to a new value over about 200 ms (time constant), so a voice flicking between clear and one wall
+  behind does not jump.
 - **Room reverb** when the listener is indoors, sized by the room (see below).
 
 Positions come from the listener's camera, not their body, so a Game Master or spectator hears from where
@@ -104,6 +106,9 @@ window, which is not a path at all until it breaks. So an open door two rooms aw
 through and a closed one is worth about as much as the wall beside it. Nothing has to be in line of sight
 for this, which is the part traces cannot do: shouting round a corner through an open door now carries.
 
+Paths are kept per building and source room and searched again only when a door or window has changed;
+the doors and windows are read four times a second. The search follows each room's own doorways.
+
 **An open doorway is treated as no obstruction at all**, as long as you are within 15 m of each other: no
 muffle, and no trace to argue with it. Standing to one side of an open door with someone out in front of it
 is clear, even though there is a wall between you. Vanilla behaves the same way, because its occlusion is
@@ -125,9 +130,18 @@ were last in is asked first, so anyone who has not left a building costs a singl
 
 The layout of doorways is not something the engine will hand over, so it is worked out once per building
 type, by probing the building with small boxes to find its doorways and then asking what lies either side
-of each one. That runs 128 probes per write while a player stands in a building type nobody has mapped
-yet, and stops as soon as every doorway the engine reports has been found. The result is shared by every
-copy of that building on the map.
+of each one. That runs while the player stands in a building type they have not mapped yet, and stops as
+soon as every doorway the engine reports has been found or the whole building has been covered. Each probe
+costs more the more doorways the building has, so the number per write is sized to keep it at about 1 ms:
+128 probes in a village house (mapped in a few seconds), about 38 in the 310-doorway apartment block
+(about 1,400 writes, 1-2.5 minutes of standing in it). The result is shared by every copy of that
+building on the map.
+
+Layouts are saved in `$profile/LimaCharlie/rooms/`, one text file per building type named by its prefab
+GUID, including how far an unfinished one got (every 4,000 probes, when finished, and when the player
+walks out). So each building type is mapped once per player, picked up where it was left across
+sessions, and mapped again only after a game update, a change in the building's room model, or a change in
+how LC maps. Deleting the folder is harmless.
 
 **Traces otherwise** — both outdoors, two different buildings, or a building with no room model. Two
 traces, one from each end: if each end hits a different first obstacle, there are at least two things in

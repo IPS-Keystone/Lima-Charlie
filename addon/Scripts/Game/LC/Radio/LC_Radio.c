@@ -26,7 +26,8 @@ class LC_Radio
 	protected static const float UNLIMITED_RANGE_M = 1000000;
 
 	//------------------------------------------------------------------------------------------------
-	//! Key of the physical radio a transceiver belongs to; per-radio settings are stored under it
+	//! Key of the physical radio a transceiver belongs to; per-radio settings are stored under it. "0" until
+	//! the radio can be identified.
 	static string GetRadioKey(notnull SCR_VONEntryRadio entry)
 	{
 		BaseTransceiver transceiver = entry.GetTransceiver();
@@ -46,15 +47,29 @@ class LC_Radio
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Id of one transceiver, unique among the local player's radios
+	//! Id of one transceiver, unique among the local player's radios. Kept on the entry, since settings look
+	//! it up several times per radio every write and every frame a transmit key is held.
 	static string GetId(notnull SCR_VONEntryRadio entry)
+	{
+		return entry.LC_GetId();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	static string BuildId(notnull SCR_VONEntryRadio entry)
 	{
 		return GetRadioKey(entry) + ":" + entry.GetTransceiverNumber().ToString();
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Duplex mode from the radio gadget's own prefab, full duplex when the radio has no gadget component
+	//! Duplex mode from the radio gadget's own prefab, full duplex when the radio has no gadget component.
+	//! Kept on the entry, like the id.
 	static LC_ERadioMode GetRadioMode(notnull SCR_VONEntryRadio entry)
+	{
+		return entry.LC_GetRadioMode();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	static LC_ERadioMode ReadRadioMode(notnull SCR_VONEntryRadio entry)
 	{
 		BaseTransceiver transceiver = entry.GetTransceiver();
 		if (!transceiver || !transceiver.GetRadio())

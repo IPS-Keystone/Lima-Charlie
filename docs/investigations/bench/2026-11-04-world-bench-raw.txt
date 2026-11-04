@@ -1,0 +1,97 @@
+game world
+static entities 3878, all entities 4349, buildings with rooms 3
+building {14E317F859842B3C}Prefabs/Structures/Houses/Prefabricated/ApartmentBuilding_5I01/ApartmentBuilding_USSR_5I01.et areas 117 portals 310 at <0, -114.312, 0> size <54.6433, 26.3322, 20.132>
+indoor sample cells 1557, rooms 109 and 106
+FindArea(CoordToLocal) - Locate fast path: 0.100 us/op (20000 ops, 2 ms)
+FindPortalByOBB 0.75 m cell - mapping probe: 28.900 us/op (20000 ops, 578 ms)
+4 portal state reads, per portal: 0.145 us/op (62000 ops, 9 ms)
+LC_RoomLayout.Build batch of 128 (117 areas, 310 portals, 185 usable, 87 unfound, 40000 cells, done, 313 batches): 3667.732 us/op (313 ops, 1148 ms)
+LC_Rooms.Locate outdoors 2 m from the walls (sphere query): 26.600 us/op (5000 ops, 133 ms)
+LC_Rooms.Locate indoors, same building (fast path): 0.600 us/op (5000 ops, 3 ms)
+rooms layout via Update: 54 areas, 131 portals, 127 usable, 0 unfound, 35584 cells, done in 278 writes, 453 ms
+room to room answered false muffle 0.00
+GetMuffle room to room, paths cached: 0.450 us/op (20000 ops, 9 ms)
+GetMuffle room to room, portal costs re-read (no change): 0.000 us/op (1000 ops, 0 ms)
+outdoor to room answered false muffle 0.00
+CountObstacles through the building (1 obstacles, ApartmentBuilding_USSR_5I01.et 54.6m, 64.6433 m): 21.500 us/op (2000 ops, 43 ms)
+CountObstacles through open air (0 obstacles): 36.500 us/op (2000 ops, 73 ms)
+CountObstacles 60 m along a street (1 obstacles, GenericTerrain_Eden.et 0.0m): 90.500 us/op (2000 ops, 181 ms)
+
+game world
+static entities 3878, all entities 4349, buildings with rooms 3
+building {14E317F859842B3C}Prefabs/Structures/Houses/Prefabricated/ApartmentBuilding_5I01/ApartmentBuilding_USSR_5I01.et areas 117 portals 310 at <0, -114.312, 0> size <54.6433, 26.3322, 20.132>
+indoor sample cells 1557, rooms 109 and 106
+FindArea(CoordToLocal) - Locate fast path: 0.100 us/op (20000 ops, 2 ms)
+FindPortalByOBB 0.75 m cell - mapping probe: 28.150 us/op (20000 ops, 563 ms)
+4 portal state reads, per portal: 0.161 us/op (62000 ops, 10 ms)
+LC_RoomLayout.Build batch of 128 (117 areas, 310 portals, 185 usable, 87 unfound, 40000 cells, done, 313 batches): 3690.096 us/op (313 ops, 1155 ms)
+LC_Rooms.Locate outdoors 2 m from the walls (sphere query): 27.000 us/op (5000 ops, 135 ms)
+LC_Rooms.Locate indoors, same building (fast path): 0.600 us/op (5000 ops, 3 ms)
+rooms layout via Update: 54 areas, 131 portals, 127 usable, 0 unfound, 35584 cells, done in 278 writes, 451 ms
+room to room answered false muffle 0.00
+GetMuffle room to room, paths cached: 0.450 us/op (20000 ops, 9 ms)
+GetMuffle room to room, portal costs re-read (no change): 1.000 us/op (1000 ops, 1 ms)
+outdoor to room answered false muffle 0.00
+CountObstacles through the building (1 obstacles, ApartmentBuilding_USSR_5I01.et 54.6m, 64.6433 m): 22.000 us/op (2000 ops, 44 ms)
+CountObstacles through open air (0 obstacles): 36.500 us/op (2000 ops, 73 ms)
+CountObstacles 60 m along a street (1 obstacles, GenericTerrain_Eden.et 0.0m): 92.000 us/op (2000 ops, 184 ms)
+
+game world
+static entities 3878, all entities 4349, buildings with rooms 3
+building {14E317F859842B3C}Prefabs/Structures/Houses/Prefabricated/ApartmentBuilding_5I01/ApartmentBuilding_USSR_5I01.et areas 117 portals 310 at <0, -114.312, 0> size <54.6433, 26.3322, 20.132>
+indoor sample cells 1557, rooms 109 and 106
+FindArea(CoordToLocal) - Locate fast path: 0.100 us/op (20000 ops, 2 ms)
+FindPortalByOBB 0.75 m cell - mapping probe: 29.250 us/op (20000 ops, 585 ms)
+4 portal state reads, per portal: 0.145 us/op (62000 ops, 9 ms)
+LC_RoomLayout.Build batch of 128 (117 areas, 310 portals, 185 usable, 87 unfound, 40000 cells, done, 313 batches): 3651.757 us/op (313 ops, 1143 ms)
+LC_Rooms.Locate outdoors 2 m from the walls (sphere query): 28.600 us/op (5000 ops, 143 ms)
+LC_Rooms.Locate indoors, same building (fast path): 0.600 us/op (5000 ops, 3 ms)
+rooms layout via Update: 54 areas, 131 portals, 127 usable, 0 unfound, 35584 cells, done in 278 writes, 514 ms
+room to room answered false muffle 0.00
+GetMuffle room to room, paths cached: 0.500 us/op (20000 ops, 10 ms)
+GetMuffle room to room, portal costs re-read (no change): 0.000 us/op (1000 ops, 0 ms)
+outdoor to room answered false muffle 0.00
+CountObstacles through the building (1 obstacles, ApartmentBuilding_USSR_5I01.et 54.6m, 64.6433 m): 24.000 us/op (2000 ops, 48 ms)
+CountObstacles through open air (0 obstacles): 46.500 us/op (2000 ops, 93 ms)
+CountObstacles 60 m along a street (1 obstacles, GenericTerrain_Eden.et 0.0m): 94.500 us/op (2000 ops, 189 ms)
+
+===== real map near camera (float coords)
+game world
+static entities 5026, all entities 5107, buildings with rooms 6
+building {BEF9077AF9F93AE7}Prefabs/Structures/Houses/Village/House_Mountain_E_1I01/House_Mountain_E_1I01.et areas 10 portals 26 at <6272.85, 164.252, 6466.98> size <24.6979, 14.7736, 13.524>
+indoor sample cells 155, rooms 9 and 3
+FindArea(CoordToLocal) - Locate fast path: 0.100 us/op (20000 ops, 2 ms)
+FindPortalByOBB 0.75 m cell - mapping probe: 2.950 us/op (20000 ops, 59 ms)
+4 portal state reads, per portal: 0.192 us/op (5200 ops, 1 ms)
+LC_RoomLayout.Build batch of 128 (10 areas, 26 portals, 25 usable, 0 unfound, 10880 cells, done, 85 batches): 447.059 us/op (85 ops, 38 ms)
+LC_Rooms.Locate outdoors 2 m from the walls (sphere query): 1.800 us/op (5000 ops, 9 ms)
+LC_Rooms.Locate indoors, same building (fast path): 0.400 us/op (5000 ops, 2 ms)
+rooms layout via Update: 10 areas, 26 portals, 25 usable, 0 unfound, 10880 cells, done in 85 writes, 33 ms
+room to room answered true muffle 1.00
+GetMuffle room to room, paths cached: 1.450 us/op (20000 ops, 29 ms)
+GetMuffle room to room, portal costs re-read (no change): 9.000 us/op (1000 ops, 9 ms)
+outdoor to room answered true muffle 0.60
+CountObstacles through the building (1 obstacles, House_Mountain_E_1I01.et 27.1m, 34.6979 m): 12.500 us/op (2000 ops, 25 ms)
+CountObstacles through open air (0 obstacles): 2.000 us/op (2000 ops, 4 ms)
+CountObstacles 60 m along a street (0 obstacles, clear skip5): 3.500 us/op (2000 ops, 7 ms)
+
+===== apartment spawned at 6020.5 6250.5
+game world
+static entities 2404, all entities 2665, buildings with rooms 1
+building {14E317F859842B3C}Prefabs/Structures/Houses/Prefabricated/ApartmentBuilding_5I01/ApartmentBuilding_USSR_5I01.et areas 117 portals 310 at <6020.5, 155.719, 6250.5> size <54.6433, 26.3322, 20.132>
+indoor sample cells 1557, rooms 109 and 106
+FindArea(CoordToLocal) - Locate fast path: 0.100 us/op (20000 ops, 2 ms)
+FindPortalByOBB 0.75 m cell - mapping probe: 28.200 us/op (20000 ops, 564 ms)
+4 portal state reads, per portal: 0.161 us/op (62000 ops, 10 ms)
+LC_RoomLayout.Build batch of 128 (117 areas, 310 portals, 185 usable, 87 unfound, 40000 cells, done, 313 batches): 3642.173 us/op (313 ops, 1140 ms)
+LC_Rooms.Locate outdoors 2 m from the walls (sphere query): 2.000 us/op (5000 ops, 10 ms)
+LC_Rooms.Locate indoors, same building (fast path): 0.400 us/op (5000 ops, 2 ms)
+rooms layout via Update: 117 areas, 310 portals, 185 usable, 87 unfound, 40000 cells, done in 313 writes, 1134 ms
+room to room answered true muffle 1.00
+GetMuffle room to room, paths cached: 1.450 us/op (20000 ops, 29 ms)
+GetMuffle room to room, portal costs re-read (no change): 55.000 us/op (1000 ops, 55 ms)
+outdoor to room answered true muffle 0.60
+CountObstacles through the building (1 obstacles, ApartmentBuilding_USSR_5I01.et 54.6m, 64.6433 m): 13.000 us/op (2000 ops, 26 ms)
+CountObstacles through open air (0 obstacles): 0.500 us/op (2000 ops, 1 ms)
+CountObstacles 60 m along a street (0 obstacles, clear skip1): 1.500 us/op (2000 ops, 3 ms)
+

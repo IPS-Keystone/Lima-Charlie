@@ -61,6 +61,24 @@ modded class SCR_VONController
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Vanilla removes with RemoveItem, which moves the last entry into the gap, so closing the editor or
+	//! dropping a radio shuffled every channel after it: the radial menu changed order and so did the transmit
+	//! keys, which default by position. The moved entry goes back to the end, leaving the rest in order.
+	override void RemoveEntry(SCR_VONEntry entry)
+	{
+		int index = m_aEntries.Find(entry);
+		super.RemoveEntry(entry);
+
+		if (index < 0 || index >= m_aEntries.Count())
+			return;
+
+		// Inserted before it is removed, so the array's reference keeps it alive throughout
+		SCR_VONEntry moved = m_aEntries[index];
+		m_aEntries.Insert(moved);
+		m_aEntries.RemoveOrdered(index);
+	}
+
+	//------------------------------------------------------------------------------------------------
 	override protected void ActionVONTransceiverCycle(float value, EActionTrigger reason = EActionTrigger.UP)
 	{
 		super.ActionVONTransceiverCycle(value, reason);
@@ -88,16 +106,39 @@ modded class SCR_VONController
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! The local player's radio entries in vanilla order; the Lima Charlie radio push-to-talk slots index into this
+	//! The local player's radio entries in vanilla order, the Game Master's editor channels last; the Lima Charlie
+	//! radio push-to-talk slots index into this. The editor's entries come and go as it opens and closes, and a GM
+	//! who opened it before their radios were added would otherwise have had every key move onto them.
 	void LC_GetRadioEntries(notnull array<SCR_VONEntryRadio> entries)
 	{
 		entries.Clear();
+		LC_AppendRadioEntries(entries, false);
+		LC_AppendRadioEntries(entries, true);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Appends the radio entries in vanilla order, either the Game Master's editor channels or everything else.
+	//! LC_Client puts leased radios between the two, so the editor's channels stay last.
+	void LC_AppendRadioEntries(notnull array<SCR_VONEntryRadio> entries, bool editorChannels)
+	{
 		foreach (SCR_VONEntry entry : m_aEntries)
 		{
 			SCR_VONEntryRadio radioEntry = SCR_VONEntryRadio.Cast(entry);
-			if (radioEntry && radioEntry.GetTransceiver())
+			if (radioEntry && radioEntry.GetTransceiver() && LC_IsEditorEntry(radioEntry) == editorChannels)
 				entries.Insert(radioEntry);
 		}
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! One of the channels vanilla adds for the Game Master's own radio while the editor is open
+	protected static bool LC_IsEditorEntry(notnull SCR_VONEntryRadio entry)
+	{
+		// SCR_EditorManagerEntity hands its own SCR_RadioComponent in as the entries' gadget
+		SCR_GadgetComponent gadget = entry.GetGadget();
+		if (!gadget)
+			return false;
+
+		return SCR_EditorManagerEntity.Cast(gadget.GetOwner()) != null;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -159,6 +200,14 @@ modded class SCR_VONController
 			return null;
 
 		return SCR_VONEntryRadio.Cast(radialMenu.GetSelectionEntry());
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Opens the VON radial menu again (after the transmit key picker closed it)
+	void LC_ReopenMenu()
+	{
+		if (m_VONMenu)
+			m_VONMenu.LC_Reopen();
 	}
 
 	//------------------------------------------------------------------------------------------------

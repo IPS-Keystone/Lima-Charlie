@@ -87,3 +87,13 @@ float lc_intercom_gain(int listenerChannels, int speakerChannels)
 {
     return (listenerChannels & speakerChannels & LC_INTERCOM_ALL) ? LC_INTERCOM_GAIN : 0.0f;
 }
+
+float lc_direct_voice_ease(float current, float target, float elapsedMs, float timeConstantMs)
+{
+    if (!(timeConstantMs > 0.0f))
+        return target;
+    if (!(elapsedMs > 0.0f))
+        return current;
+    const float moved = 1.0f - (float)exp(-elapsedMs / timeConstantMs);
+    return current + (target - current) * moved;
+}

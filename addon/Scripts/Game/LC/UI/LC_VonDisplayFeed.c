@@ -82,6 +82,11 @@ class LC_VonDisplayFeed
 
 		foreach (int playerId, LC_HeardTransmission transmission : heard)
 		{
+			// Raising it again would only repeat another mod's exception; vanilla brings them back on its own
+			// when a line frees up
+			if (display.LC_IsStuckOverflow(playerId))
+				continue;
+
 			BaseTransceiver transceiver = FindTransceiver(transmission.m_sRadioId);
 			if (!transceiver)
 				continue;

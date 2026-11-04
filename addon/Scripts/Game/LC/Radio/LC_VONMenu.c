@@ -36,4 +36,15 @@ modded class SCR_VONMenu
 		intercom.Update();
 		m_RadialMenu.UpdateEntries();
 	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Opens the radial menu again, as if the VON menu key were pressed. Opening any other menu closes it
+	//! (SCR_RadialMenu.OnMenuOpened), so the transmit key picker uses this to hand the player back.
+	void LC_Reopen()
+	{
+		if (m_bIsDisabled || !m_RadialController || !m_RadialMenu || m_RadialMenu.IsOpened())
+			return;
+
+		m_RadialController.OnInputOpen();
+	}
 }
