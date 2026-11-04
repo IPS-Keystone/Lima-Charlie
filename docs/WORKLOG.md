@@ -384,6 +384,10 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - NOT tested in play or MP: everything 2.0.6 lists as untested, plus the combined order (editor + vehicle +
   leased radios), the keybind for Load Radio Key under its new entry id, and the glide on intercom speech.
 - Duke's call: whether this build is `3.0-dev-02` (left at `3.0-dev-01`).
+- Duke: bump to `3.0-dev-02`. Both halves (`LC_Version.c`, `lc_version.h`) and the test plan; plugin rebuilt,
+  "All checks passed", `LimaCharlie_3.0-dev-02.ts3_plugin` (package.ini and DLL carry 3.0-dev-02); DEV addon's
+  LC_Version.c copied; enforce_check (DEV) 49 files clean; second Workbench on the DEV gproj logs_2026-11-04_22-27-11
+  `22:27:16 Module: Game; loaded 5709x files; 11201x classes`, no SCRIPT (E) (closed again). Not run in play.
 
 ## 2026-11-03 (bugfix-2.0.6)
 - Unit session logs (2.0.5, 4 clients) triaged before reading the external handover:
