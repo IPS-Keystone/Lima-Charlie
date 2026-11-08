@@ -185,10 +185,19 @@ Vehicles are not a special case. A hull that is really between two people blocks
 wall; an open mount does not. Sitting in one used to add a flat muffle, which was wrong for everything you
 sit *on* rather than *in* — a mortar, a technical's bed, an open jeep, a hatch you are turned out of.
 
-Traces are cached per player and repeated only as often as they can matter: every 50 ms while that person
-is talking, 250 ms while silent, and only when one of you has moved more than 15 cm — otherwise every
-second, to catch doors and vehicles moving around a still pair. At most twelve players are re-traced per
-write.
+Traces are cached per player and repeated only as often as they can matter. Only a voice someone can hear
+needs one, so a player is traced while they talk: straight away when they start, then every 50 ms while
+either of your **bodies** has moved more than 0.5 m, otherwise once a second to catch doors and vehicles moving
+around a still pair. Bodies, not heads, so turning your head or camera on the spot does not count as moving.
+Silent players are only kept roughly current, one per write and only while nobody at all is talking (every
+2 s if moving, 10 s if still). At most three traces run in a write (writes are at most one a frame), and no
+more once tracing has taken 2 ms; players are visited from a different one each write so nobody is starved.
+
+Two people who are both outdoors and more than 30 m apart are clear without a trace, the way vanilla's VON
+treats everyone outdoors. That needs LC's room model and the engine's own interior estimate (the one vanilla
+sounds use: `GInterior` for the listener, `SoundWorld.CalculateInterirorAt` for the speaker) to agree that
+both ends are outdoors, and neither may be in a vehicle; anything unsure is traced. One indoors and one
+outdoors is always traced, so someone in a doorway you can see stays clear.
 
 ## Radio reception
 

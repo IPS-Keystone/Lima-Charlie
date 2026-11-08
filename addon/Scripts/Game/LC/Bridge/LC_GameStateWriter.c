@@ -1,18 +1,65 @@
 //------------------------------------------------------------------------------------------------
 //! The last occlusion result for one nearby player, and where both ends were when it was traced
-class LC_MuffleSample
+class LC_MuffleSample : Managed
 {
 	float m_fMuffle;
+	//! Where both bodies stood at the last trace. Bodies, not heads: turning the head or the camera moves the
+	//! eye but must not count as moving.
 	vector m_vListener;
 	vector m_vSpeaker;
 	int m_iTracedTick;
 	int m_iSeenTick;
+	//! Talking last write, so the start of speech is traced straight away
+	bool m_bWasTalking;
+	//! The cached muffle must be traced again before it is trusted: speech started, the player is new, or a
+	//! shortcut (same room, far outdoors) stood in for a trace
+	bool m_bRetrace = true;
+	//! The engine's own interior estimate at their position, 0 outside .. 1 inside; -1 until one arrives
+	float m_fEngineInterior = -1;
+	vector m_vEnginePosition;
+	int m_iEngineTick;
+	//! The request on its way, weakly: the writer owns every pending request
+	LC_InteriorRequest m_InteriorRequest;
 	//! Where this player was standing in the engine's room model when last checked
 	ref LC_RoomLocation m_Room = new LC_RoomLocation();
 	//! Whether the room model answered for this player, rather than a trace, for the diagnostic line
 	bool m_bFromRooms;
 	//! What the last trace for this player hit, for the diagnostic line
 	string m_sCover;
+}
+
+//------------------------------------------------------------------------------------------------
+//! One pending SoundWorld.CalculateInterirorAt for a nearby player: the engine's interior estimate, the same
+//! one vanilla's sounds and VON muffle by, worked out off the script thread. The writer keeps every one alive
+//! until it answers, never freeing one still pending (vanilla's sound manager does not either), and it holds the
+//! sample weakly, so a player forgotten meanwhile just drops the answer.
+class LC_InteriorRequest : InteriorRequestCallback
+{
+	protected LC_MuffleSample m_Sample;
+	protected vector m_vPosition;
+	bool m_bDone;
+
+	//------------------------------------------------------------------------------------------------
+	void LC_InteriorRequest(LC_MuffleSample sample, vector position)
+	{
+		m_Sample = sample;
+		m_vPosition = position;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	override void OnCompleted(float interior, float roomSize)
+	{
+		m_bDone = true;
+		LC_MuffleSample sample = m_Sample;
+		m_Sample = null;
+		if (!sample)
+			return;
+
+		sample.m_fEngineInterior = interior;
+		sample.m_vEnginePosition = m_vPosition;
+		sample.m_iEngineTick = System.GetTickCount();
+		sample.m_InteriorRequest = null;
+	}
 }
 
 //------------------------------------------------------------------------------------------------
@@ -32,16 +79,33 @@ class LC_GameStateWriter
 	protected static const int NO_PLUGIN_INTERVAL_MS = 500;
 	//! Players beyond this distance cannot matter for direct speech
 	protected static const float NEARBY_RANGE_M = 60;
-	//! Occlusion traces are the expensive part, so each nearby player is re-traced only as often as it can
-	//! matter: often while they talk, less often while silent (so the result is ready when they start), and
-	//! rarely when neither end has moved, which is most of a briefing or a building clear
+	//! Occlusion traces are the expensive part, and only a voice someone can hear needs one. A talking player is
+	//! re-traced often while either body moves and once a second while both stand still; the start of speech
+	//! is traced straight away.
 	protected static const int OCCLUSION_TALKING_MS = 50;
-	protected static const int OCCLUSION_SILENT_MS = 250;
 	protected static const int OCCLUSION_STILL_MS = 1000;
-	protected static const float OCCLUSION_MOVE_M = 0.15;
-	//! At most this many players are re-traced in one write, so a crowd arriving at once is spread over
-	//! several frames instead of landing in one
-	protected static const int OCCLUSION_BUDGET = 12;
+	//! Silent players are only kept roughly current, so speech does not start from a result minutes old: one
+	//! at a time, only while nobody at all is talking, and no more often than this each
+	protected static const int OCCLUSION_SILENT_MS = 2000;
+	protected static const int OCCLUSION_SILENT_STILL_MS = 10000;
+	//! How far a body (not a head) moves before its result is due again
+	protected static const float OCCLUSION_MOVE_M = 0.5;
+	//! Traces in one write. Writes are at most one a frame, so this is also the most in any frame, and a crowd
+	//! arriving at once is spread over several frames instead of landing in one.
+	protected static const int OCCLUSION_BUDGET = 3;
+	//! No more traces in a write once tracing has taken this long (the clock is whole milliseconds)
+	protected static const int OCCLUSION_TIME_MS = 2;
+	//! Two people both outdoors and further apart than this are clear without a trace, the way vanilla's VON
+	//! treats everyone outdoors: a long trace through woodland is the costliest kind, and a wall at that range
+	//! changes little in a voice already that quiet. Only when LC's room model and the engine's interior
+	//! estimate both put both ends outdoors and neither is in a vehicle; anything unsure is traced as before.
+	protected static const float OUTDOOR_TRACE_RANGE_M = 30;
+	//! Engine interior below this counts as outdoors; vanilla's occlusion graph only starts muffling above it
+	protected static const float ENGINE_OUTDOORS_BELOW = 0.5;
+	protected static const int ENGINE_INTERIOR_REFRESH_MS = 2000;
+	protected static const float ENGINE_INTERIOR_MOVE_M = 1;
+	//! Vanilla's global audio variables, where the engine keeps the camera's own interior estimate
+	protected static const string GLOBAL_AUDIO_VARIABLES = "{A60F08955792B575}Sounds/_SharedData/Variables/GlobalVariables.conf";
 	//! A player not seen nearby for this long has their cached result dropped
 	protected static const int OCCLUSION_FORGET_MS = 5000;
 	//! A camera further than this from the body it belongs to is a free camera: Game Master, spectator or photo
@@ -69,6 +133,15 @@ class LC_GameStateWriter
 	protected ref map<int, ref LC_MuffleSample> m_mMuffle = new map<int, ref LC_MuffleSample>();
 	protected ref array<int> m_aForget = {};
 	protected int m_iTraceBudget;
+	protected int m_iTraceStartTick;
+	//! Players are visited from a different one each write, so a budget spent early cannot starve the rest
+	protected int m_iPlayerRotation;
+	//! Where the listener's body is, for the move test, and whether the engine places the listener outdoors
+	protected vector m_vListenerAnchor;
+	protected bool m_bListenerOutdoors;
+	protected bool m_bAnyoneTalking;
+	//! Every interior request still on its way, kept alive here until the engine answers
+	protected static ref array<ref LC_InteriorRequest> s_aInteriorRequests = {};
 	protected ref LC_Occlusion m_Occlusion = new LC_Occlusion();
 	protected ref LC_Rooms m_Rooms = new LC_Rooms();
 	//! Where the listener is in the room model; the room checks are all relative to this
@@ -93,6 +166,7 @@ class LC_GameStateWriter
 	protected int m_iDiagFromRooms;
 	protected int m_iDiagFromTraces;
 	protected int m_iDiagTraces;
+	protected int m_iDiagFarOutdoors;
 	protected int m_iDiagProbes;
 
 	//------------------------------------------------------------------------------------------------
@@ -236,6 +310,17 @@ class LC_GameStateWriter
 			}
 		}
 
+		// The listener's body for the move test, so turning the head or the camera does not count as moving. A
+		// free camera has no body: it is its own anchor, and turning it does not move it.
+		m_vListenerAnchor = occlusionOrigin;
+		m_bListenerOutdoors = AudioSystem.GetVariableValue("GInterior", GLOBAL_AUDIO_VARIABLES) < ENGINE_OUTDOORS_BELOW;
+		if (occlusionListener)
+		{
+			m_vListenerAnchor = occlusionListener.GetOrigin();
+			if (CompartmentAccessComponent.GetVehicleIn(occlusionListener))
+				m_bListenerOutdoors = false;
+		}
+
 		// Which room the listener is in, and a slice of the work of mapping that building's type
 		m_Rooms.Locate(m_ListenerRoom, occlusionOrigin, now);
 		m_Rooms.Update(m_ListenerRoom);
@@ -270,11 +355,18 @@ class LC_GameStateWriter
 		LC_PluginStateReader reader = client.GetPluginState();
 		float maxDistanceSq = NEARBY_RANGE_M * NEARBY_RANGE_M;
 		m_iTraceBudget = OCCLUSION_BUDGET;
+		m_bAnyoneTalking = reader.IsAnyPlayerTalking();
 		bool first = true;
 		m_iRoomsResolved = 0;
 		m_iRoomsTraced = 0;
-		foreach (int playerId : m_aPlayerIds)
+		int playerCount = m_aPlayerIds.Count();
+		m_iPlayerRotation++;
+		if (m_iPlayerRotation >= playerCount)
+			m_iPlayerRotation = 0;
+
+		for (int n = 0; n < playerCount; n++)
 		{
+			int playerId = m_aPlayerIds[(n + m_iPlayerRotation) % playerCount];
 			if (playerId == localPlayerId)
 				continue;
 
@@ -309,6 +401,7 @@ class LC_GameStateWriter
 
 		json += "],\"links\":" + client.GetRadioLinks().BuildJson() + "}";
 		ForgetMuffles(now);
+		DropAnsweredRequests();
 		return json;
 	}
 
@@ -316,19 +409,23 @@ class LC_GameStateWriter
 	//! How muffled a nearby player is. Both the engine's room model and a trace get a say, and the clearer
 	//! of the two wins: a path through the rooms cannot tell whether the two can see each other, and a trace
 	//! cannot tell that an open door two rooms away carries a voice. Only the same room needs neither, being
-	//! clear already.
+	//! clear already. One indoors and one outdoors is always traced, so a doorway they can see each other
+	//! through stays clear.
 	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, float distanceSq, bool talking, int now)
 	{
 		LC_MuffleSample sample = m_mMuffle.Get(playerId);
 		if (!sample)
 		{
-			// Due straight away: the zero positions read as moved
 			sample = new LC_MuffleSample();
-			sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
 			m_mMuffle.Set(playerId, sample);
 		}
 
 		sample.m_iSeenTick = now;
+		// Whatever was cached while they were silent is traced again the moment they speak
+		if (talking && !sample.m_bWasTalking)
+			sample.m_bRetrace = true;
+
+		sample.m_bWasTalking = talking;
 
 		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
 		float roomMuffle;
@@ -342,7 +439,7 @@ class LC_GameStateWriter
 			if (roomMuffle <= 0)
 			{
 				// Any trace result is now stale: a later fallback has to trace again rather than reuse it
-				sample.m_iTracedTick = now - OCCLUSION_STILL_MS;
+				sample.m_bRetrace = true;
 				return 0;
 			}
 
@@ -352,25 +449,122 @@ class LC_GameStateWriter
 
 		sample.m_bFromRooms = false;
 		m_iRoomsTraced++;
+		if (IsFarOutdoors(sample, speaker, speakerPosition, distanceSq, talking, now))
+		{
+			sample.m_bRetrace = true;
+			sample.m_fMuffle = 0;
+			m_iDiagFarOutdoors++;
+			if (m_bRoomDiagnostics)
+				sample.m_sCover = "far outdoors";
+
+			return 0;
+		}
+
 		return TraceMuffle(sample, speaker, speakerPosition, listener, listenerPosition, talking, now);
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Both outdoors, far enough apart to skip the trace, and the engine agrees neither is inside anything.
+	//! Asks the engine for a fresh interior estimate at the speaker as a side effect; until one has come back,
+	//! the answer is no and the pair is traced.
+	protected bool IsFarOutdoors(notnull LC_MuffleSample sample, notnull IEntity speaker, vector speakerPosition, float distanceSq, bool talking, int now)
+	{
+		if (!talking || !m_bListenerOutdoors || distanceSq <= OUTDOOR_TRACE_RANGE_M * OUTDOOR_TRACE_RANGE_M)
+			return false;
+
+		if (m_ListenerRoom.IsIndoors() || sample.m_Room.IsIndoors())
+			return false;
+
+		// A hull is not outdoors, whatever the ground around it is
+		if (CompartmentAccessComponent.GetVehicleIn(speaker))
+			return false;
+
+		RequestEngineInterior(sample, speakerPosition, now);
+		if (sample.m_fEngineInterior < 0 || sample.m_fEngineInterior >= ENGINE_OUTDOORS_BELOW)
+			return false;
+
+		// An estimate from somewhere else is no answer, even while a fresh one is on its way
+		float nearM = 2 * ENGINE_INTERIOR_MOVE_M;
+		return vector.DistanceSq(sample.m_vEnginePosition, speakerPosition) <= nearM * nearM;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Asks the engine where this player stands, unless an answer is pending or still fresh for that spot
+	protected void RequestEngineInterior(notnull LC_MuffleSample sample, vector position, int now)
+	{
+		if (sample.m_InteriorRequest)
+			return;
+
+		bool known = sample.m_fEngineInterior >= 0;
+		bool moved = vector.DistanceSq(sample.m_vEnginePosition, position) > ENGINE_INTERIOR_MOVE_M * ENGINE_INTERIOR_MOVE_M;
+		if (known && !moved && now - sample.m_iEngineTick < ENGINE_INTERIOR_REFRESH_MS)
+			return;
+
+		ChimeraWorld world = ChimeraWorld.CastFrom(GetGame().GetWorld());
+		if (!world)
+			return;
+
+		SoundWorld soundWorld = world.GetSoundWorld();
+		if (!soundWorld)
+			return;
+
+		LC_InteriorRequest request = new LC_InteriorRequest(sample, position);
+		s_aInteriorRequests.Insert(request);
+		sample.m_InteriorRequest = request;
+		soundWorld.CalculateInterirorAt(position, request);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Lets go of the interior requests the engine has answered
+	protected static void DropAnsweredRequests()
+	{
+		for (int i = s_aInteriorRequests.Count() - 1; i >= 0; i--)
+		{
+			if (s_aInteriorRequests[i].m_bDone)
+				s_aInteriorRequests.Remove(i);
+		}
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! The traced muffle for this player, from the cache unless it is due and there is budget left in this
-	//! write. Due means their interval has passed and either end has moved, or it has gone stale.
+	//! write. A talking player is due when their interval has passed and either body has moved, when it has
+	//! gone stale, or straight away when they start. A silent one is only refreshed while nobody is talking.
 	protected float TraceMuffle(notnull LC_MuffleSample sample, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, bool talking, int now)
 	{
-		int interval = OCCLUSION_SILENT_MS;
-		if (talking)
-			interval = OCCLUSION_TALKING_MS;
-
-		int age = now - sample.m_iTracedTick;
-		if (age < interval || m_iTraceBudget <= 0)
+		if (m_iTraceBudget <= 0)
 			return sample.m_fMuffle;
 
-		float moveSq = OCCLUSION_MOVE_M * OCCLUSION_MOVE_M;
-		bool moved = vector.DistanceSq(sample.m_vListener, listenerPosition) > moveSq || vector.DistanceSq(sample.m_vSpeaker, speakerPosition) > moveSq;
-		if (!moved && age < OCCLUSION_STILL_MS)
+		int interval = OCCLUSION_TALKING_MS;
+		int stillInterval = OCCLUSION_STILL_MS;
+		if (!talking)
+		{
+			// Nobody hears a silent player, so any live voice goes first, and only one silent player a write
+			if (m_bAnyoneTalking || m_iTraceBudget < OCCLUSION_BUDGET)
+				return sample.m_fMuffle;
+
+			interval = OCCLUSION_SILENT_MS;
+			stillInterval = OCCLUSION_SILENT_STILL_MS;
+		}
+
+		vector speakerAnchor = speaker.GetOrigin();
+		int age = now - sample.m_iTracedTick;
+		bool startOfSpeech = talking && sample.m_bRetrace;
+		if (!startOfSpeech)
+		{
+			if (age < interval)
+				return sample.m_fMuffle;
+
+			float moveSq = OCCLUSION_MOVE_M * OCCLUSION_MOVE_M;
+			bool moved = vector.DistanceSq(sample.m_vListener, m_vListenerAnchor) > moveSq || vector.DistanceSq(sample.m_vSpeaker, speakerAnchor) > moveSq;
+			if (!moved && !sample.m_bRetrace && age < stillInterval)
+				return sample.m_fMuffle;
+		}
+
+		// A write whose traces have already taken their time leaves the rest for the next frame
+		int tick = System.GetTickCount();
+		if (m_iTraceBudget == OCCLUSION_BUDGET)
+			m_iTraceStartTick = tick;
+		else if (tick - m_iTraceStartTick >= OCCLUSION_TIME_MS)
 			return sample.m_fMuffle;
 
 		m_iTraceBudget--;
@@ -378,9 +572,10 @@ class LC_GameStateWriter
 		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
 		if (m_bRoomDiagnostics)
 			sample.m_sCover = m_Occlusion.DescribeCover(m_bRoomLineDue);
-		sample.m_vListener = listenerPosition;
-		sample.m_vSpeaker = speakerPosition;
+		sample.m_vListener = m_vListenerAnchor;
+		sample.m_vSpeaker = speakerAnchor;
 		sample.m_iTracedTick = now;
+		sample.m_bRetrace = false;
 		return sample.m_fMuffle;
 	}
 
@@ -413,6 +608,10 @@ class LC_GameStateWriter
 		m_sRoomDiagnostic += playerId.ToString() + " " + m_Rooms.Describe(sample.m_Room) + " " + source + " " + muffle.ToString(-1, 2);
 		if (!sample.m_sCover.IsEmpty())
 			m_sRoomDiagnostic += " [" + sample.m_sCover + "]";
+
+		// The engine's interior estimate, when one was asked for (both outdoors, talking, beyond the trace range)
+		if (sample.m_fEngineInterior >= 0)
+			m_sRoomDiagnostic += " e" + sample.m_fEngineInterior.ToString(-1, 2);
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -523,7 +722,7 @@ class LC_GameStateWriter
 		line += ", plugin states " + states.ToString();
 		line += ", nearby avg " + nearbyAverage.ToString(-1, 1) + " max " + m_iDiagNearbyMax.ToString();
 		line += ", muffle by rooms " + m_iDiagFromRooms.ToString() + " by trace " + m_iDiagFromTraces.ToString();
-		line += ", traces " + m_iDiagTraces.ToString() + ", room probes " + m_iDiagProbes.ToString();
+		line += ", traces " + m_iDiagTraces.ToString() + ", far outdoors " + m_iDiagFarOutdoors.ToString() + ", room probes " + m_iDiagProbes.ToString();
 		line += ", tx " + transmissions.ToString() + " (" + transmitMs.ToString() + " ms), rx " + receptions.ToString();
 		line += ", peers " + client.GetPluginState().GetPeers().ToString();
 		line += " | listener " + m_Rooms.Describe(m_ListenerRoom) + " | layout " + m_Rooms.DescribeLayout(m_ListenerRoom);
@@ -535,6 +734,7 @@ class LC_GameStateWriter
 		m_iDiagFromRooms = 0;
 		m_iDiagFromTraces = 0;
 		m_iDiagTraces = 0;
+		m_iDiagFarOutdoors = 0;
 		m_iDiagProbes = 0;
 	}
 

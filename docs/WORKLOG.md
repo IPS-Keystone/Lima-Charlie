@@ -197,3 +197,38 @@ session; update after each meaningful step and before ending one. Never rewrite 
   build/LimaCharlie_2.0.6.ts3_plugin (2026-11-03 22:54) is current with plugin/src. release_check 2.0.6:
   0 errors, 3 warnings (VoiceLevel source PNGs without .meta, already in 2.0.5), enforce clean.
 - Duke: commit 2.0.6 and merge bugfix-2.0.6 into main on GitHub. Cover pictures left uncommitted.
+
+## 2026-11-08 (main = 2.0.6)
+- Duke: "frame drops with many people inside buildings". Investigation: docs/investigations/2026-11-08-indoor-crowd-frame-drops.md.
+  Logs: 7 Nov ops (Duke outdoors, ≤4 nearby) and 8 Nov OTAC (outdoors, 28 nearby, live) show no LC errors and no
+  frame times. Correction: Duke was indoors on 7 Nov (5 types mapped 20:02-20:43, ≤4 nearby). 8 Nov (Ruha):
+  Duke was in a building near the start but LC never placed him indoors (no room line, no room file), so only
+  traces ran there: Ruha building missing room areas or not STATIC to the query, unverified. **Ops server.json has `roomDiagnosticLog: true`**: every
+  client then measures collider volume (`GetVolumeFromColliders`) of each traced blocker, usually the whole building,
+  for up to 12 traces on the write that prints, once a second. Unmeasured; the best fit for the report. Others
+  (mapping ~1 ms/write once per type per client, trace budget, file write) measured small. No code changed.
+- Waiting on Duke: turn `roomDiagnosticLog` off on the ops server (A/B), and/or a WB bench of
+  `GetVolumeFromColliders` on the apartment, and/or a fix (solidity only for printed players, or drop it).
+- Live test with Duke (8 Nov 18:13–18:17, OTAC on Ruha, building ≈ 7449,3547, ~20 nearby): single-digit FPS when
+  turning/moving, fine standing still. LC saw him as outdoors (roomVolume 0), so no room work ran; ~9.5 writes/s
+  (FPS-limited), 34 trace pairs/s. Plugin unticked in TS → LC game side to 2 writes/s: "better, but not by much,
+  still very bad". LC is a minor share; main cause is elsewhere (rendering/other mods suspected). Details in the
+  investigation doc. No code changed.
+- Recorded 18:23–19:18 (until Duke left): hitch seconds (write gap >150 ms) 4.3% overall; they follow the place
+  (FOB building ≈7449,3542 with ~3 players 8.6%; x6100–6200 z4300 13–16%; x6400 z4100 with ~8.5 players 0.4%),
+  not the crowd or the radio. LC placed Duke indoors for 0 s. LC is at most a minor share. Open: what the FOB
+  building is and why LC misses it; ops-server roomDiagnosticLog still untested. Mod can't be updated right now
+  (Duke).
+- **Duke: lag gone in the same building, similar players, without LC → LC issue** (overrides "minor share"; the
+  plugin-off A/B never stopped traces: 12-pair budget per write at 2 writes/s). Recording: hitches scale with nearby
+  players *within* bad places (FOB 1–2: 0.2%, 3–5: 3.7%; x6100–6300 10+: 3.9%; clean x6400–6600 10+: 1.0%).
+  Prime suspect: per-pair occlusion traces through furnished interiors (many FilterCover rejections), then speaker
+  Locate sphere queries. Place = OTAC Operation Borderless OP_Bord7 HQ (props from HQ.layer around 7449,3542).
+  Next: WB bench on OP_Bord7.ent timing CountObstacles/Locate there. Mod can't be updated right now.
+- Duke: hitches extensive **outdoors** too; building-path caching is a separate problem. Logs agree that paths and
+  mapping never ran (0 s indoors, 0 probes, 0 room muffles). By players × occluded: ≤9 nearby, hitches follow the
+  occluded count (0.3% → ~3% → 5.7%); 10+ nearby, 16–26% regardless. Prime suspect: per-pair occlusion traces on
+  Ruha's dense vegetation/fences/props (a FilterCover callback per entity met); second: Locate sphere queries.
+  Bench proposed as its own session (time CountObstacles/Locate at bad vs clean vs open spots on OP_Bord7/Ruha).
+- Occlusion rework design (doc section "Rework"): vanilla VON occludes with no traces (per-end Interior/RoomSize + listener globals, `CalculateInterirorAt` async). LC traces silent players, retraces all pairs when the listener's eye moves 0.15 m (camera turn), budget lands in one frame. Options 1–3 (talking-only, body-based move test, per-frame spread) keep results; 4–5 (classify ends, layer mask) need an ear test. Not implemented.
+- Implemented on `perf/occlusion-traces` (not built/tested): talkers-only tracing + start-of-speech prime, body move test 0.5 m, 3 traces/2 ms per write with rotation, both-outdoors >30 m untraced when LC rooms + engine interior agree. Indoor/outdoor stays traced (Duke: doorways). Layer mask not done: Tree and BuildingView presets share mask 0xa08002. To do: Workbench compile, triage, ear test, FOB recording.
