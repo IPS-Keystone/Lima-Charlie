@@ -68,3 +68,27 @@ is yes whatever is found), and 60 checks a second across the server; past that, 
   stays "talking" until the plugin is back. Harmless at the 2 Hz no-plugin rate; not changed.
 - `s_aInteriorRequests` is static; statics reset when a modded scenario ends, which would free requests the
   engine may still hold. Not observed to crash. Unverified either way.
+
+## External handover compared (LC_Performance_Handoff_2026-11-10.zip, read 10 Nov)
+Two outside reviews of 2.0.6 `18d6afe`: patch 0001 (game scripts), patch 0002 (plugin), two unfixed issues, offline
+evidence. Their own caveat: nothing compiled in Workbench or run in game. Nothing from it is applied here.
+
+Their field report adds something ours lacks: with 36-40 players the frame rate **degraded over time** (a
+warehouse within 5 minutes, open fields within 20), only while moving, client only, no memory growth, and not
+with vanilla VON. Their scheduler model shows the 2.0.6 trace count per minute is flat over time, so scheduling
+does not explain a drift. Neither do their patches or this branch. Open: what in LC grows over a session.
+
+| Their item | Checked here | Against `perf/occlusion-traces` |
+|---|---|---|
+| 0001 starvation: fixed player order + empty budget = players at the end of the list never traced, new samples stay "clear" | True of `main` (no rotation there) | Already fixed: rotating start (db35359) |
+| 0001 traces spread over frames, 4 a frame, outside the write | n/a | Covered differently: 3 a write, writes at most one a frame, 2 ms cap, talkers only |
+| 0001 move threshold scaled by distance, max(base, 5% of distance) | Not in the branch | **Worth taking**: a 0.5 m step at 50 m changes nothing. Small change to `TraceMuffle` |
+| 0001 carried gear never cover (parent walk) | Same reading of vanilla | Already done (7224630). Their extra evidence: `FireGeo` preset strings in the M16 body and handguard, worn helmet and vest .xob files (a text search of binaries) |
+| 0001 `GetPrefabName` runs before the see-through cache lookup | True (`IsSeeThrough`) | Unchanged; 1-2 calls a trace, at most 60 traces a second |
+| 0001 room-diagnostic solidity allowance | n/a | Not needed while traces stay inside the write |
+| 0002 biquad denormal guard in `lc_audio.c` `biquad_tick` | `git apply --check` passes on this branch; the reverb comb has the same guard at 1e-8 (`lc_reverb.c:140`); no FTZ/DAZ set anywhere in `plugin/src` | **Worth taking.** Their numbers: 39 muffled voices in silence 0.861 -> 0.306 ms per 20 ms block, same PCM hash. TeamSpeak's audio thread, not the game's. Not rebuilt here |
+| Follow-up 1: `log_radio_levels` logs a line per received radio target every second with diagnostics off | True: only the 1 s timer guards it (`lc_core.c:576-582`) | Open. Needs the diagnostic level in `game_state.json` (additive field) |
+| Follow-up 2: audio snapshot double buffer can be overwritten under a reader | Known from the 4 Nov pass; correctness, not speed | Open |
+
+0001 as a whole does not apply to this branch (`LC_Occlusion.c`, `how-it-works.md` conflict) and should not be
+applied: everything in it except the distance-scaled threshold is already here in another form.

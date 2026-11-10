@@ -267,3 +267,8 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Catch: that is collision geometry, not fire geometry, and multi-bit `TargetLayers` has no vanilla precedent.
   Not implemented. Next: Workbench bench comparing both masks over a few hundred pairs in a town and through a
   geared character (same answers? filter calls per trace? time), then Duke's ear test.
+- External handover (`LC_Performance_Handoff_2026-11-10.zip`) read and compared: investigation doc, "External handover
+  compared". 0001 is superseded by this branch except its distance-scaled move threshold (worth taking); 0002 (plugin
+  biquad denormal guard) applies cleanly and is worth taking, not rebuilt here; `log_radio_levels` runs with
+  diagnostics off (true, open). Their report says the slowdown **builds up over 5-20 minutes** with 36-40 players:
+  not explained by anything found so far. Nothing applied. Waiting on Duke: take 0002 + the threshold?
