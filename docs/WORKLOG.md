@@ -233,3 +233,30 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Occlusion rework design (doc section "Rework"): vanilla VON occludes with no traces (per-end Interior/RoomSize + listener globals, `CalculateInterirorAt` async). LC traces silent players, retraces all pairs when the listener's eye moves 0.15 m (camera turn), budget lands in one frame. Options 1–3 (talking-only, body-based move test, per-frame spread) keep results; 4–5 (classify ends, layer mask) need an ear test. Not implemented.
 - Implemented on `perf/occlusion-traces` (compiles in Workbench 21:52, 5759 files, no LC warnings; not run in game): talkers-only tracing + start-of-speech prime, body move test 0.5 m, 3 traces/2 ms per write with rotation, both-outdoors >30 m untraced when LC rooms + engine interior agree. Indoor/outdoor stays traced (Duke: doorways). Layer mask not done: Tree and BuildingView presets share mask 0xa08002. To do: ear test, FOB recording.
 - Same branch: room lookups budgeted (`LC_Rooms.Locate`): 3 building searches a write (the in-building `FindArea` fast path is free), silent players rechecked 1 s moving / 3 s still, at once when they start talking. Static check only; needs a Workbench recompile. Gear check: ~2,500 blocked traces in the 7 Nov logs, none on worn gear; camo nets do block (bug, later).
+
+## 2026-11-10 (perf/occlusion-traces) — crowd pass
+- Duke: performance and bugfix pass for many players (raycasts vs props and worn gear, budgeting silent players,
+  how vanilla / Arma 3 / other mods do it). Write-up: docs/investigations/2026-11-10-crowd-performance-pass.md.
+- Code (all client side unless said):
+  - Writer tiers players. Out of range: not looked up again until they could be back in range (60 m/s closing,
+    2 s cap; not streamed in 500 ms; everyone at once if the listener jumps 10 m). Nearby and silent: worked out
+    4 times a second (staggered by player id), their last entry written again in between. Nearby and talking:
+    every write, as before.
+  - Fast rate (20 Hz) only while someone **nearby** talks or we do; any talker anywhere used to hold it for the
+    whole mission. A nearby player starting to talk forces a write at once (reader talking revision).
+  - Silent upkeep traces now yield to nearby talkers only; with the old "anyone talking" test they never ran on a
+    busy server.
+  - Trace filter: anything parented to a character (worn or carried) is never cover, as vanilla's own filters do;
+    camo nets (`CamoNet_`) are see-through (the bug parked on 8 Nov).
+  - Forgetting players who left: once a second, not every write. VON controller lookup cached. Reader skips the
+    talking-list split when the list is unchanged.
+  - Server: AI hearing skips the trace when the AI is within the two-wall range anyway, and is capped at 60 cover
+    checks a second across the server (past it: one wall assumed).
+- Evidence: `reforger_check_enforce` 37 files clean; Workbench (ClaudeDevTools -> Lima Charlie)
+  logs_2026-11-10_13-31-50 `13:31:56.136 Module: Game; loaded 5759x files; 11251x classes`, no SCRIPT (E). That
+  compile also covers e5aa652 (room lookup budget), which had only been static-checked.
+- NOT run in play or MP. Nothing measured: the gains are by construction (fewer calls), not timed. Needs Duke's
+  ear test (start of speech from a silent player who is moving; voice behind a camo net; someone approaching fast
+  in a vehicle) and a recorded crowd session. No protocol change, plugin untouched.
+- Not done, noted in the write-up: `AsyncTraceMove` (no filter callback), per-prefab filter cache (no vanilla
+  precedent for the map key), a plugin-stale reset of the talking list.

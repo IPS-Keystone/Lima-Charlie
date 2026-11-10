@@ -69,7 +69,8 @@ Both files live in `$profile/LimaCharlie/`.
 
 ### `game_state.json` — game to plugin
 
-Written at 20 Hz while anyone is talking, 10 Hz idle, and immediately on any change to transmit state,
+Written at 20 Hz while someone nearby is talking (or you are), 10 Hz otherwise, at once when someone nearby
+starts talking, and immediately on any change to transmit state,
 voice range, terrain links or the sound queue. Radio state is rebuilt on the write itself rather than
 compared every frame, so a radio setting reaches the plugin at the next scheduled write — at most 100 ms,
 and in practice sooner, since the settings that change it all queue a sound, which forces a write.
@@ -265,7 +266,9 @@ Voices are unaffected and still go through `ts3plugin_onEditPostProcessVoiceData
 | Transmit stop debounce | 300 ms | `lc_core.c` |
 | Terrain link wait | 300 ms | `lc_core.c` |
 | Transmission max age | 3500 ms | `lc_core.c` |
-| Occlusion refresh | talkers 50 ms on a 0.5 m body move / 1 s; silent 2 s / 10 s while nobody talks; 3 traces or 2 ms a write; 60 m; both outdoors > 30 m untraced | `LC_GameStateWriter.c` |
+| Occlusion refresh | talkers 50 ms on a 0.5 m body move / 1 s; silent 2 s / 10 s while nobody nearby talks; 3 traces or 2 ms a write; 60 m; both outdoors > 30 m untraced | `LC_GameStateWriter.c` |
+| Player upkeep | talking nearby: every write; silent nearby: 250 ms, last entry rewritten in between; out of range: (distance - 60 m) / 60 m/s, max 2 s; not streamed in: 500 ms; all at once on a 10 m listener jump | `LC_GameStateWriter.c` |
+| AI hearing cover checks | none inside the two-wall range; 60 a second server-wide, then one wall assumed | `LC_AIHearing.c` |
 | Terrain link refresh | 1000 ms, or 10 m of movement | `LC_RadioLinks.c` |
 | AI hearing report | 1000 ms | `LC_Client.c` |
 | Sound event retention | 1000 ms | `LC_SoundQueue.c` |

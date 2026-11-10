@@ -26,6 +26,15 @@ class LC_MuffleSample : Managed
 	bool m_bFromRooms;
 	//! What the last trace for this player hit, for the diagnostic line
 	string m_sCover;
+	//! Within direct speech range when last looked at
+	bool m_bNearby;
+	//! Out of range or not streamed in: not looked at again before this tick
+	int m_iNextCheckTick;
+	//! This player's entry in the document as last built, when that was, and the muffle it carries. A silent
+	//! player's entry is written again as it stands until it is due, instead of being worked out every write.
+	string m_sJson;
+	int m_iJsonTick;
+	float m_fWritten;
 }
 
 //------------------------------------------------------------------------------------------------
@@ -106,8 +115,21 @@ class LC_GameStateWriter
 	protected static const float ENGINE_INTERIOR_MOVE_M = 1;
 	//! Vanilla's global audio variables, where the engine keeps the camera's own interior estimate
 	protected static const string GLOBAL_AUDIO_VARIABLES = "{A60F08955792B575}Sounds/_SharedData/Variables/GlobalVariables.conf";
-	//! A player not seen nearby for this long has their cached result dropped
+	//! A player gone from the server for this long has their cached state dropped, looked for this often
 	protected static const int OCCLUSION_FORGET_MS = 5000;
+	protected static const int FORGET_CHECK_MS = 1000;
+	//! A silent player nearby is only worked out this often (position, life state, room, entry text); in between
+	//! their last entry is written again. Nobody hears them, and the plugin only needs to know roughly where
+	//! they are for the moment they speak. Speech starting is written at once with everything fresh.
+	protected static const int SILENT_REFRESH_MS = 250;
+	//! Someone out of range is not looked at again until they could have closed the gap at this speed (metres
+	//! a second), and never later than the cap. Someone not streamed in is looked for this often.
+	protected static const float FAR_CLOSING_SPEED = 60;
+	protected static const int FAR_RECHECK_MAX_MS = 2000;
+	protected static const int ABSENT_RECHECK_MS = 500;
+	//! The listener moving this far between two writes (respawn, teleport, a fast free camera) makes every
+	//! player due at once, since the waits above assume the listener moves like a person
+	protected static const float LISTENER_JUMP_M = 10;
 	//! A camera further than this from the body it belongs to is a free camera: Game Master, spectator or photo
 	//! mode. Character cameras, including a vehicle's third person boom, stay well inside it.
 	protected static const float FREE_CAMERA_RANGE_M = 20;
@@ -139,7 +161,13 @@ class LC_GameStateWriter
 	//! Where the listener's body is, for the move test, and whether the engine places the listener outdoors
 	protected vector m_vListenerAnchor;
 	protected bool m_bListenerOutdoors;
+	//! Someone nearby was talking on the write before this one
 	protected bool m_bAnyoneTalking;
+	//! Someone within direct speech range was talking on the last write: the only voices positions matter for
+	protected bool m_bNearbyTalking;
+	protected int m_iLastTalkingRevision;
+	protected vector m_vLastListenerPosition;
+	protected int m_iNextForgetTick;
 	//! Every interior request still on its way, kept alive here until the engine answers
 	protected static ref array<ref LC_InteriorRequest> s_aInteriorRequests = {};
 	protected ref LC_Occlusion m_Occlusion = new LC_Occlusion();
@@ -203,6 +231,18 @@ class LC_GameStateWriter
 		// 10 Hz idle that is at most 100 ms, and the settings that change it all play a sound, which writes.
 		bool changed = transmitType != m_eLastTransmitType || voiceRange != m_fLastVoiceRange || transmitRadio != m_sLastTransmitRadio
 			|| linkRevision != m_iLastLinkRevision || soundSeq != m_iLastSoundSeq;
+
+		// Someone nearby starting to speak is written at once as well: their entry may be a quarter second old
+		// and their muffle older, and the plugin is already playing their voice with it
+		LC_PluginStateReader talkReader = client.GetPluginState();
+		int talkingRevision = talkReader.GetTalkingRevision();
+		if (talkingRevision != m_iLastTalkingRevision)
+		{
+			m_iLastTalkingRevision = talkingRevision;
+			if (NearbyTalkStarted(talkReader))
+				changed = true;
+		}
+
 		if (!changed && now < m_iNextWriteTick)
 			return;
 
@@ -215,12 +255,12 @@ class LC_GameStateWriter
 		m_sLastTransmitRadio = transmitRadio;
 		m_iLastLinkRevision = linkRevision;
 		m_iLastSoundSeq = soundSeq;
-		m_iNextWriteTick = now + GetWriteInterval(client, transmitType);
-
 		m_sRoomDiagnostic = string.Empty;
 		m_bRoomDiagnostics = client.GetRoomDiagnostics();
 		m_bRoomLineDue = m_bRoomDiagnostics && now >= m_iNextRoomDiagnosticTick;
 		string json = BuildInGameJson(client, transmitType, voiceRange, transmitRadio, transmitFrequency, radios, now, unlimitedRange);
+		// After the build, which is what finds out whether anyone nearby is talking
+		m_iNextWriteTick = now + GetWriteInterval(client, transmitType);
 		WriteFile(json);
 		LogDiagnostic(now, json, client.IsComprehensiveDiagnostics());
 		LogRoomDiagnostic(now, m_bRoomDiagnostics);
@@ -229,7 +269,23 @@ class LC_GameStateWriter
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Voice only needs fresh positions while someone can be heard
+	//! Whether the plugin reports someone talking who is nearby and was silent on the last write
+	protected bool NearbyTalkStarted(notnull LC_PluginStateReader reader)
+	{
+		foreach (int playerId : reader.GetTalkingPlayers())
+		{
+			LC_MuffleSample sample = m_mMuffle.Get(playerId);
+			if (sample && sample.m_bNearby && !sample.m_bWasTalking)
+				return true;
+		}
+
+		return false;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Voice only needs fresh positions while someone can be heard directly. A radio voice has no position, and
+	//! with a full server somebody is on a radio somewhere nearly all the time, which used to hold every client
+	//! at the fast rate for the whole mission.
 	protected int GetWriteInterval(notnull LC_Client client, EVONTransmitType transmitType)
 	{
 		LC_PluginStateReader reader = client.GetPluginState();
@@ -241,7 +297,7 @@ class LC_GameStateWriter
 		if (transmitType != EVONTransmitType.NONE)
 			return INTERVAL_MS;
 
-		if (reader.IsSelfTalking() || reader.IsAnyPlayerTalking())
+		if (reader.IsSelfTalking() || m_bNearbyTalking)
 			return INTERVAL_MS;
 
 		return IDLE_INTERVAL_MS;
@@ -356,7 +412,9 @@ class LC_GameStateWriter
 		LC_PluginStateReader reader = client.GetPluginState();
 		float maxDistanceSq = NEARBY_RANGE_M * NEARBY_RANGE_M;
 		m_iTraceBudget = OCCLUSION_BUDGET;
-		m_bAnyoneTalking = reader.IsAnyPlayerTalking();
+		// As of the last write: a voice only competes with the silent players' upkeep when it is one we can hear.
+		// Any talker anywhere used to count, and on a full server that left silent players never traced at all.
+		m_bAnyoneTalking = m_bNearbyTalking;
 		bool first = true;
 		m_iRoomsResolved = 0;
 		m_iRoomsTraced = 0;
@@ -365,26 +423,80 @@ class LC_GameStateWriter
 		if (m_iPlayerRotation >= playerCount)
 			m_iPlayerRotation = 0;
 
+		// Everyone is due after the listener jumps, since the waits below assume a listener moving like a person
+		float jumpSq = LISTENER_JUMP_M * LISTENER_JUMP_M;
+		bool listenerJumped = vector.DistanceSq(listenerPosition, m_vLastListenerPosition) > jumpSq;
+		m_vLastListenerPosition = listenerPosition;
+		m_bNearbyTalking = false;
+
 		for (int n = 0; n < playerCount; n++)
 		{
 			int playerId = m_aPlayerIds[(n + m_iPlayerRotation) % playerCount];
 			if (playerId == localPlayerId)
 				continue;
 
+			LC_MuffleSample sample = m_mMuffle.Get(playerId);
+			if (!sample)
+			{
+				sample = new LC_MuffleSample();
+				// Spread over the refresh interval, so a crowd met at once does not come due together ever after
+				int spread = (playerId * 37) % SILENT_REFRESH_MS;
+				sample.m_iJsonTick = now - spread;
+				m_mMuffle.Set(playerId, sample);
+			}
+
+			sample.m_iSeenTick = now;
+			bool talking = reader.IsPlayerTalking(playerId);
+			if (!listenerJumped)
+			{
+				// Out of range a moment ago and not yet able to be back in it: nothing to look up at all
+				if (!sample.m_bNearby && now < sample.m_iNextCheckTick)
+					continue;
+
+				// Silent, nearby and worked out recently: the same entry again, without touching the entity
+				if (sample.m_bNearby && !talking && !sample.m_bWasTalking && now - sample.m_iJsonTick < SILENT_REFRESH_MS)
+				{
+					CountNearby(sample);
+					if (m_bRoomLineDue)
+						AppendRoomDiagnostic(playerId, sample, sample.m_fWritten);
+
+					if (first)
+						json += sample.m_sJson;
+					else
+						json += "," + sample.m_sJson;
+
+					first = false;
+					continue;
+				}
+			}
+
 			// Only players whose character is streamed in on this client
 			IEntity entity = playerManager.GetPlayerControlledEntity(playerId);
 			if (!entity)
+			{
+				SetFar(sample, now + ABSENT_RECHECK_MS);
 				continue;
+			}
 
 			vector position = GetSpeakerPosition(entity);
 			float distanceSq = vector.DistanceSq(position, listenerPosition);
 			if (distanceSq > maxDistanceSq)
+			{
+				float waitMs = (Math.Sqrt(distanceSq) - NEARBY_RANGE_M) / FAR_CLOSING_SPEED * 1000;
+				int wait = Math.Min(waitMs, FAR_RECHECK_MAX_MS);
+				SetFar(sample, now + wait);
 				continue;
+			}
 
-			float muffle = GetMuffle(playerId, entity, position, occlusionListener, occlusionOrigin, distanceSq, reader.IsPlayerTalking(playerId), now);
+			sample.m_bNearby = true;
+			if (talking)
+				m_bNearbyTalking = true;
+
+			float muffle = GetMuffle(sample, entity, position, occlusionListener, occlusionOrigin, distanceSq, talking, now);
+			CountNearby(sample);
 			// Built only for the write that prints it: the line is once a second, writes are up to 20
 			if (m_bRoomLineDue)
-				AppendRoomDiagnostic(playerId, muffle);
+				AppendRoomDiagnostic(playerId, sample, muffle);
 
 			// Built on its own and appended once: every append copies the whole document so far, which with 60
 			// players nearby made this loop 30% slower
@@ -392,12 +504,16 @@ class LC_GameStateWriter
 			player += ",\"alive\":" + LC_Json.Bool(LC_Life.CanSpeak(entity));
 			player += ",\"pos\":" + LC_Json.Position(position);
 			player += ",\"muffle\":" + muffle.ToString(-1, 2);
-			player += ",\"room\":" + GetRoomShare(playerId, muffle).ToString(-1, 2) + "}";
-			if (!first)
-				player = "," + player;
+			player += ",\"room\":" + GetRoomShare(sample, muffle).ToString(-1, 2) + "}";
+			sample.m_sJson = player;
+			sample.m_iJsonTick = now;
+			sample.m_fWritten = muffle;
+			if (first)
+				json += player;
+			else
+				json += "," + player;
 
 			first = false;
-			json += player;
 		}
 
 		json += "],\"links\":" + client.GetRadioLinks().BuildJson() + "}";
@@ -407,21 +523,35 @@ class LC_GameStateWriter
 	}
 
 	//------------------------------------------------------------------------------------------------
+	//! Out of range, or not on this client at all: nothing about them is current any more
+	protected void SetFar(notnull LC_MuffleSample sample, int nextCheckTick)
+	{
+		sample.m_bNearby = false;
+		sample.m_iNextCheckTick = nextCheckTick;
+		// Back in range and already talking counts as speech starting, and nothing cached is trusted
+		sample.m_bWasTalking = false;
+		sample.m_bRetrace = true;
+		sample.m_Room.m_iCheckedTick = 0;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! One more nearby player on this write, by what decided their muffle
+	protected void CountNearby(notnull LC_MuffleSample sample)
+	{
+		if (sample.m_bFromRooms)
+			m_iRoomsResolved++;
+		else
+			m_iRoomsTraced++;
+	}
+
+	//------------------------------------------------------------------------------------------------
 	//! How muffled a nearby player is. Both the engine's room model and a trace get a say, and the clearer
 	//! of the two wins: a path through the rooms cannot tell whether the two can see each other, and a trace
 	//! cannot tell that an open door two rooms away carries a voice. Only the same room needs neither, being
 	//! clear already. One indoors and one outdoors is always traced, so a doorway they can see each other
 	//! through stays clear.
-	protected float GetMuffle(int playerId, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, float distanceSq, bool talking, int now)
+	protected float GetMuffle(notnull LC_MuffleSample sample, notnull IEntity speaker, vector speakerPosition, IEntity listener, vector listenerPosition, float distanceSq, bool talking, int now)
 	{
-		LC_MuffleSample sample = m_mMuffle.Get(playerId);
-		if (!sample)
-		{
-			sample = new LC_MuffleSample();
-			m_mMuffle.Set(playerId, sample);
-		}
-
-		sample.m_iSeenTick = now;
 		// Whatever was cached while they were silent is traced again the moment they speak
 		if (talking && !sample.m_bWasTalking)
 			sample.m_bRetrace = true;
@@ -438,7 +568,6 @@ class LC_GameStateWriter
 		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, now, roomMuffle))
 		{
 			sample.m_bFromRooms = true;
-			m_iRoomsResolved++;
 
 			// Same room, or one open doorway apart: nothing a trace finds can improve on clear, and a wall
 			// beside the doorway, a pillar or a crate between them must not make it worse
@@ -454,7 +583,6 @@ class LC_GameStateWriter
 		}
 
 		sample.m_bFromRooms = false;
-		m_iRoomsTraced++;
 		if (IsFarOutdoors(sample, speaker, speakerPosition, distanceSq, talking, now))
 		{
 			sample.m_bRetrace = true;
@@ -587,21 +715,16 @@ class LC_GameStateWriter
 
 	//------------------------------------------------------------------------------------------------
 	//! How much of our room this player's voice fills, for the plugin's reverb send
-	protected float GetRoomShare(int playerId, float muffle)
+	protected float GetRoomShare(notnull LC_MuffleSample sample, float muffle)
 	{
-		LC_MuffleSample sample = m_mMuffle.Get(playerId);
-		if (!sample)
-			return 0;
-
 		return m_Rooms.GetRoomShare(m_ListenerRoom, sample.m_Room, muffle, !sample.m_bFromRooms);
 	}
 
 	//------------------------------------------------------------------------------------------------
 	//! One nearby player's room and where their muffle came from: R for the room model, T for a trace
-	protected void AppendRoomDiagnostic(int playerId, float muffle)
+	protected void AppendRoomDiagnostic(int playerId, notnull LC_MuffleSample sample, float muffle)
 	{
-		LC_MuffleSample sample = m_mMuffle.Get(playerId);
-		if (!sample || m_iRoomsResolved + m_iRoomsTraced > DIAGNOSTIC_MAX_PLAYERS)
+		if (m_iRoomsResolved + m_iRoomsTraced > DIAGNOSTIC_MAX_PLAYERS)
 			return;
 
 		string source = "T";
@@ -745,9 +868,13 @@ class LC_GameStateWriter
 	}
 
 	//------------------------------------------------------------------------------------------------
-	//! Drops the cached results of players who left, died out of range or were streamed out
+	//! Drops the cached state of players who have left the server. Everyone still on it is seen every write.
 	protected void ForgetMuffles(int now)
 	{
+		if (now < m_iNextForgetTick)
+			return;
+
+		m_iNextForgetTick = now + FORGET_CHECK_MS;
 		m_aForget.Clear();
 		foreach (int playerId, LC_MuffleSample sample : m_mMuffle)
 		{

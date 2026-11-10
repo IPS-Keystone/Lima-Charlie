@@ -27,7 +27,9 @@ class LC_Occlusion
 		"RailingMetal",
 		"BarbedTape",
 		"BarbedCoil",
-		"BarbedWire"
+		"BarbedWire",
+		// Netting over poles: the whole CamoNets folder, but not the canvas tents named ..._camonet
+		"CamoNet_"
 	};
 
 	//! One decision per prefab, since the answer never changes for a given one
@@ -184,6 +186,18 @@ class LC_Occlusion
 		// Nobody is cover, whatever their bounding box says
 		if (ChimeraCharacter.Cast(entity))
 			return true;
+
+		// Nor is anything somebody wears or carries: a rifle or a launcher is long enough to pass the width
+		// test, and in a crowd there is one on every back between two people. Only things wide enough to
+		// get this far pay for the walk, and it is two or three parents deep at most.
+		IEntity parent = entity.GetParent();
+		while (parent)
+		{
+			if (ChimeraCharacter.Cast(parent))
+				return true;
+
+			parent = parent.GetParent();
+		}
 
 		return IsSeeThrough(entity);
 	}

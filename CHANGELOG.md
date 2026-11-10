@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — branch `perf/occlusion-traces` (not tested in game)
+
+Performance with many players. Bridge protocol unchanged (9), plugin unchanged.
+
+- **Silent players cost almost nothing.** Someone nearby who is not talking is now worked out four times a
+  second instead of up to twenty; someone out of range is not looked at again until they could be back in it.
+  When a silent player starts talking, their position and muffling are refreshed on that frame.
+- **The fast update rate is for voices you can hear.** Updates ran at 20 a second whenever anyone on the
+  server was talking, radio included, which on a full server is always. Now only while someone within
+  direct speech range is talking, or you are.
+- **Carried weapons never muffle.** A rifle or launcher on someone standing between two people could count
+  as a wall. Anything worn or carried by a character is now ignored, as the game's own checks do.
+- **Camouflage nets no longer muffle voices.**
+- **Server: AI hearing is capped.** At most 60 cover checks a second across the server, and none for AI
+  close enough to hear through two walls anyway.
+
 ## 2.0.6 — mod 2.0.6, plugin 2.0.6 (testing, unreleased)
 
 Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchanged (9).

@@ -39,6 +39,9 @@ class LC_PluginStateReader
 	//! TeamSpeak is holding the microphone shut: its local mute, its mute toggle, or a muted speaker
 	protected bool m_bMicMuted;
 	protected ref set<int> m_TalkingPlayers = new set<int>();
+	//! The plugin's list as last read, and a count of how often it has changed
+	protected string m_sTalking;
+	protected int m_iTalkingRevision;
 	//! Transmitting player id -> position the plugin needs the terrain clearance from
 	protected ref map<int, vector> m_mRadioRequests = new map<int, vector>();
 	//! Transmitting player id -> the radio we are hearing them on, for the VON display
@@ -153,6 +156,12 @@ class LC_PluginStateReader
 	//------------------------------------------------------------------------------------------------
 	protected void UpdateTalkingPlayers(string talking)
 	{
+		// The same list as last time, which is nearly every read: nothing to split
+		if (talking == m_sTalking)
+			return;
+
+		m_sTalking = talking;
+		m_iTalkingRevision++;
 		m_TalkingPlayers.Clear();
 
 		m_aSplit.Clear();
@@ -287,6 +296,20 @@ class LC_PluginStateReader
 	bool IsAnyPlayerTalking()
 	{
 		return !m_TalkingPlayers.IsEmpty();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Everyone the plugin hears talking in TeamSpeak, by player id
+	set<int> GetTalkingPlayers()
+	{
+		return m_TalkingPlayers;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Changes whenever the list of talking players does
+	int GetTalkingRevision()
+	{
+		return m_iTalkingRevision;
 	}
 
 	//------------------------------------------------------------------------------------------------

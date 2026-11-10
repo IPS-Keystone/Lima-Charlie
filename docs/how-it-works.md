@@ -189,7 +189,7 @@ Traces are cached per player and repeated only as often as they can matter. Only
 needs one, so a player is traced while they talk: straight away when they start, then every 50 ms while
 either of your **bodies** has moved more than 0.5 m, otherwise once a second to catch doors and vehicles moving
 around a still pair. Bodies, not heads, so turning your head or camera on the spot does not count as moving.
-Silent players are only kept roughly current, one per write and only while nobody at all is talking (every
+Silent players are only kept roughly current, one per write and only while nobody nearby is talking (every
 2 s if moving, 10 s if still). At most three traces run in a write (writes are at most one a frame), and no
 more once tracing has taken 2 ms; players are visited from a different one each write so nobody is starved.
 
