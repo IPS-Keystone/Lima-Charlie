@@ -322,6 +322,7 @@ class LC_GameStateWriter
 		}
 
 		// Which room the listener is in, and a slice of the work of mapping that building's type
+		m_Rooms.BeginWrite();
 		m_Rooms.Locate(m_ListenerRoom, occlusionOrigin, now);
 		m_Rooms.Update(m_ListenerRoom);
 
@@ -425,9 +426,14 @@ class LC_GameStateWriter
 		if (talking && !sample.m_bWasTalking)
 			sample.m_bRetrace = true;
 
+		bool wasTalking = sample.m_bWasTalking;
 		sample.m_bWasTalking = talking;
 
-		m_Rooms.Locate(sample.m_Room, speakerPosition, now);
+		// A room found while they were silent may be seconds old, so the start of speech looks again at once
+		if (talking && !wasTalking)
+			sample.m_Room.m_iCheckedTick = 0;
+
+		m_Rooms.Locate(sample.m_Room, speakerPosition, now, talking);
 		float roomMuffle;
 		if (m_Rooms.GetMuffle(m_ListenerRoom, sample.m_Room, distanceSq, now, roomMuffle))
 		{

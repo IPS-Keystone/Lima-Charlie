@@ -297,3 +297,11 @@ Vanilla muffles only by the **listener's** seat: `GCurrVehicleCoverage` (the sea
 muffled for someone outside by that term. LC's trace hits a hull at either end, so speaker-in-APC, turned-out
 hatches and open mounts all come out right, at the cost of traces. Vanilla's is cheaper and seat-aware, not better.
 Possible hybrid (not done): skip the trace when the listener's own `GCurrVehicleCoverage` says the seat is open.
+
+### Room lookups budgeted too (10 Nov, same branch, static check only)
+Hitches at 10+ players did not depend on how many were muffled, which points at per-player work: `Locate` ran a
+sphere query per nearby player every 150-500 ms with no cap. Now: 3 building searches a write (`SEARCH_BUDGET`; the
+`FindArea` fast path for someone still in their building is not counted), an unserved location stays due, silent
+players are rechecked every 1 s moving / 3 s still and at once when they start talking.
+Worn gear: ~2,500 blocked traces in the 7 Nov room lines, none blocked by gear or weapons. Whether gear costs
+`FilterCover` skips is unknown (skip counts 1-11 a trace, contents not logged). Camo nets block traces (bug).
