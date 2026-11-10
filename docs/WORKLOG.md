@@ -272,3 +272,11 @@ session; update after each meaningful step and before ending one. Never rewrite 
   biquad denormal guard) applies cleanly and is worth taking, not rebuilt here; `log_radio_levels` runs with
   diagnostics off (true, open). Their report says the slowdown **builds up over 5-20 minutes** with 36-40 players:
   not explained by anything found so far. Nothing applied. Waiting on Duke: take 0002 + the threshold?
+- Duke: "Yes, take both". From the handover: plugin biquad denormal guard (their patch 0002, applied as given to
+  `lc_audio.c` `biquad_tick`) and a distance-scaled move threshold in `TraceMuffle` (our own code, their idea):
+  a pair is due again once either body moves max(0.5 m, 5% of their distance).
+  Evidence: `pluginuild.bat` clean, "All checks passed"; enforce_check 37 files clean; Workbench
+  logs_2026-11-10_14-29-30 `14:29:35.577 Module: Game; loaded 5759x files; 11251x classes`, no SCRIPT (E).
+  Their timing for the guard was not re-measured here. Not run in game.
+  **`plugin/build/LimaCharlie_2.0.6.ts3_plugin` was rebuilt and now differs from the released 2.0.6 package under
+  the same name**: bump `lc_version.h` before anything from this branch is handed out.

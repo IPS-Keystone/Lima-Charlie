@@ -2,7 +2,7 @@
 
 ## Unreleased — branch `perf/occlusion-traces` (not tested in game)
 
-Performance with many players. Bridge protocol unchanged (9), plugin unchanged.
+Performance with many players. Bridge protocol unchanged (9).
 
 - **Silent players cost almost nothing.** Someone nearby who is not talking is now worked out four times a
   second instead of up to twenty; someone out of range is not looked at again until they could be back in it.
@@ -13,6 +13,10 @@ Performance with many players. Bridge protocol unchanged (9), plugin unchanged.
 - **Carried weapons never muffle.** A rifle or launcher on someone standing between two people could count
   as a wall. Anything worn or carried by a character is now ignored, as the game's own checks do.
 - **Camouflage nets no longer muffle voices.**
+- **Fewer rechecks at a distance.** How far someone has to move before the path to them is checked again now
+  grows with how far away they are (5% of the distance, at least half a metre).
+- **Plugin: muffled voices cost less in silence.** The muffle filters could settle into very slow arithmetic
+  after a voice stopped. (Found and fixed by an outside review, 10 November handover.)
 - **Server: AI hearing is capped.** At most 60 cover checks a second across the server, and none for AI
   close enough to hear through two walls anyway.
 

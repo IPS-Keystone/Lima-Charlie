@@ -92,3 +92,6 @@ does not explain a drift. Neither do their patches or this branch. Open: what in
 
 0001 as a whole does not apply to this branch (`LC_Occlusion.c`, `how-it-works.md` conflict) and should not be
 applied: everything in it except the distance-scaled threshold is already here in another form.
+
+Taken on Duke's go (10 Nov): 0002 as given, and the distance-scaled threshold written into this branch's
+`TraceMuffle`. Plugin tests pass and the Game module compiles; neither was timed or run in game.

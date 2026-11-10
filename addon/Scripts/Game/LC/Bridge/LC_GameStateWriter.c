@@ -99,6 +99,9 @@ class LC_GameStateWriter
 	protected static const int OCCLUSION_SILENT_STILL_MS = 10000;
 	//! How far a body (not a head) moves before its result is due again
 	protected static const float OCCLUSION_MOVE_M = 0.5;
+	//! Or this share of the distance between the two, if that is more: half a metre matters beside someone and
+	//! changes nothing at 50 m, where it takes 2.5 m. A still pair is traced again on the still interval as before.
+	protected static const float OCCLUSION_MOVE_SHARE = 0.05;
 	//! Traces in one write. Writes are at most one a frame, so this is also the most in any frame, and a crowd
 	//! arriving at once is spread over several frames instead of landing in one.
 	protected static const int OCCLUSION_BUDGET = 3;
@@ -688,7 +691,8 @@ class LC_GameStateWriter
 			if (age < interval)
 				return sample.m_fMuffle;
 
-			float moveSq = OCCLUSION_MOVE_M * OCCLUSION_MOVE_M;
+			// The further apart, the further either has to move before the line between them is a different one
+			float moveSq = Math.Max(OCCLUSION_MOVE_M * OCCLUSION_MOVE_M, vector.DistanceSq(listenerPosition, speakerPosition) * OCCLUSION_MOVE_SHARE * OCCLUSION_MOVE_SHARE);
 			bool moved = vector.DistanceSq(sample.m_vListener, m_vListenerAnchor) > moveSq || vector.DistanceSq(sample.m_vSpeaker, speakerAnchor) > moveSq;
 			if (!moved && !sample.m_bRetrace && age < stillInterval)
 				return sample.m_fMuffle;

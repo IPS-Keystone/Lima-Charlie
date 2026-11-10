@@ -187,7 +187,7 @@ sit *on* rather than *in* — a mortar, a technical's bed, an open jeep, a hatch
 
 Traces are cached per player and repeated only as often as they can matter. Only a voice someone can hear
 needs one, so a player is traced while they talk: straight away when they start, then every 50 ms while
-either of your **bodies** has moved more than 0.5 m, otherwise once a second to catch doors and vehicles moving
+either of your **bodies** has moved more than 0.5 m (or 5% of the distance between you, if that is more), otherwise once a second to catch doors and vehicles moving
 around a still pair. Bodies, not heads, so turning your head or camera on the spot does not count as moving.
 Silent players are only kept roughly current, one per write and only while nobody nearby is talking (every
 2 s if moving, 10 s if still). At most three traces run in a write (writes are at most one a frame), and no

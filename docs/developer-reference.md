@@ -266,7 +266,7 @@ Voices are unaffected and still go through `ts3plugin_onEditPostProcessVoiceData
 | Transmit stop debounce | 300 ms | `lc_core.c` |
 | Terrain link wait | 300 ms | `lc_core.c` |
 | Transmission max age | 3500 ms | `lc_core.c` |
-| Occlusion refresh | talkers 50 ms on a 0.5 m body move / 1 s; silent 2 s / 10 s while nobody nearby talks; 3 traces or 2 ms a write; 60 m; both outdoors > 30 m untraced | `LC_GameStateWriter.c` |
+| Occlusion refresh | talkers 50 ms on a body move of max(0.5 m, 5% of the distance) / 1 s; silent 2 s / 10 s while nobody nearby talks; 3 traces or 2 ms a write; 60 m; both outdoors > 30 m untraced | `LC_GameStateWriter.c` |
 | Player upkeep | talking nearby: every write; silent nearby: 250 ms, last entry rewritten in between; out of range: (distance - 60 m) / 60 m/s, max 2 s; not streamed in: 500 ms; all at once on a 10 m listener jump | `LC_GameStateWriter.c` |
 | AI hearing cover checks | none inside the two-wall range; 60 a second server-wide, then one wall assumed | `LC_AIHearing.c` |
 | Terrain link refresh | 1000 ms, or 10 m of movement | `LC_RadioLinks.c` |
