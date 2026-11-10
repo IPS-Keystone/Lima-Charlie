@@ -61,6 +61,43 @@ no position, and their terrain links already force a write when they change.
 (up to 2 traces). Unbounded in talkers x AI. Now no trace when the AI is within the two-wall range (the answer
 is yes whatever is found), and 60 checks a second across the server; past that, one wall is assumed.
 
+## Layer filter bench (10 Nov, evening): not worth doing
+Question: would `TraceParam.TargetLayers` keep gear, weapons, characters and bushes away from `FilterCover`?
+Bench `bench/LCBench_Layers.c`, raw output `bench/2026-11-10-layers-bench-raw.txt`. Workbench play mode on
+GM_Arland, 600 random head-height rays of 4-60 m in each of the two densest towns, then 24 rays through a
+spawned `Character_US_Rifleman` and through an `M1025`. Timing is `GetTickCount` over 15,000 traces a variant
+(the 24-ray body timings are too few to mean anything).
+
+| Variant | Town 1 blocked / calls per trace / us | Town 2 | Verdicts changed |
+|---|---|---|---|
+| Projectile mask (now) | 207 / 4.01 / 9.40 | 125 / 4.03 / 7.73 | - |
+| T Static\|Dynamic\|Vehicles\|Terrain | 215 / 3.98 / 8.67 | 132 / 3.98 / 7.53 | 8 and 11 of 600 |
+| T FireGeometry | 207 / 4.01 / 9.53 | 125 / 4.03 / 7.67 | 0 |
+| T FireGeometry\|Terrain | 207 / 4.01 / 9.47 | 125 / 4.03 / 7.73 | 0 |
+| T Static\|Vehicles\|Terrain | 214 / 4.00 / 8.67 | 132 / 3.98 / 7.20 | 9 and 11 of 600 |
+
+- **What reaches the filter is trees**: 58% of calls in town 1, 75% in town 2. Then destructible props,
+  buildings, powerlines. No layer set removes trees (their colliders share the Static bit with buildings).
+- **A geared rifleman is one call, not many**: 24 rays through him gave 24 `character` calls and no call for
+  anything worn or carried, under every variant. So the "1-11 skips a trace" in the 7 Nov logs were trees and
+  props, not gear, and the section above overstated what gear costs. One soldier prefab only; mod gear untested.
+- The collision-layer variants still meet the character, save under 1% of calls, and change 1.5-2% of answers
+  (plank fences, wooden walls and metal gates start to block; a stone wall and a container stop).
+  `TargetLayers = FireGeometry` is the same as the Projectile mask in every number.
+- The Humvee blocks 24 of 24 under every variant.
+- Conclusion: a trace is about 8-9 us in a town with 4 filter calls in it, and the calls are not where the time
+  goes. Fewer traces is the lever (earshot, reverse trace), not cheaper ones. Layer filter dropped.
+
+## Earshot and the reverse trace (10 Nov, evening)
+- Plugin publishes `ranges` (`id:metres,` per peer). Writer: a talker beyond their range + 5 m is handled as a
+  silent player (no talker traces, no live room search, no fast write rate); beyond range + 10 m their cached
+  entry is rewritten like any silent player's. Coming into earshot while talking counts as speech starting.
+  Lag to expect: someone who starts shouting is treated as out of earshot until the plugin has passed the new
+  range on (one plugin state write and one 50 ms poll).
+- `LC_Occlusion.Compute(..., known)`: with a non-zero `known`, a blocked forward trace returns `known` and the
+  reverse trace is skipped. Writer passes the cached muffle when it is > 0, not marked for retrace, and counted
+  under 1 s ago. AI hearing still counts from both ends every time.
+
 ## Still open
 - Unmeasured. Oracle: a recorded crowd session as on 8 Nov (hitch %, writes and traces a minute in the summary
   line), and Duke's ear test.

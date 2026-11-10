@@ -35,6 +35,10 @@ class LC_MuffleSample : Managed
 	string m_sJson;
 	int m_iJsonTick;
 	float m_fWritten;
+	//! Talking, but well beyond where their own voice carries, when last looked at: as good as silent
+	bool m_bOutOfEarshot;
+	//! When a trace last counted the obstacles from both ends, rather than only finding the path blocked
+	int m_iCountedTick;
 }
 
 //------------------------------------------------------------------------------------------------
@@ -102,6 +106,13 @@ class LC_GameStateWriter
 	//! Or this share of the distance between the two, if that is more: half a metre matters beside someone and
 	//! changes nothing at 50 m, where it takes 2.5 m. A still pair is traced again on the still interval as before.
 	protected static const float OCCLUSION_MOVE_SHARE = 0.05;
+	//! A path that was blocked and still is keeps its count of obstacles for this long before the second trace,
+	//! the one from the other end that tells one wall from several, is run again. Half the cost of a blocked
+	//! pair, for a difference that is only heard as slightly more or less muffled.
+	protected static const int OCCLUSION_COUNT_MS = 1000;
+	//! A talker further off than their own voice carries, plus this, is treated as silent. The margin covers a
+	//! position a write old and a voice range the plugin has not passed on yet.
+	protected static const float EARSHOT_MARGIN_M = 5;
 	//! Traces in one write. Writes are at most one a frame, so this is also the most in any frame, and a crowd
 	//! arriving at once is spread over several frames instead of landing in one.
 	protected static const int OCCLUSION_BUDGET = 3;
@@ -278,7 +289,7 @@ class LC_GameStateWriter
 		foreach (int playerId : reader.GetTalkingPlayers())
 		{
 			LC_MuffleSample sample = m_mMuffle.Get(playerId);
-			if (sample && sample.m_bNearby && !sample.m_bWasTalking)
+			if (sample && sample.m_bNearby && !sample.m_bWasTalking && !sample.m_bOutOfEarshot)
 				return true;
 		}
 
@@ -457,7 +468,8 @@ class LC_GameStateWriter
 					continue;
 
 				// Silent, nearby and worked out recently: the same entry again, without touching the entity
-				if (sample.m_bNearby && !talking && !sample.m_bWasTalking && now - sample.m_iJsonTick < SILENT_REFRESH_MS)
+				bool silent = !talking || sample.m_bOutOfEarshot;
+				if (sample.m_bNearby && silent && !sample.m_bWasTalking && now - sample.m_iJsonTick < SILENT_REFRESH_MS)
 				{
 					CountNearby(sample);
 					if (m_bRoomLineDue)
@@ -492,6 +504,15 @@ class LC_GameStateWriter
 			}
 
 			sample.m_bNearby = true;
+			sample.m_bOutOfEarshot = false;
+			// Normal speech carries 20 m and positions go out to 60: most talkers on a busy street cannot be
+			// heard from here, and what is in their way matters to nobody until they can
+			if (talking && !IsInEarshot(reader, playerId, distanceSq, EARSHOT_MARGIN_M))
+			{
+				talking = false;
+				sample.m_bOutOfEarshot = !IsInEarshot(reader, playerId, distanceSq, 2 * EARSHOT_MARGIN_M);
+			}
+
 			if (talking)
 				m_bNearbyTalking = true;
 
@@ -530,11 +551,25 @@ class LC_GameStateWriter
 	protected void SetFar(notnull LC_MuffleSample sample, int nextCheckTick)
 	{
 		sample.m_bNearby = false;
+		sample.m_bOutOfEarshot = false;
 		sample.m_iNextCheckTick = nextCheckTick;
 		// Back in range and already talking counts as speech starting, and nothing cached is trusted
 		sample.m_bWasTalking = false;
 		sample.m_bRetrace = true;
 		sample.m_Room.m_iCheckedTick = 0;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Whether this player's voice reaches us at this distance. Yes when the plugin has not said how far it
+	//! carries (an older plugin, or a peer it has not heard from yet), which is how it was before.
+	protected bool IsInEarshot(notnull LC_PluginStateReader reader, int playerId, float distanceSq, float margin)
+	{
+		float range = reader.GetVoiceRange(playerId);
+		if (range <= 0)
+			return true;
+
+		range += margin;
+		return distanceSq <= range * range;
 	}
 
 	//------------------------------------------------------------------------------------------------
@@ -707,7 +742,14 @@ class LC_GameStateWriter
 
 		m_iTraceBudget--;
 		m_iDiagTraces++;
-		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition);
+		// Blocked a moment ago and counted recently: one trace to see whether it still is, and the count stands
+		float known = 0;
+		if (!sample.m_bRetrace && sample.m_fMuffle > 0 && now - sample.m_iCountedTick < OCCLUSION_COUNT_MS)
+			known = sample.m_fMuffle;
+		else
+			sample.m_iCountedTick = now;
+
+		sample.m_fMuffle = m_Occlusion.Compute(listener, listenerPosition, speaker, speakerPosition, known);
 		if (m_bRoomDiagnostics)
 			sample.m_sCover = m_Occlusion.DescribeCover(m_bRoomLineDue);
 		sample.m_vListener = m_vListenerAnchor;

@@ -52,7 +52,10 @@ class LC_Occlusion
 	//! carry a flat muffle, which was wrong for everything you sit on rather than in: a mortar, a technical's
 	//! bed, an open jeep, a hatch you are turned out of. A hull that is really between two people blocks the
 	//! trace like any other wall, and an open mount does not block it at all.
-	float Compute(IEntity listener, vector listenerPosition, notnull IEntity speaker, vector speakerPosition)
+	//!
+	//! \param known the muffle this pair had a moment ago, if it was blocked then. A path still blocked keeps
+	//! it, without the second trace that tells one obstacle from several; 0 counts them afresh.
+	float Compute(IEntity listener, vector listenerPosition, notnull IEntity speaker, vector speakerPosition, float known = 0)
 	{
 		IEntity listenerVehicle;
 		if (listener)
@@ -68,7 +71,10 @@ class LC_Occlusion
 
 		m_aExclude.Insert(speaker);
 
-		int obstacles = CountObstacles(listenerPosition, speakerPosition, m_aExclude);
+		int obstacles = CountObstacles(listenerPosition, speakerPosition, m_aExclude, known > 0);
+		if (obstacles >= 1 && known > 0)
+			return known;
+
 		if (obstacles >= 2)
 			return MULTIPLE_OBSTACLE_MUFFLE;
 
@@ -81,7 +87,8 @@ class LC_Occlusion
 	//------------------------------------------------------------------------------------------------
 	//! Traces from both ends: a different first hit from each side means at least two obstacles in between.
 	//! Public because AI hearing wants the same count without the muffle it maps to.
-	int CountObstacles(vector from, vector to, notnull array<IEntity> exclude)
+	//! \param blockedOnly stop at the first trace: 1 then means blocked, by however many obstacles
+	int CountObstacles(vector from, vector to, notnull array<IEntity> exclude, bool blockedOnly = false)
 	{
 		BaseWorld world = GetGame().GetWorld();
 		if (!world)
@@ -99,6 +106,9 @@ class LC_Occlusion
 		IEntity nearListener;
 		if (!TraceCover(world, from, to, nearListener))
 			return 0;
+
+		if (blockedOnly)
+			return 1;
 
 		IEntity nearSpeaker;
 		if (!TraceCover(world, to, from, nearSpeaker))

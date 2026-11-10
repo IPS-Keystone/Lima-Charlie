@@ -15,6 +15,13 @@ Performance with many players. Bridge protocol unchanged (9).
 - **Camouflage nets no longer muffle voices.**
 - **Fewer rechecks at a distance.** How far someone has to move before the path to them is checked again now
   grows with how far away they are (5% of the distance, at least half a metre).
+- **Only voices in earshot are checked for walls.** Positions go out to 60 m but normal speech carries 20, so
+  most talkers on a busy street were being checked for nothing. The plugin now tells the game how far each
+  player's voice carries (`ranges` in `plugin_state.json`, additive; an older plugin or mod behaves as before),
+  and a talker beyond that plus 5 m is treated as silent, for the wall checks and the fast update rate alike.
+- **Half the wall checks for a blocked voice.** Telling one wall from several takes a second check from the
+  other end. A path that was blocked and still is now keeps its count for a second before that is repeated,
+  so "one wall" against "several" can lag by up to a second. Blocked against clear does not lag.
 - **Plugin: muffled voices cost less in silence.** The muffle filters could settle into very slow arithmetic
   after a voice stopped. (Found and fixed by an outside review, 10 November handover.)
 - **Server: AI hearing is capped.** At most 60 cover checks a second across the server, and none for AI

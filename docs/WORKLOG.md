@@ -280,3 +280,14 @@ session; update after each meaningful step and before ending one. Never rewrite 
   Their timing for the guard was not re-measured here. Not run in game.
   **`plugin/build/LimaCharlie_2.0.6.ts3_plugin` was rebuilt and now differs from the released 2.0.6 package under
   the same name**: bump `lc_version.h` before anything from this branch is handed out.
+- Duke: "Implement 1 and 2, and run the bench to see if 4 is feasible. Don't bother with 3."
+  - 1 (earshot): plugin writes `ranges` in plugin_state (`lc_core.c`), reader parses it, writer treats talkers
+    beyond their voice range + 5 m as silent. Additive, protocol still 9.
+  - 2 (reverse trace): a path still blocked keeps its obstacle count for 1 s (`LC_Occlusion.Compute` `known`).
+  - 4 (TargetLayers): benched on GM_Arland in play mode, **dropped**. Trees are 58-75% of filter calls and no
+    layer set removes them; a geared rifleman is a single call already; collision layers change 1.5-2% of
+    answers. Numbers in the investigation doc, raw in `docs/investigations/bench/2026-11-10-layers-bench-raw.txt`.
+  Evidence: enforce_check 37 files clean; `plugin\build.bat` "All checks passed"; Workbench
+  logs_2026-11-10_18-18-44 `18:18:48.863 Module: Game; loaded 5759x files; 11251x classes`, no SCRIPT (E) (the
+  two earlier launches failed on the bench file only: `out` as a variable name, `%` in a float expression).
+  Not run with TeamSpeak or other players: the earshot cut and the 1 s count lag are unheard and untimed.

@@ -135,12 +135,14 @@ Written atomically at 4 Hz or faster.
 ```json
 { "v": 9, "seq": 971, "gameSeq": 445, "pluginVersion": "2.0.0", "inGame": false,
   "tsConnected": true, "tsClientId": 3, "inGameChannel": false, "peers": 0,
-  "selfTalking": true, "micMuted": false, "talking": "", "radioRx": "", "radioHeard": "" }
+  "selfTalking": true, "micMuted": false, "talking": "", "ranges": "", "radioRx": "", "radioHeard": "" }
 ```
 
 - `micMuted` — TeamSpeak is holding the microphone shut, by its local mute, its mute toggle, or a muted
   speaker. Nothing here sets it; it is reported so the status notice can say why nobody can hear you.
-- `talking` — semicolon-delimited player ids currently speaking.
+- `talking` — comma-delimited player ids currently speaking.
+- `ranges` — `playerId:metres,` for every peer: how far their voice carries, rounded up. The game treats a
+  talker further off than that plus 5 m as silent. Absent from older plugins, which means "always in earshot".
 - `radioRx` — `playerId,x,y,z;` requests for terrain clearance the game should answer.
 - `radioHeard` — `playerId,radioId,frequency,quality;` for every transmission actually being heard.
 
@@ -266,7 +268,7 @@ Voices are unaffected and still go through `ts3plugin_onEditPostProcessVoiceData
 | Transmit stop debounce | 300 ms | `lc_core.c` |
 | Terrain link wait | 300 ms | `lc_core.c` |
 | Transmission max age | 3500 ms | `lc_core.c` |
-| Occlusion refresh | talkers 50 ms on a body move of max(0.5 m, 5% of the distance) / 1 s; silent 2 s / 10 s while nobody nearby talks; 3 traces or 2 ms a write; 60 m; both outdoors > 30 m untraced | `LC_GameStateWriter.c` |
+| Occlusion refresh | talkers 50 ms on a body move of max(0.5 m, 5% of the distance) / 1 s; silent 2 s / 10 s while nobody nearby talks; 3 traces or 2 ms a write; 60 m; both outdoors > 30 m untraced; talkers beyond their voice range + 5 m count as silent; a still-blocked path keeps its obstacle count 1 s before the reverse trace runs again | `LC_GameStateWriter.c` |
 | Player upkeep | talking nearby: every write; silent nearby: 250 ms, last entry rewritten in between; out of range: (distance - 60 m) / 60 m/s, max 2 s; not streamed in: 500 ms; all at once on a 10 m listener jump | `LC_GameStateWriter.c` |
 | AI hearing cover checks | none inside the two-wall range; 60 a second server-wide, then one wall assumed | `LC_AIHearing.c` |
 | Terrain link refresh | 1000 ms, or 10 m of movement | `LC_RadioLinks.c` |
