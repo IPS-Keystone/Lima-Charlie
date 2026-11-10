@@ -260,3 +260,10 @@ session; update after each meaningful step and before ending one. Never rewrite 
   in a vehicle) and a recorded crowd session. No protocol change, plugin untouched.
 - Not done, noted in the write-up: `AsyncTraceMove` (no filter callback), per-prefab filter cache (no vanilla
   precedent for the map key), a plugin-stale reset of the talking list.
+- Duke: can traces exclude worn/carried items so they are never checked? Layer presets read from the game's
+  `ArmaReforger.gproj` (Wiki/game/world-editor-traces.md, "Physics layers"). An exclude list cannot do it (no
+  child exclusion). A layer filter can: gear, weapons and characters only share the FireGeometry bit with walls,
+  so `TargetLayers` = Static|Dynamic|VehicleSimple|VehicleComplex|Terrain would skip them before any script call.
+  Catch: that is collision geometry, not fire geometry, and multi-bit `TargetLayers` has no vanilla precedent.
+  Not implemented. Next: Workbench bench comparing both masks over a few hundred pairs in a town and through a
+  geared character (same answers? filter calls per trace? time), then Duke's ear test.
