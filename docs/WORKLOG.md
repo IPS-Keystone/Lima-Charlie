@@ -320,3 +320,8 @@ session; update after each meaningful step and before ending one. Never rewrite 
 - Duke: mod bumped to 2.0.8 (`LC_Version.VERSION`), so mod and plugin match again. Plugin rebuilt from main:
   plugin\build\LimaCharlie_2.0.8.ts3_plugin, "All checks passed"; enforce_check clean. Workbench compile of
   the bumped mod not run. Committed on main locally, not pushed. Still untested in TeamSpeak / in game.
+- Mod bump pushed (25fef22). Changelog audit against v2.0.6..main: the 2.0.8 entry was missing db35359
+  (talkers-only tracing, body move test, 3 traces/2 ms, both-outdoors >30 m) and e5aa652 (room lookup
+  budget), the panel's dropped "Playing" line and meta data entry, and the diagnostic line changes. Entry
+  rewritten (New / Bug fixes / Performance / Changes / Known issues), numbers checked against the constants
+  in LC_GameStateWriter.c and LC_Rooms.c; release notes 2.0.8 brought in line.

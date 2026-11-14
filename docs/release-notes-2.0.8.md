@@ -28,8 +28,17 @@ Not yet tested in game or in TeamSpeak.
 - **Carried weapons never muffle.** A rifle or launcher on someone standing between two people could count
   as a wall. Anything worn or carried by a character is now ignored.
 - **Camouflage nets no longer muffle voices.**
+- **Turning on the spot no longer rechecks every voice.** Looking around used to be enough to recheck
+  everyone nearby for walls.
 
 ## Performance (many players)
+- **Only talking players are checked for walls,** from the moment they start talking. Silent players are
+  only kept roughly current.
+- **At most 3 wall checks per update** (was 12), with a 2 ms time limit.
+- **Both outdoors and more than 30 m apart: no wall check.** One indoors with one outdoors is always
+  checked, so someone in a doorway stays clear.
+- **Room lookups are budgeted:** 3 building searches per update, and silent players are looked up far less
+  often.
 - **Silent players cost almost nothing.** Someone nearby who is not talking is worked out four times a
   second instead of up to twenty; someone out of range is not looked at until they could be back in it.
 - **The fast update rate is for voices you can hear.** It used to run whenever anyone on the server was

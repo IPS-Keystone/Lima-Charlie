@@ -3,27 +3,51 @@
 ## 2.0.8 — mod 2.0.8, plugin 2.0.8 (testing, unreleased)
 
 Since 2.0.6. There was no 2.0.7. Bridge protocol unchanged (9). A 2.0.8 plugin works with the
-2.0.6 mod and beside 2.0.6 plugins, and the 2.0.8 mod works with a 2.0.6 plugin.
+2.0.6 mod and beside 2.0.6 plugins, and the 2.0.8 mod works with a 2.0.6 plugin; the earshot limit below
+needs both at 2.0.8. The mod's performance work compiled in Workbench on 10 November (the version bump since is static-checked
+only) and the plugin passes its offline tests. Not yet tested in game or in TeamSpeak.
 
-TeamSpeak info panel (plugin only, built and unit-tested, not yet run in TeamSpeak):
+### New
 
-- **Lima Charlie status on TeamSpeak profiles.** Click anyone in TeamSpeak and their info shows whether
-  they are connected to the game, their plugin version and their addon version, the way Task Force Radio
-  and ACRE2 do. It works across channels and for people who are not in a game. Both people need plugin
-  2.0.8 or newer; someone on an older build only shows while in game in your channel. The panel was
-  meant to be there since 1.0.0 but never appeared: TeamSpeak needs a title for it, which was missing.
+- **Lima Charlie status on TeamSpeak profiles** (plugin). Click anyone in TeamSpeak and their info shows
+  whether they are connected to the game, their plugin version and their addon version, the way Task Force
+  Radio and ACRE2 do. It works across channels and for people who are not in a game. Both people need plugin
+  2.0.8 or newer; someone on an older build only shows while in game in your channel. Someone without the
+  plugin shows nothing. "Addon version" reads "unknown" until the person is in a game.
 
-Performance with many players (from `perf/occlusion-traces`; mod and plugin, not tested in game):
+### Bug fixes
 
+- **The TeamSpeak info panel now appears at all.** It was meant to be there since 1.0.0 but never showed:
+  TeamSpeak needs a title for it, which was missing.
+- **Carried weapons never muffle.** A rifle or launcher on someone standing between two people could count
+  as a wall. Anything worn or carried by a character is now ignored, as the game's own checks do.
+- **Camouflage nets no longer muffle voices.**
+- **Turning on the spot no longer rechecks every voice.** Movement was measured from the eye with a 15 cm
+  threshold, so looking around was enough to recheck everyone nearby. It is now measured from the body.
+
+### Performance with many players
+
+The 8 November session had frame drops with many players close together, traced to Lima Charlie's wall
+checks and room lookups (docs/investigations/2026-11-08-indoor-crowd-frame-drops.md and
+2026-11-10-crowd-performance-pass.md).
+
+- **Only talking players are checked for walls.** Someone is checked the moment they start talking, then
+  every 50 ms while either of you moves, otherwise once a second. Silent players used to be checked four
+  times a second; now one of them is refreshed per update, only while nobody is talking, every 2 s if moving
+  or 10 s if still.
+- **At most 3 wall checks per update** (was 12), and none after 2 ms spent on them in that update. Each update
+  starts from a different player so nobody is starved.
+- **Both outdoors and more than 30 m apart: no wall check.** Only when Lima Charlie's room model and the
+  game's own interior estimate agree that both are outside and neither is in a vehicle. Anything unsure is
+  still checked, and one indoors with one outdoors is always checked, so someone in a doorway stays clear.
+- **Room lookups are budgeted.** At most 3 building searches per update. Silent players are looked up every
+  second if moving or every 3 s if still (was every 150 to 500 ms), and at once when they start talking.
 - **Silent players cost almost nothing.** Someone nearby who is not talking is now worked out four times a
   second instead of up to twenty; someone out of range is not looked at again until they could be back in it.
   When a silent player starts talking, their position and muffling are refreshed on that frame.
 - **The fast update rate is for voices you can hear.** Updates ran at 20 a second whenever anyone on the
   server was talking, radio included, which on a full server is always. Now only while someone within
   direct speech range is talking, or you are.
-- **Carried weapons never muffle.** A rifle or launcher on someone standing between two people could count
-  as a wall. Anything worn or carried by a character is now ignored, as the game's own checks do.
-- **Camouflage nets no longer muffle voices.**
 - **Fewer rechecks at a distance.** How far someone has to move before the path to them is checked again now
   grows with how far away they are (5% of the distance, at least half a metre).
 - **Only voices in earshot are checked for walls.** Positions go out to 60 m but normal speech carries 20, so
@@ -37,6 +61,19 @@ Performance with many players (from `perf/occlusion-traces`; mod and plugin, not
   after a voice stopped. (Found and fixed by an outside review, 10 November handover.)
 - **Server: AI hearing is capped.** At most 60 cover checks a second across the server, and none for AI
   close enough to hear through two walls anyway.
+
+### Changes
+
+- The TeamSpeak info panel is the same three lines for everyone; the "Playing" line is gone.
+- The plugin keeps a small `<lc>...</lc>` entry in your TeamSpeak client meta data, next to the ones Task
+  Force Radio and ACRE2 keep there, and takes it out again when it is unloaded.
+- Diagnostic log: the summary line has a `far outdoors N` count; the room line shows `[far outdoors]` for
+  pairs that were not checked and `e0.00` (the game's interior value) where one was asked for.
+
+### Known issues, not fixed
+
+- Lima Charlie's room model does not recognise the buildings on Ruha or at the OTAC FOB (cause unknown), so
+  those fall back to wall checks alone.
 
 ## 2.0.6 — mod 2.0.6, plugin 2.0.6 (testing, unreleased)
 
