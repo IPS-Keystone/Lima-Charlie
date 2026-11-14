@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — branch `perf/occlusion-traces` (not tested in game)
+
+Performance with many players. Bridge protocol unchanged (9).
+
+- **Silent players cost almost nothing.** Someone nearby who is not talking is now worked out four times a
+  second instead of up to twenty; someone out of range is not looked at again until they could be back in it.
+  When a silent player starts talking, their position and muffling are refreshed on that frame.
+- **The fast update rate is for voices you can hear.** Updates ran at 20 a second whenever anyone on the
+  server was talking, radio included, which on a full server is always. Now only while someone within
+  direct speech range is talking, or you are.
+- **Carried weapons never muffle.** A rifle or launcher on someone standing between two people could count
+  as a wall. Anything worn or carried by a character is now ignored, as the game's own checks do.
+- **Camouflage nets no longer muffle voices.**
+- **Fewer rechecks at a distance.** How far someone has to move before the path to them is checked again now
+  grows with how far away they are (5% of the distance, at least half a metre).
+- **Only voices in earshot are checked for walls.** Positions go out to 60 m but normal speech carries 20, so
+  most talkers on a busy street were being checked for nothing. The plugin now tells the game how far each
+  player's voice carries (`ranges` in `plugin_state.json`, additive; an older plugin or mod behaves as before),
+  and a talker beyond that plus 5 m is treated as silent, for the wall checks and the fast update rate alike.
+- **Half the wall checks for a blocked voice.** Telling one wall from several takes a second check from the
+  other end. A path that was blocked and still is now keeps its count for a second before that is repeated,
+  so "one wall" against "several" can lag by up to a second. Blocked against clear does not lag.
+- **Plugin: muffled voices cost less in silence.** The muffle filters could settle into very slow arithmetic
+  after a voice stopped. (Found and fixed by an outside review, 10 November handover.)
+- **Server: AI hearing is capped.** At most 60 cover checks a second across the server, and none for AI
+  close enough to hear through two walls anyway.
+
 ## 2.0.6 — mod 2.0.6, plugin 2.0.6 (testing, unreleased)
 
 Since 2.0.5. Bug fixes from the 3 November unit session. Bridge protocol unchanged (9).
