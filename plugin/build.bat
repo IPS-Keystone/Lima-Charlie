@@ -24,8 +24,8 @@ rem C4013 is a call to something not declared yet: in C that compiles, guesses i
 rem arguments wrongly. It cost a release's local radio beeps once; it is an error here.
 set OURS=%COMMON% /W4 /we4013 /std:c11 /Isrc /Ithird_party\ts3sdk /Ithird_party\cjson
 set LIBS=shell32.lib ole32.lib uuid.lib winmm.lib
-set SOURCES=src\lc_core.c src\lc_peers.c src\lc_game_state.c src\lc_profile_files.c src\lc_log.c src\lc_audio.c src\lc_direct_voice.c src\lc_radio.c src\lc_transmissions.c src\lc_sounds.c src\lc_reverb.c
-set TEST_SOURCES=src\lc_direct_voice.c src\lc_peers.c src\lc_game_state.c src\lc_log.c src\lc_radio.c src\lc_transmissions.c src\lc_reverb.c src\lc_audio.c
+set SOURCES=src\lc_core.c src\lc_peers.c src\lc_presence.c src\lc_game_state.c src\lc_profile_files.c src\lc_log.c src\lc_audio.c src\lc_direct_voice.c src\lc_radio.c src\lc_transmissions.c src\lc_sounds.c src\lc_reverb.c
+set TEST_SOURCES=src\lc_direct_voice.c src\lc_peers.c src\lc_presence.c src\lc_game_state.c src\lc_log.c src\lc_radio.c src\lc_transmissions.c src\lc_reverb.c src\lc_audio.c
 
 rem Third-party code at a lower warning level so our own warnings stay visible
 cl %COMMON% /W1 /c third_party\cjson\cJSON.c /Fobuild\cJSON.obj

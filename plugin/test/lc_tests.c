@@ -5,6 +5,7 @@
 #include "lc_direct_voice.h"
 #include "lc_game_state.h"
 #include "lc_peers.h"
+#include "lc_presence.h"
 #include "lc_radio.h"
 #include "lc_reverb.h"
 #include "lc_transmissions.h"
@@ -504,10 +505,48 @@ static void test_reverb(void)
         CHECK(frames[i] == 0);
 }
 
+static void test_presence(void)
+{
+    char section[128];
+    CHECK(lc_presence_format(section, sizeof(section), 1, "2.0.6", "2.0.6") > 0);
+    CHECK(strcmp(section, "<lc>1|2.0.6|2.0.6</lc>") == 0);
+    CHECK(lc_presence_format(section, 8, 1, "2.0.6", "2.0.6") == 0);
+
+    /* Other plugins' sections survive, wherever ours sits among them. */
+    char meta[256];
+    char cut[128];
+    CHECK(lc_presence_merge(NULL, "<lc>0|2.0.6|</lc>", meta, sizeof(meta)));
+    CHECK(strcmp(meta, "<lc>0|2.0.6|</lc>") == 0);
+    CHECK(lc_presence_merge("<tfar>x</tfar>", "<lc>0|2.0.6|</lc>", meta, sizeof(meta)));
+    CHECK(strcmp(meta, "<tfar>x</tfar><lc>0|2.0.6|</lc>") == 0);
+    CHECK(lc_presence_merge("<tfar>x</tfar><lc>0|2.0.6|</lc><acre>y</acre>", "<lc>1|2.0.6|2.0.7</lc>", meta, sizeof(meta)));
+    CHECK(strcmp(meta, "<tfar>x</tfar><lc>1|2.0.6|2.0.7</lc><acre>y</acre>") == 0);
+    CHECK(lc_presence_merge(meta, "", cut, sizeof(cut)));
+    CHECK(strcmp(cut, "<tfar>x</tfar><acre>y</acre>") == 0);
+    CHECK(!lc_presence_merge("<tfar>x</tfar>", "<lc>0|2.0.6|</lc>", meta, 20));
+    CHECK(meta[0] == '\0');
+
+    lc_presence p;
+    CHECK(lc_presence_parse("<tfar>x</tfar><lc>1|2.0.6|2.0.7</lc>", &p));
+    CHECK(p.connected && strcmp(p.pluginVersion, "2.0.6") == 0 && strcmp(p.modVersion, "2.0.7") == 0);
+    CHECK(lc_presence_parse("<lc>0|2.0.6|</lc>", &p));
+    CHECK(!p.connected && strcmp(p.pluginVersion, "2.0.6") == 0 && p.modVersion[0] == '\0');
+    CHECK(!lc_presence_parse("<tfar>x</tfar>", &p));
+    CHECK(!lc_presence_parse(NULL, &p));
+    CHECK(!lc_presence_parse("<lc>1|2.0.6", &p));
+    /* It is someone else's text going into our panel: markup is dropped, length is capped. */
+    CHECK(lc_presence_parse("<lc>1|[b]2.0[/b]|0123456789012345678901234567890123456789</lc>", &p));
+    CHECK(strcmp(p.pluginVersion, "b2.0b") == 0);
+    CHECK(strlen(p.modVersion) == sizeof(p.modVersion) - 1);
+    CHECK(lc_presence_parse("<lc></lc>", &p));
+    CHECK(!p.connected && p.pluginVersion[0] == '\0');
+}
+
 int main(void)
 {
     test_direct_voice();
     test_hello();
+    test_presence();
     test_radio_announcement();
     test_radio_quality();
     test_transmissions();

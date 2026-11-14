@@ -219,21 +219,36 @@ the info panel below; `modVersion` is whatever the game put in `session.modVersi
 
 ## TeamSpeak info panel
 
-`ts3plugin_infoData` fills the panel under a client in the TeamSpeak info frame:
+Click a client in TeamSpeak and the info frame shows, under the heading `Lima Charlie`:
 
 ```
-Lima Charlie
 Connected to game: Yes
-Playing: Yes
-Plugin version: 1.0.0
-Addon version: 1.0.0
+Plugin version: 2.0.6
+Addon version: 2.0.6
 ```
 
-For yourself it reads `lc_core_status`, which reports the live game state. For anyone else it reads the last
-`HELLO` that client sent, so a player with no plugin, or whose game is closed, shows nothing at all rather
-than a stale entry. "Playing" is only shown for yourself, because it comes from `self.alive` which nobody
-broadcasts. An empty version field renders as `unknown`, which is what you see against a peer running a
-build that predates this.
+TeamSpeak only draws this if the plugin exports all three of `ts3plugin_infoTitle` (the heading),
+`ts3plugin_infoData` (the lines) and `ts3plugin_freeMemory`. Leave one out and nothing appears, with no
+error anywhere.
+
+For yourself the lines come from `lc_core_status`, the live game state. For anyone else they come from that
+client's TeamSpeak meta data (`CLIENT_META_DATA`), which the server gives to everyone who can see the
+client. That is what makes it work across channels and for people who are not in a game, neither of which a
+`HELLO` reaches. Each plugin keeps one section in its own meta data (`lc_presence.c`):
+
+```
+<lc>connected|plugin version|addon version</lc>      e.g. <lc>1|2.0.6|2.0.6</lc>, <lc>0|2.0.6|</lc>
+```
+
+`connected` is 1 while the game is running with the addon; the addon version is only known then, and shows
+as `unknown` otherwise. The meta data string is shared: TFAR and ACRE2 each keep their own tagged section in
+it, so we only ever replace ours and pass the rest through. The worker compares the section with what it
+should say every 2 s, because another plugin can rewrite the whole string, and writes at most once in 5 s,
+because each write counts against the server's flood limit. The section is removed when the plugin unloads.
+
+Versions read from someone else's meta data are cut to 31 version characters before they are shown, since
+the info frame renders BBCode. A client running a build that predates the section is still shown while it
+is sending us `HELLO`s (same channel, in game). A client with no plugin shows nothing.
 
 ## How beeps reach your ears
 

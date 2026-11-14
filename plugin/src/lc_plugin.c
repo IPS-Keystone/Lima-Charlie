@@ -3,6 +3,7 @@
 #include "lc_audio.h"
 #include "lc_core.h"
 #include "lc_peers.h"
+#include "lc_presence.h"
 #include "lc_log.h"
 #include "lc_reverb.h"
 #include "lc_sounds.h"
@@ -105,52 +106,69 @@ PLUGINS_EXPORTDLL int ts3plugin_requestAutoload(void)
 
 /* ---- Info panel ---- */
 
-/* Shown under a client in the TeamSpeak info frame. For ourselves this comes from the game state we are
-   reading; for anyone else it comes from the HELLO they broadcast, so a player whose game is closed, or who
-   has no plugin at all, simply shows nothing rather than a stale entry. */
+/* TeamSpeak shows nothing from ts3plugin_infoData unless this exists too. It is the heading the lines below
+   sit under, in the info frame's left column. */
+PLUGINS_EXPORTDLL const char* ts3plugin_infoTitle(void)
+{
+    return "Lima Charlie";
+}
+
+/* Shown under a client in the TeamSpeak info frame. For ourselves this is the game state we are reading. For
+   anyone else it is the section their plugin keeps in their TeamSpeak meta data (lc_presence.h), which reaches
+   us whatever channel they are in and whether or not they are in a game. A plugin too old to write that is
+   still shown while it is sending us HELLOs. Someone with no plugin shows nothing. */
 PLUGINS_EXPORTDLL void ts3plugin_infoData(uint64 serverConnectionHandlerID, uint64 id, enum PluginItemType type, char** data)
 {
     if (type != PLUGIN_CLIENT)
         return;
 
-    char        text[512];
-    const char* yes = "Yes";
-    const char* no  = "No";
+    int          connected = 0;
+    const char*  plugin    = "";
+    const char*  mod       = "";
+    lc_status    status;
+    lc_presence  presence = {0};
+    lc_peer_info peer;
 
     anyID me = 0;
     if (g_ts3.getClientID(serverConnectionHandlerID, &me) != ERROR_ok)
         me = 0;
 
     if (me != 0 && (anyID)id == me) {
-        lc_status status;
         lc_core_status(&status);
-        _snprintf(text, sizeof(text) - 1,
-                  "[b]Lima Charlie[/b]\n"
-                  "Connected to game: %s\n"
-                  "Playing: %s\n"
-                  "Plugin version: %s\n"
-                  "Addon version: %s",
-                  status.inGame ? yes : no,
-                  status.playing ? yes : no,
-                  LC_PLUGIN_VERSION,
-                  status.modVersion[0] ? status.modVersion : "unknown");
+        connected = status.inGame;
+        plugin    = LC_PLUGIN_VERSION;
+        mod       = status.modVersion;
     } else {
-        lc_peer_info peer;
-        if (!lc_peers_find((anyID)id, &peer))
+        char* meta  = NULL;
+        int   found = 0;
+        if (g_ts3.getClientVariableAsString(serverConnectionHandlerID, (anyID)id, CLIENT_META_DATA, &meta) == ERROR_ok && meta) {
+            found = lc_presence_parse(meta, &presence);
+            g_ts3.freeMemory(meta);
+        }
+        if (found) {
+            connected = presence.connected;
+            plugin    = presence.pluginVersion;
+            mod       = presence.modVersion;
+        } else if (lc_peers_find((anyID)id, &peer)) {
+            connected = 1;
+            plugin    = peer.pluginVersion;
+            mod       = peer.modVersion;
+        } else {
             return;
-
-        _snprintf(text, sizeof(text) - 1,
-                  "[b]Lima Charlie[/b]\n"
-                  "Connected to game: %s\n"
-                  "Plugin version: %s\n"
-                  "Addon version: %s",
-                  yes,
-                  peer.pluginVersion[0] ? peer.pluginVersion : "unknown",
-                  peer.modVersion[0] ? peer.modVersion : "unknown");
+        }
     }
 
+    char text[256];
+    _snprintf(text, sizeof(text) - 1,
+              "Connected to game: [b]%s[/b]\n"
+              "Plugin version: [b]%s[/b]\n"
+              "Addon version: [b]%s[/b]",
+              connected ? "Yes" : "No",
+              plugin[0] ? plugin : "unknown",
+              mod[0] ? mod : "unknown");
     text[sizeof(text) - 1] = '\0';
-    const size_t len       = strlen(text) + 1;
+
+    const size_t len = strlen(text) + 1;
     /* TeamSpeak frees this through ts3plugin_freeMemory. */
     *data = (char*)malloc(len);
     if (*data)

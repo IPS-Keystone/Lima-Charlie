@@ -197,3 +197,18 @@ session; update after each meaningful step and before ending one. Never rewrite 
   build/LimaCharlie_2.0.6.ts3_plugin (2026-11-03 22:54) is current with plugin/src. release_check 2.0.6:
   0 errors, 3 warnings (VoiceLevel source PNGs without .meta, already in 2.0.5), enforce clean.
 - Duke: commit 2.0.6 and merge bugfix-2.0.6 into main on GitHub. Cover pictures left uncommitted.
+
+## 2026-11-14 (feature/ts-info-panel, from bugfix-2.0.6 e646ef8)
+- Duke asked for LC status on TeamSpeak profiles like TFAR/ACRE: Connected / Plugin version / Addon version.
+- Found: `ts3plugin_infoData` has been in since f4db09d but TeamSpeak never drew it, because
+  `ts3plugin_infoTitle` was not exported (SDK sample plugin.c: all three of infoTitle, infoData, freeMemory
+  are needed). And it could only ever show peers in game in the same channel (HELLO-fed).
+- Built: `ts3plugin_infoTitle`; own status published in `CLIENT_META_DATA` as `<lc>c|plugin|addon</lc>`
+  (new `lc_presence.c/h`), merged around other plugins' sections, checked every 2 s, written at most every
+  5 s, removed on unload; panel reads other clients' meta data, HELLO as fallback for older builds. Three
+  lines for everyone ("Playing" dropped). developer-reference + CHANGELOG (Unreleased) updated.
+- Evidence: `plugin\build.bat` clean at /W4, "All checks passed" incl. new `test_presence`; dumpbin shows
+  `ts3plugin_infoTitle` + `ts3plugin_infoData` exported. **Not run in TeamSpeak**: panel rendering, other
+  clients seeing it, and coexistence with TFAR/ACRE meta data all need Duke's 2-client check.
+- Done in a git worktree (`plugin\build\wt-ts-info-panel`) so the main checkout stayed on
+  perf/occlusion-traces. Plugin version left at 2.0.6: the number for this is Duke's call.

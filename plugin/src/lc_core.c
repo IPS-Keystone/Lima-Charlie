@@ -5,6 +5,7 @@
 #include "lc_game_state.h"
 #include "lc_log.h"
 #include "lc_peers.h"
+#include "lc_presence.h"
 #include "lc_profile_files.h"
 #include "lc_radio.h"
 #include "lc_reverb.h"
@@ -38,6 +39,11 @@
 #define LC_STATE_MIN_INTERVAL_MS 20
 #define LC_STATE_BODY_CAP 8192
 #define LC_HELLO_INTERVAL_MS 10000
+/* How often our section of the TeamSpeak meta data is compared with what it should say, and the least time
+   between two writes of it. The write goes to the server, which counts it against its flood limit, and
+   another plugin may rewrite the same string, so a disagreement must not turn into a write every poll. */
+#define LC_PRESENCE_CHECK_MS 2000
+#define LC_PRESENCE_WRITE_MS 5000
 #define LC_PEER_MAX_AGE_MS 35000
 #define LC_CHANNEL_CHECK_MS 2000
 #define LC_MAX_TALKERS 256
@@ -95,6 +101,8 @@ static int                g_helloPlayerId = -1;
 static float              g_helloVoiceRange;
 static uint64             g_helloChannel;
 static unsigned long long g_nextHelloMs;
+static unsigned long long g_nextPresenceCheckMs;
+static unsigned long long g_nextPresenceWriteMs;
 
 /* Our own radio transmission, as last announced. */
 static int                g_txActive;
@@ -314,6 +322,7 @@ static void on_connection_switched(uint64 sch)
     g_helloToken[0]      = '\0';
     g_helloChannel       = 0;
     g_nextChannelCheckMs = 0;
+    g_nextPresenceCheckMs = 0;
     release_capture();
     g_txActive           = 0;
     g_txStopPending      = 0;
@@ -393,6 +402,38 @@ static void update_handshake(uint64 sch, int inGame, int haveChannel, uint64 cha
     g_helloVoiceRange = g_game.voiceRange;
     g_helloChannel    = channel;
     g_nextHelloMs     = nowMs + LC_HELLO_INTERVAL_MS;
+}
+
+/* Puts section in place of our part of this client's TeamSpeak meta data, if that changes anything. An empty
+   section takes ours out. Everything else in the string belongs to other plugins and is passed through. */
+static void write_presence(uint64 sch, const char* section, unsigned long long nowMs, int force)
+{
+    static char merged[LC_PRESENCE_META_CAP];
+    char*       meta = NULL;
+    if (g_ts3.getClientSelfVariableAsString(sch, CLIENT_META_DATA, &meta) != ERROR_ok)
+        return;
+    const int changed = lc_presence_merge(meta, section, merged, sizeof(merged)) && strcmp(meta ? meta : "", merged) != 0;
+    if (meta)
+        g_ts3.freeMemory(meta);
+    if (!changed || (!force && nowMs < g_nextPresenceWriteMs))
+        return;
+
+    g_nextPresenceWriteMs = nowMs + LC_PRESENCE_WRITE_MS;
+    if (g_ts3.setClientSelfVariableAsString(sch, CLIENT_META_DATA, merged) == ERROR_ok)
+        g_ts3.flushClientSelfUpdates(sch, NULL);
+}
+
+/* Keeps the info panel other people see about us current: whether we are in a game, and both versions.
+   Checked rather than written on change, because another plugin can replace the whole string under us. */
+static void update_presence(uint64 sch, int connected, int inGame, unsigned long long nowMs)
+{
+    if (!connected || nowMs < g_nextPresenceCheckMs)
+        return;
+    g_nextPresenceCheckMs = nowMs + LC_PRESENCE_CHECK_MS;
+
+    char section[128];
+    if (lc_presence_format(section, sizeof(section), inGame, LC_PLUGIN_VERSION, inGame ? g_game.modVersion : ""))
+        write_presence(sch, section, nowMs, 0);
 }
 
 static void send_radio_announcement(uint64 sch, int on)
@@ -959,6 +1000,7 @@ static DWORD WINAPI core_main(LPVOID param)
         const int haveChannel = connected && get_own_channel(sch, &me, &channel);
 
         update_handshake(sch, inGame, haveChannel, channel, nowMs);
+        update_presence(sch, connected, inGame, nowMs);
         /* Fresh, not present: a game that stopped writing cannot be holding its transmit key. */
         update_radio_tx(sch, connected, fresh, nowMs);
         update_sound_events(inGame);
@@ -983,6 +1025,9 @@ static DWORD WINAPI core_main(LPVOID param)
         timeEndPeriod(1);
 
     release_capture();
+    /* A plugin that is being unloaded should not go on being advertised. */
+    if (is_connected(g_sch))
+        write_presence(g_sch, "", GetTickCount64(), 1);
     if (g_txActive && is_connected(g_txSch))
         send_radio_announcement(g_txSch, 0);
     lc_audio_publish(0, NULL, 0, NULL, NULL);
