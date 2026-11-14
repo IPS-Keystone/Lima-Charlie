@@ -1,0 +1,82 @@
+rays 600 within 150.5 m of <3125.5, 10.3203, 2875.5>
+Projectile (now): blocked 207/600, filter calls 2408 (4.01 per trace), 9.40 us/trace
+   met: PowerlineEntity=167 Tree=1404 SCR_DestructibleBuildingEntity=235 GenericEntity=102 SCR_IndestructibleEnvironmentalEntity=227 StaticModelEntity=34 SCR_DestructibleEntity=219 SCR_JunctionPowerPole=3 SCR_PowerPole=9 Building=4 LakeGeneratorEntity=4
+T Static|Dynamic|Vehicles|Terrain: blocked 215/600, filter calls 2389 (3.98 per trace), 8.67 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 8 Door_MetalGate_01_Short_LEFT_EXT_ST_B.et WoodenWall_02_4m_B.et WoodenWall_02_4m_B.et Door_MetalGate_03_RIGHT_EXT_ST_B.et WoodenWall_02_8m_A.et WoodenWall_02_4m_B.et
+   met: PowerlineEntity=165 Tree=1393 SCR_DestructibleBuildingEntity=234 GenericEntity=99 SCR_IndestructibleEnvironmentalEntity=227 StaticModelEntity=34 SCR_DestructibleEntity=218 SCR_JunctionPowerPole=3 SCR_PowerPole=8 Building=4 LakeGeneratorEntity=4
+T FireGeometry: blocked 207/600, filter calls 2408 (4.01 per trace), 9.53 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: PowerlineEntity=167 Tree=1404 SCR_DestructibleBuildingEntity=235 GenericEntity=102 SCR_IndestructibleEnvironmentalEntity=227 StaticModelEntity=34 SCR_DestructibleEntity=219 SCR_JunctionPowerPole=3 SCR_PowerPole=9 Building=4 LakeGeneratorEntity=4
+T FireGeometry|Terrain: blocked 207/600, filter calls 2408 (4.01 per trace), 9.47 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: PowerlineEntity=167 Tree=1404 SCR_DestructibleBuildingEntity=235 GenericEntity=102 SCR_IndestructibleEnvironmentalEntity=227 StaticModelEntity=34 SCR_DestructibleEntity=219 SCR_JunctionPowerPole=3 SCR_PowerPole=9 Building=4 LakeGeneratorEntity=4
+T Static|Vehicles|Terrain: blocked 214/600, filter calls 2400 (4.00 per trace), 8.67 us/trace
+   blocked now but not with this: 1 ContainerMetal_01_green.et
+   clear now but blocked with this: 8 Door_MetalGate_01_Short_LEFT_EXT_ST_B.et WoodenWall_02_4m_B.et WoodenWall_02_4m_B.et Door_MetalGate_03_RIGHT_EXT_ST_B.et WoodenWall_02_8m_A.et WoodenWall_02_4m_B.et
+   met: PowerlineEntity=165 Tree=1401 SCR_DestructibleBuildingEntity=235 GenericEntity=99 SCR_IndestructibleEnvironmentalEntity=229 StaticModelEntity=34 SCR_DestructibleEntity=218 SCR_JunctionPowerPole=3 SCR_PowerPole=8 Building=4 LakeGeneratorEntity=4
+
+rays 600 within 150.5 m of <2875.5, 71.5234, 1625.5>
+Projectile (now): blocked 125/600, filter calls 2415 (4.03 per trace), 7.73 us/trace
+   met: PowerlineEntity=21 Tree=1817 SCR_DestructibleBuildingEntity=142 GenericEntity=53 SCR_IndestructibleEnvironmentalEntity=17 StaticModelEntity=98 SCR_DestructibleEntity=261 SCR_PowerPole=2 Building=4
+T Static|Dynamic|Vehicles|Terrain: blocked 132/600, filter calls 2391 (3.98 per trace), 7.53 us/trace
+   blocked now but not with this: 2 WoodenRural_01_8m.et StoneWall_01_8m.et
+   clear now but blocked with this: 9 WoodenFenceOld_01_8m.et WoodenRural_01_8m.et Shed_03.et WoodenFenceOld_01_4m.et WoodenFenceOld_01_4m.et WoodenFenceOld_01_4m.et
+   met: PowerlineEntity=21 Tree=1798 SCR_DestructibleBuildingEntity=141 GenericEntity=52 SCR_IndestructibleEnvironmentalEntity=17 StaticModelEntity=97 SCR_DestructibleEntity=259 SCR_PowerPole=2 Building=4
+T FireGeometry: blocked 125/600, filter calls 2415 (4.03 per trace), 7.67 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: PowerlineEntity=21 Tree=1817 SCR_DestructibleBuildingEntity=142 GenericEntity=53 SCR_IndestructibleEnvironmentalEntity=17 StaticModelEntity=98 SCR_DestructibleEntity=261 SCR_PowerPole=2 Building=4
+T FireGeometry|Terrain: blocked 125/600, filter calls 2415 (4.03 per trace), 7.73 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: PowerlineEntity=21 Tree=1817 SCR_DestructibleBuildingEntity=142 GenericEntity=53 SCR_IndestructibleEnvironmentalEntity=17 StaticModelEntity=98 SCR_DestructibleEntity=261 SCR_PowerPole=2 Building=4
+T Static|Vehicles|Terrain: blocked 132/600, filter calls 2391 (3.98 per trace), 7.20 us/trace
+   blocked now but not with this: 2 WoodenRural_01_8m.et StoneWall_01_8m.et
+   clear now but blocked with this: 9 WoodenFenceOld_01_8m.et WoodenRural_01_8m.et Shed_03.et WoodenFenceOld_01_4m.et WoodenFenceOld_01_4m.et WoodenFenceOld_01_4m.et
+   met: PowerlineEntity=21 Tree=1798 SCR_DestructibleBuildingEntity=141 GenericEntity=52 SCR_IndestructibleEnvironmentalEntity=17 StaticModelEntity=97 SCR_DestructibleEntity=259 SCR_PowerPole=2 Building=4
+
+spawned {26A9756790131354}Prefabs/Characters/Factions/BLUFOR/US_Army/Character_US_Rifleman.et true at <3125.5, 10.3203, 2875.5>
+spawned {4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et true at <3140.5, 9.91406, 2875.5>
+bodies 2
+--- through {4A71F755A4513227}Prefabs/Vehicles/Wheeled/M998/M1025.et at <3140.5, 9.91406, 2875.5>
+Projectile (now): blocked 24/24, filter calls 88 (3.67 per trace), 13.33 us/trace
+   met: Tree=19 GenericEntity=15 SCR_DestructibleEntity=30 Vehicle=24
+T Static|Dynamic|Vehicles|Terrain: blocked 24/24, filter calls 72 (3.00 per trace), 8.33 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=18 SCR_DestructibleEntity=30 Vehicle=24
+T FireGeometry: blocked 24/24, filter calls 88 (3.67 per trace), 11.67 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=19 GenericEntity=15 SCR_DestructibleEntity=30 Vehicle=24
+T FireGeometry|Terrain: blocked 24/24, filter calls 88 (3.67 per trace), 10.00 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=19 GenericEntity=15 SCR_DestructibleEntity=30 Vehicle=24
+T Static|Vehicles|Terrain: blocked 24/24, filter calls 72 (3.00 per trace), 8.33 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=18 SCR_DestructibleEntity=30 Vehicle=24
+--- through {26A9756790131354}Prefabs/Characters/Factions/BLUFOR/US_Army/Character_US_Rifleman.et at <3125.5, 10.3203, 2875.5>
+Projectile (now): blocked 0/24, filter calls 27 (1.12 per trace), 3.33 us/trace
+   met: Tree=3 character=24
+T Static|Dynamic|Vehicles|Terrain: blocked 0/24, filter calls 27 (1.12 per trace), 1.67 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=3 character=24
+T FireGeometry: blocked 0/24, filter calls 27 (1.12 per trace), 1.67 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=3 character=24
+T FireGeometry|Terrain: blocked 0/24, filter calls 27 (1.12 per trace), 1.67 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=3 character=24
+T Static|Vehicles|Terrain: blocked 0/24, filter calls 27 (1.12 per trace), 1.67 us/trace
+   blocked now but not with this: 0
+   clear now but blocked with this: 0
+   met: Tree=3 character=24
+

@@ -198,6 +198,100 @@ session; update after each meaningful step and before ending one. Never rewrite 
   0 errors, 3 warnings (VoiceLevel source PNGs without .meta, already in 2.0.5), enforce clean.
 - Duke: commit 2.0.6 and merge bugfix-2.0.6 into main on GitHub. Cover pictures left uncommitted.
 
+## 2026-11-08 (main = 2.0.6)
+- Duke: "frame drops with many people inside buildings". Investigation: docs/investigations/2026-11-08-indoor-crowd-frame-drops.md.
+  Logs: 7 Nov ops (Duke outdoors, ≤4 nearby) and 8 Nov OTAC (outdoors, 28 nearby, live) show no LC errors and no
+  frame times. Correction: Duke was indoors on 7 Nov (5 types mapped 20:02-20:43, ≤4 nearby). 8 Nov (Ruha):
+  Duke was in a building near the start but LC never placed him indoors (no room line, no room file), so only
+  traces ran there: Ruha building missing room areas or not STATIC to the query, unverified. **Ops server.json has `roomDiagnosticLog: true`**: every
+  client then measures collider volume (`GetVolumeFromColliders`) of each traced blocker, usually the whole building,
+  for up to 12 traces on the write that prints, once a second. Unmeasured; the best fit for the report. Others
+  (mapping ~1 ms/write once per type per client, trace budget, file write) measured small. No code changed.
+- Waiting on Duke: turn `roomDiagnosticLog` off on the ops server (A/B), and/or a WB bench of
+  `GetVolumeFromColliders` on the apartment, and/or a fix (solidity only for printed players, or drop it).
+- Live test with Duke (8 Nov 18:13–18:17, OTAC on Ruha, building ≈ 7449,3547, ~20 nearby): single-digit FPS when
+  turning/moving, fine standing still. LC saw him as outdoors (roomVolume 0), so no room work ran; ~9.5 writes/s
+  (FPS-limited), 34 trace pairs/s. Plugin unticked in TS → LC game side to 2 writes/s: "better, but not by much,
+  still very bad". LC is a minor share; main cause is elsewhere (rendering/other mods suspected). Details in the
+  investigation doc. No code changed.
+- Recorded 18:23–19:18 (until Duke left): hitch seconds (write gap >150 ms) 4.3% overall; they follow the place
+  (FOB building ≈7449,3542 with ~3 players 8.6%; x6100–6200 z4300 13–16%; x6400 z4100 with ~8.5 players 0.4%),
+  not the crowd or the radio. LC placed Duke indoors for 0 s. LC is at most a minor share. Open: what the FOB
+  building is and why LC misses it; ops-server roomDiagnosticLog still untested. Mod can't be updated right now
+  (Duke).
+- **Duke: lag gone in the same building, similar players, without LC → LC issue** (overrides "minor share"; the
+  plugin-off A/B never stopped traces: 12-pair budget per write at 2 writes/s). Recording: hitches scale with nearby
+  players *within* bad places (FOB 1–2: 0.2%, 3–5: 3.7%; x6100–6300 10+: 3.9%; clean x6400–6600 10+: 1.0%).
+  Prime suspect: per-pair occlusion traces through furnished interiors (many FilterCover rejections), then speaker
+  Locate sphere queries. Place = OTAC Operation Borderless OP_Bord7 HQ (props from HQ.layer around 7449,3542).
+  Next: WB bench on OP_Bord7.ent timing CountObstacles/Locate there. Mod can't be updated right now.
+- Duke: hitches extensive **outdoors** too; building-path caching is a separate problem. Logs agree that paths and
+  mapping never ran (0 s indoors, 0 probes, 0 room muffles). By players × occluded: ≤9 nearby, hitches follow the
+  occluded count (0.3% → ~3% → 5.7%); 10+ nearby, 16–26% regardless. Prime suspect: per-pair occlusion traces on
+  Ruha's dense vegetation/fences/props (a FilterCover callback per entity met); second: Locate sphere queries.
+  Bench proposed as its own session (time CountObstacles/Locate at bad vs clean vs open spots on OP_Bord7/Ruha).
+- Occlusion rework design (doc section "Rework"): vanilla VON occludes with no traces (per-end Interior/RoomSize + listener globals, `CalculateInterirorAt` async). LC traces silent players, retraces all pairs when the listener's eye moves 0.15 m (camera turn), budget lands in one frame. Options 1–3 (talking-only, body-based move test, per-frame spread) keep results; 4–5 (classify ends, layer mask) need an ear test. Not implemented.
+- Implemented on `perf/occlusion-traces` (compiles in Workbench 21:52, 5759 files, no LC warnings; not run in game): talkers-only tracing + start-of-speech prime, body move test 0.5 m, 3 traces/2 ms per write with rotation, both-outdoors >30 m untraced when LC rooms + engine interior agree. Indoor/outdoor stays traced (Duke: doorways). Layer mask not done: Tree and BuildingView presets share mask 0xa08002. To do: ear test, FOB recording.
+- Same branch: room lookups budgeted (`LC_Rooms.Locate`): 3 building searches a write (the in-building `FindArea` fast path is free), silent players rechecked 1 s moving / 3 s still, at once when they start talking. Static check only; needs a Workbench recompile. Gear check: ~2,500 blocked traces in the 7 Nov logs, none on worn gear; camo nets do block (bug, later).
+
+## 2026-11-10 (perf/occlusion-traces) — crowd pass
+- Duke: performance and bugfix pass for many players (raycasts vs props and worn gear, budgeting silent players,
+  how vanilla / Arma 3 / other mods do it). Write-up: docs/investigations/2026-11-10-crowd-performance-pass.md.
+- Code (all client side unless said):
+  - Writer tiers players. Out of range: not looked up again until they could be back in range (60 m/s closing,
+    2 s cap; not streamed in 500 ms; everyone at once if the listener jumps 10 m). Nearby and silent: worked out
+    4 times a second (staggered by player id), their last entry written again in between. Nearby and talking:
+    every write, as before.
+  - Fast rate (20 Hz) only while someone **nearby** talks or we do; any talker anywhere used to hold it for the
+    whole mission. A nearby player starting to talk forces a write at once (reader talking revision).
+  - Silent upkeep traces now yield to nearby talkers only; with the old "anyone talking" test they never ran on a
+    busy server.
+  - Trace filter: anything parented to a character (worn or carried) is never cover, as vanilla's own filters do;
+    camo nets (`CamoNet_`) are see-through (the bug parked on 8 Nov).
+  - Forgetting players who left: once a second, not every write. VON controller lookup cached. Reader skips the
+    talking-list split when the list is unchanged.
+  - Server: AI hearing skips the trace when the AI is within the two-wall range anyway, and is capped at 60 cover
+    checks a second across the server (past it: one wall assumed).
+- Evidence: `reforger_check_enforce` 37 files clean; Workbench (ClaudeDevTools -> Lima Charlie)
+  logs_2026-11-10_13-31-50 `13:31:56.136 Module: Game; loaded 5759x files; 11251x classes`, no SCRIPT (E). That
+  compile also covers e5aa652 (room lookup budget), which had only been static-checked.
+- NOT run in play or MP. Nothing measured: the gains are by construction (fewer calls), not timed. Needs Duke's
+  ear test (start of speech from a silent player who is moving; voice behind a camo net; someone approaching fast
+  in a vehicle) and a recorded crowd session. No protocol change, plugin untouched.
+- Not done, noted in the write-up: `AsyncTraceMove` (no filter callback), per-prefab filter cache (no vanilla
+  precedent for the map key), a plugin-stale reset of the talking list.
+- Duke: can traces exclude worn/carried items so they are never checked? Layer presets read from the game's
+  `ArmaReforger.gproj` (Wiki/game/world-editor-traces.md, "Physics layers"). An exclude list cannot do it (no
+  child exclusion). A layer filter can: gear, weapons and characters only share the FireGeometry bit with walls,
+  so `TargetLayers` = Static|Dynamic|VehicleSimple|VehicleComplex|Terrain would skip them before any script call.
+  Catch: that is collision geometry, not fire geometry, and multi-bit `TargetLayers` has no vanilla precedent.
+  Not implemented. Next: Workbench bench comparing both masks over a few hundred pairs in a town and through a
+  geared character (same answers? filter calls per trace? time), then Duke's ear test.
+- External handover (`LC_Performance_Handoff_2026-11-10.zip`) read and compared: investigation doc, "External handover
+  compared". 0001 is superseded by this branch except its distance-scaled move threshold (worth taking); 0002 (plugin
+  biquad denormal guard) applies cleanly and is worth taking, not rebuilt here; `log_radio_levels` runs with
+  diagnostics off (true, open). Their report says the slowdown **builds up over 5-20 minutes** with 36-40 players:
+  not explained by anything found so far. Nothing applied. Waiting on Duke: take 0002 + the threshold?
+- Duke: "Yes, take both". From the handover: plugin biquad denormal guard (their patch 0002, applied as given to
+  `lc_audio.c` `biquad_tick`) and a distance-scaled move threshold in `TraceMuffle` (our own code, their idea):
+  a pair is due again once either body moves max(0.5 m, 5% of their distance).
+  Evidence: `pluginuild.bat` clean, "All checks passed"; enforce_check 37 files clean; Workbench
+  logs_2026-11-10_14-29-30 `14:29:35.577 Module: Game; loaded 5759x files; 11251x classes`, no SCRIPT (E).
+  Their timing for the guard was not re-measured here. Not run in game.
+  **`plugin/build/LimaCharlie_2.0.6.ts3_plugin` was rebuilt and now differs from the released 2.0.6 package under
+  the same name**: bump `lc_version.h` before anything from this branch is handed out.
+- Duke: "Implement 1 and 2, and run the bench to see if 4 is feasible. Don't bother with 3."
+  - 1 (earshot): plugin writes `ranges` in plugin_state (`lc_core.c`), reader parses it, writer treats talkers
+    beyond their voice range + 5 m as silent. Additive, protocol still 9.
+  - 2 (reverse trace): a path still blocked keeps its obstacle count for 1 s (`LC_Occlusion.Compute` `known`).
+  - 4 (TargetLayers): benched on GM_Arland in play mode, **dropped**. Trees are 58-75% of filter calls and no
+    layer set removes them; a geared rifleman is a single call already; collision layers change 1.5-2% of
+    answers. Numbers in the investigation doc, raw in `docs/investigations/bench/2026-11-10-layers-bench-raw.txt`.
+  Evidence: enforce_check 37 files clean; `plugin\build.bat` "All checks passed"; Workbench
+  logs_2026-11-10_18-18-44 `18:18:48.863 Module: Game; loaded 5759x files; 11251x classes`, no SCRIPT (E) (the
+  two earlier launches failed on the bench file only: `out` as a variable name, `%` in a float expression).
+  Not run with TeamSpeak or other players: the earshot cut and the 1 s count lag are unheard and untimed.
+
 ## 2026-11-14 (feature/ts-info-panel, from bugfix-2.0.6 e646ef8)
 - Duke asked for LC status on TeamSpeak profiles like TFAR/ACRE: Connected / Plugin version / Addon version.
 - Found: `ts3plugin_infoData` has been in since f4db09d but TeamSpeak never drew it, because
@@ -217,3 +311,8 @@ session; update after each meaningful step and before ending one. Never rewrite 
   notes docs/release-notes-2.0.8.md cover 2.0.6 -> 2.0.8; CHANGELOG heading now 2.0.8. Rebuilt:
   plugin\build\LimaCharlie_2.0.8.ts3_plugin, "All checks passed". Still not run in TeamSpeak.
   Not in this build: the plugin changes on perf/occlusion-traces (biquad denormal guard, earshot tracing).
+- Duke: merge to main and push. Main had moved (a318c7b, perf/occlusion-traces merged), so main was merged
+  into this branch first: conflicts only in CHANGELOG (now one 2.0.8 entry: info panel + the performance
+  work) and this file. Plugin 2.0.8 therefore now also carries the perf plugin changes (`ranges` in
+  plugin_state.json, biquad denormal guard). Release notes 2.0.8 rewritten to match. Mod version string
+  still 2.0.6: Duke's call before publishing.

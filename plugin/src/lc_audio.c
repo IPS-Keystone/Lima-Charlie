@@ -238,6 +238,15 @@ static float biquad_tick(lc_biquad* q, float x)
     const float y = q->b0 * x + q->z1;
     q->z1         = q->b1 * x - q->a1 * y + q->z2;
     q->z2         = q->b2 * x - q->a2 * y;
+
+    /* Filter history decaying after a voice goes quiet settles into denormal floats unless flushed, and a
+       muffled voice then costs several times as much per sample in silence as it does while talking. The
+       reverb comb flushes its tail the same way; this is far below anything 16-bit output can carry. */
+    if (q->z1 > -1.0e-20f && q->z1 < 1.0e-20f)
+        q->z1 = 0.0f;
+    if (q->z2 > -1.0e-20f && q->z2 < 1.0e-20f)
+        q->z2 = 0.0f;
+
     return y;
 }
 

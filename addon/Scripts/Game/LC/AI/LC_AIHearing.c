@@ -13,6 +13,13 @@ class LC_AIHearing
 	protected static const float SINGLE_OBSTACLE_RANGE = 0.35;
 	protected static const float MULTIPLE_OBSTACLE_RANGE = 0.15;
 
+	//! Cover checks the server runs in one window, across every AI and every voice. A platoon talking beside
+	//! a garrison is one check per enemy AI in earshot per talker per second with nothing else to stop it. Past
+	//! the budget a voice is taken to have one wall in its way, the middle answer, without tracing.
+	protected static const int TRACE_WINDOW_MS = 1000;
+	protected static const int TRACE_BUDGET = 60;
+	protected static int s_iTraceWindowTick;
+	protected static int s_iTracesInWindow;
 	protected static ref LC_Occlusion s_Occlusion;
 	protected static ref array<IEntity> s_aExclude = {};
 
@@ -57,7 +64,8 @@ class LC_AIHearing
 
 	//------------------------------------------------------------------------------------------------
 	//! Whether the voice still reaches this AI once what is between them is taken off its range. Only runs for
-	//! AI already within the unobstructed radius, so it costs at most two traces per enemy nearby per second.
+	//! AI already within the unobstructed radius, so it costs at most two traces per enemy nearby per talker
+	//! per second, and no more than the budget above across the whole server.
 	protected static bool CarriesThroughCover(notnull SCR_ChimeraAIAgent agent, notnull LC_VoiceDangerEvent voiceEvent)
 	{
 		IEntity listener = agent.GetControlledEntity();
@@ -73,6 +81,24 @@ class LC_AIHearing
 		// Traced ear to ear rather than from the feet, so the ground between two standing characters is not cover
 		vector listenerPosition = GetEarPosition(listener);
 		vector speakerPosition = GetEarPosition(speaker);
+
+		// Close enough to be heard through two walls is heard whatever is in the way: no need to find out
+		float distance = vector.Distance(listenerPosition, speakerPosition);
+		float radius = voiceEvent.GetRadius();
+		if (distance <= radius * MULTIPLE_OBSTACLE_RANGE)
+			return true;
+
+		int now = System.GetTickCount();
+		if (now - s_iTraceWindowTick >= TRACE_WINDOW_MS || now < s_iTraceWindowTick)
+		{
+			s_iTraceWindowTick = now;
+			s_iTracesInWindow = 0;
+		}
+
+		if (s_iTracesInWindow >= TRACE_BUDGET)
+			return distance <= radius * SINGLE_OBSTACLE_RANGE;
+
+		s_iTracesInWindow++;
 
 		s_aExclude.Clear();
 		s_aExclude.Insert(listener);
@@ -91,7 +117,7 @@ class LC_AIHearing
 		if (obstacles == 1)
 			factor = SINGLE_OBSTACLE_RANGE;
 
-		return vector.Distance(listenerPosition, speakerPosition) <= voiceEvent.GetRadius() * factor;
+		return distance <= radius * factor;
 	}
 
 	//------------------------------------------------------------------------------------------------

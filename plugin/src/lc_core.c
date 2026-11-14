@@ -38,6 +38,8 @@
 #define LC_STATE_HEARTBEAT_MS 250
 #define LC_STATE_MIN_INTERVAL_MS 20
 #define LC_STATE_BODY_CAP 8192
+/* Room for every peer's "id:metres," entry, and well inside the body cap with the rest of the state */
+#define LC_STATE_RANGES_CAP 3072
 #define LC_HELLO_INTERVAL_MS 10000
 /* How often our section of the TeamSpeak meta data is compared with what it should say, and the least time
    between two writes of it. The write goes to the server, which counts it against its flood limit, and
@@ -892,13 +894,28 @@ static void write_plugin_state(int connected, int inGame, int haveChannel, int m
     LeaveCriticalSection(&g_talkersLock);
 
     const int inGameChannel = haveChannel && g_gameChannel && channel == g_gameChannel;
-    const int peers         = g_game.token[0] ? lc_peers_count(g_game.token) : 0;
+
+    /* How far each peer's voice carries, as "id:metres,...". The game only knows its own, and without the
+       others' it has to work out what is in the way of every talker it has a position for, most of whom
+       are too far off to be heard at all. It changes only when someone changes how loudly they speak. */
+    static lc_peer_info peerList[LC_AUDIO_MAX_TARGETS];
+    static char         ranges[LC_STATE_RANGES_CAP];
+    size_t              rangesLen = 0;
+    const int           peers     = g_game.token[0] ? lc_peers_list(g_game.token, peerList, LC_AUDIO_MAX_TARGETS) : 0;
+    ranges[0]                     = '\0';
+    for (int i = 0; i < peers; ++i) {
+        if (peerList[i].playerId <= 0 || rangesLen + 24 >= sizeof(ranges))
+            continue;
+        const int n = _snprintf(ranges + rangesLen, sizeof(ranges) - rangesLen, rangesLen ? ",%d:%.0f" : "%d:%.0f", peerList[i].playerId, ceilf(peerList[i].voiceRange));
+        if (n > 0)
+            rangesLen += (size_t)n;
+    }
 
     char      body[LC_STATE_BODY_CAP];
     const int bodyLen = _snprintf(body, sizeof(body),
-        "\"pluginVersion\":\"%s\",\"inGame\":%s,\"tsConnected\":%s,\"tsClientId\":%u,\"inGameChannel\":%s,\"peers\":%d,\"selfTalking\":%s,\"micMuted\":%s,\"talking\":\"%s\",\"radioRx\":\"%s\",\"radioHeard\":\"%s\"",
+        "\"pluginVersion\":\"%s\",\"inGame\":%s,\"tsConnected\":%s,\"tsClientId\":%u,\"inGameChannel\":%s,\"peers\":%d,\"selfTalking\":%s,\"micMuted\":%s,\"talking\":\"%s\",\"ranges\":\"%s\",\"radioRx\":\"%s\",\"radioHeard\":\"%s\"",
         LC_PLUGIN_VERSION, inGame ? "true" : "false", connected ? "true" : "false", haveChannel ? (unsigned)me : 0U,
-        inGameChannel ? "true" : "false", peers, selfTalking ? "true" : "false", micMuted ? "true" : "false", talking, g_radioRx, g_radioHeard);
+        inGameChannel ? "true" : "false", peers, selfTalking ? "true" : "false", micMuted ? "true" : "false", talking, ranges, g_radioRx, g_radioHeard);
     if (bodyLen <= 0 || (size_t)bodyLen >= sizeof(body))
         return;
 

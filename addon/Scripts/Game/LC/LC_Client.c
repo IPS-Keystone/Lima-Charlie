@@ -25,6 +25,8 @@ class LC_Client
 
 	//! Weak reference: becomes null when the controller is deleted, which ends the client
 	protected SCR_PlayerController m_PlayerController;
+	//! Weak as well, found on first use
+	protected SCR_VONController m_VONController;
 	protected ref LC_GameStateWriter m_Writer = new LC_GameStateWriter();
 	protected ref LC_PluginStateReader m_Reader = new LC_PluginStateReader();
 	protected ref LC_Hud m_Hud = new LC_Hud();
@@ -736,7 +738,11 @@ class LC_Client
 	//------------------------------------------------------------------------------------------------
 	protected SCR_VONController GetVONController()
 	{
-		return SCR_VONController.Cast(m_PlayerController.FindComponent(SCR_VONController));
+		// Asked for several times a frame; the component lives as long as the controller it is on
+		if (!m_VONController)
+			m_VONController = SCR_VONController.Cast(m_PlayerController.FindComponent(SCR_VONController));
+
+		return m_VONController;
 	}
 
 	//------------------------------------------------------------------------------------------------

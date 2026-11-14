@@ -541,6 +541,12 @@ class LC_Rooms
 	//! But never sooner than this. Anyone running or in a vehicle crosses the distance above every write, and
 	//! outdoors every recheck is a sphere query; at this rate a doorway is still noticed within a stride.
 	protected static const int RECHECK_MIN_MS = 150;
+	//! The same for a silent player, whose room nobody can hear until they speak
+	protected static const int SILENT_RECHECK_MIN_MS = 1000;
+	protected static const int SILENT_RECHECK_MS = 3000;
+	//! Building searches in one write, so a crowd is spread over several frames. The listener goes first.
+	protected static const int SEARCH_BUDGET = 3;
+	protected int m_iSearchBudget = SEARCH_BUDGET;
 	//! Mapping work per game state write while the local player stands in an unmapped building. A probe costs
 	//! about 0.09 us for every portal the building has (28 us in the 310 portal apartment block, 3 us in a
 	//! village house), so the cells probed are sized to the building: about 1 ms a write whatever it is,
@@ -588,30 +594,54 @@ class LC_Rooms
 	//------------------------------------------------------------------------------------------------
 	//! Updates where this position is, reusing the last answer while it is still fresh. The building the
 	//! location was last in is asked first, which answers it for anyone who has not left that building.
-	void Locate(notnull LC_RoomLocation location, vector position, int now)
+	//! \param live someone can hear this position's voice, or it is the listener's own. Anyone else is silent
+	//! and only kept roughly current, at a fraction of the rate.
+	void Locate(notnull LC_RoomLocation location, vector position, int now, bool live = true)
 	{
+		int minInterval = RECHECK_MIN_MS;
+		int stillInterval = RECHECK_MS;
+		if (!live)
+		{
+			minInterval = SILENT_RECHECK_MIN_MS;
+			stillInterval = SILENT_RECHECK_MS;
+		}
+
 		int age = now - location.m_iCheckedTick;
-		if (age < RECHECK_MIN_MS)
+		if (age < minInterval)
 			return;
 
 		bool moved = vector.DistanceSq(location.m_vCheckedPosition, position) > RECHECK_MOVE_M * RECHECK_MOVE_M;
-		if (!moved && age < RECHECK_MS)
+		if (!moved && age < stillInterval)
 			return;
-
-		location.m_iCheckedTick = now;
-		location.m_vCheckedPosition = position;
 
 		if (location.m_Subscene && location.m_Building)
 		{
 			int area = location.m_Subscene.FindArea(location.m_Building.CoordToLocal(position));
 			if (area > AREA_OUTSIDE && area != AREA_NONE)
 			{
+				location.m_iCheckedTick = now;
+				location.m_vCheckedPosition = position;
 				SetArea(location, area);
 				return;
 			}
 		}
 
+		// The search is the costly part: a world query, with a script call for every static entity it meets.
+		// Out of budget, the location stays as it was and stays due, so the next write picks it up.
+		if (m_iSearchBudget <= 0)
+			return;
+
+		m_iSearchBudget--;
+		location.m_iCheckedTick = now;
+		location.m_vCheckedPosition = position;
 		Search(location, position);
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Start of a write: the searches Locate may run in it. Writes are at most one a frame.
+	void BeginWrite()
+	{
+		m_iSearchBudget = SEARCH_BUDGET;
 	}
 
 	//------------------------------------------------------------------------------------------------

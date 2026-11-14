@@ -39,6 +39,13 @@ class LC_PluginStateReader
 	//! TeamSpeak is holding the microphone shut: its local mute, its mute toggle, or a muted speaker
 	protected bool m_bMicMuted;
 	protected ref set<int> m_TalkingPlayers = new set<int>();
+	//! The plugin's list as last read, and a count of how often it has changed
+	protected string m_sTalking;
+	protected int m_iTalkingRevision;
+	//! Player id -> how far their voice carries in metres, and the plugin's list as last read. Empty from a
+	//! plugin too old to send one.
+	protected ref map<int, float> m_mVoiceRanges = new map<int, float>();
+	protected string m_sRanges;
 	//! Transmitting player id -> position the plugin needs the terrain clearance from
 	protected ref map<int, vector> m_mRadioRequests = new map<int, vector>();
 	//! Transmitting player id -> the radio we are hearing them on, for the VON display
@@ -111,6 +118,8 @@ class LC_PluginStateReader
 		load.ReadValue("selfTalking", selfTalking);
 		load.ReadValue("micMuted", micMuted);
 		load.ReadValue("talking", talking);
+		string ranges;
+		load.ReadValue("ranges", ranges);
 		load.ReadValue("radioRx", radioRx);
 		load.ReadValue("radioHeard", radioHeard);
 
@@ -127,6 +136,7 @@ class LC_PluginStateReader
 		m_bSelfTalking = selfTalking;
 		m_bMicMuted = micMuted;
 		UpdateTalkingPlayers(talking);
+		UpdateVoiceRanges(ranges);
 		UpdateRadioRequests(radioRx);
 		UpdateHeard(radioHeard, now);
 		LogDiagnostic(now, comprehensive, peers, selfTalking, talking, radioRx, radioHeard);
@@ -153,6 +163,12 @@ class LC_PluginStateReader
 	//------------------------------------------------------------------------------------------------
 	protected void UpdateTalkingPlayers(string talking)
 	{
+		// The same list as last time, which is nearly every read: nothing to split
+		if (talking == m_sTalking)
+			return;
+
+		m_sTalking = talking;
+		m_iTalkingRevision++;
 		m_TalkingPlayers.Clear();
 
 		m_aSplit.Clear();
@@ -160,6 +176,31 @@ class LC_PluginStateReader
 		foreach (string id : m_aSplit)
 		{
 			m_TalkingPlayers.Insert(id.ToInt());
+		}
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! "id:metres,..." for every peer. It only changes when somebody changes how loudly they speak.
+	protected void UpdateVoiceRanges(string ranges)
+	{
+		if (ranges == m_sRanges)
+			return;
+
+		m_sRanges = ranges;
+		m_mVoiceRanges.Clear();
+
+		m_aSplit.Clear();
+		ranges.Split(",", m_aSplit, true);
+		foreach (string entry : m_aSplit)
+		{
+			m_aFields.Clear();
+			entry.Split(":", m_aFields, false);
+			if (m_aFields.Count() != 2)
+				continue;
+
+			float range = m_aFields[1].ToFloat();
+			if (range > 0)
+				m_mVoiceRanges.Set(m_aFields[0].ToInt(), range);
 		}
 	}
 
@@ -287,6 +328,29 @@ class LC_PluginStateReader
 	bool IsAnyPlayerTalking()
 	{
 		return !m_TalkingPlayers.IsEmpty();
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Everyone the plugin hears talking in TeamSpeak, by player id
+	set<int> GetTalkingPlayers()
+	{
+		return m_TalkingPlayers;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! Changes whenever the list of talking players does
+	int GetTalkingRevision()
+	{
+		return m_iTalkingRevision;
+	}
+
+	//------------------------------------------------------------------------------------------------
+	//! How far this player's voice carries in metres, or 0 when the plugin has not said
+	float GetVoiceRange(int playerId)
+	{
+		float range;
+		m_mVoiceRanges.Find(playerId, range);
+		return range;
 	}
 
 	//------------------------------------------------------------------------------------------------
