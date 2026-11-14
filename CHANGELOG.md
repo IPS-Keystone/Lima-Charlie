@@ -1,10 +1,9 @@
 # Changelog
 
-## 2.0.8 — plugin 2.0.8; mod changes not yet numbered (testing, unreleased)
+## 2.0.8 — mod 2.0.8, plugin 2.0.8 (testing, unreleased)
 
-Since 2.0.6. There was no 2.0.7. Bridge protocol unchanged (9). The plugin reports 2.0.8; the mod's
-`LC_Version.VERSION` still says 2.0.6 and needs its number before the mod is published. A 2.0.8 plugin works
-with the published 2.0.6 mod and beside 2.0.6 plugins.
+Since 2.0.6. There was no 2.0.7. Bridge protocol unchanged (9). A 2.0.8 plugin works with the
+2.0.6 mod and beside 2.0.6 plugins, and the 2.0.8 mod works with a 2.0.6 plugin.
 
 TeamSpeak info panel (plugin only, built and unit-tested, not yet run in TeamSpeak):
 

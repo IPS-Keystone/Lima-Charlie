@@ -1,7 +1,7 @@
 # Lima Charlie 2.0.8 — changes since 2.0.6
 
-TeamSpeak plugin 2.0.8, with the mod changes that go with it. There was no 2.0.7. The bridge protocol is
-still 9: a 2.0.8 plugin works with the 2.0.6 mod and beside 2.0.6 plugins, and the new mod works with a
+Mod 2.0.8 and TeamSpeak plugin 2.0.8. There was no 2.0.7. The bridge protocol is
+still 9: a 2.0.8 plugin works with the 2.0.6 mod and beside 2.0.6 plugins, and the 2.0.8 mod works with a
 2.0.6 plugin. The performance work needs both halves to take full effect. Full detail is in `CHANGELOG.md`.
 
 Not yet tested in game or in TeamSpeak.
@@ -13,7 +13,7 @@ Not yet tested in game or in TeamSpeak.
   ```
   Connected to game: Yes
   Plugin version: 2.0.8
-  Addon version: 2.0.6
+  Addon version: 2.0.8
   ```
 
   - It shows for people in any channel, in game or not, so you can check who has the plugin and which
@@ -47,5 +47,4 @@ Not yet tested in game or in TeamSpeak.
   Force Radio and ACRE2 keep there. It is taken out again when the plugin is unloaded.
 
 ## Installing
-Close TeamSpeak, double-click `LimaCharlie_2.0.8.ts3_plugin`, start TeamSpeak. Update the mod when it is
-published.
+Close TeamSpeak, double-click `LimaCharlie_2.0.8.ts3_plugin`, start TeamSpeak. Update the mod from the Workshop.

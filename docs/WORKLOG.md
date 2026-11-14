@@ -316,3 +316,7 @@ session; update after each meaningful step and before ending one. Never rewrite 
   work) and this file. Plugin 2.0.8 therefore now also carries the perf plugin changes (`ranges` in
   plugin_state.json, biquad denormal guard). Release notes 2.0.8 rewritten to match. Mod version string
   still 2.0.6: Duke's call before publishing.
+- Merged to main and pushed (0c4189b). Branch survey: every non-3.0 branch is fully contained in main.
+- Duke: mod bumped to 2.0.8 (`LC_Version.VERSION`), so mod and plugin match again. Plugin rebuilt from main:
+  plugin\build\LimaCharlie_2.0.8.ts3_plugin, "All checks passed"; enforce_check clean. Workbench compile of
+  the bumped mod not run. Committed on main locally, not pushed. Still untested in TeamSpeak / in game.
