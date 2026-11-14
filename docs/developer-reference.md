@@ -223,7 +223,7 @@ Click a client in TeamSpeak and the info frame shows, under the heading `Lima Ch
 
 ```
 Connected to game: Yes
-Plugin version: 2.0.6
+Plugin version: 2.0.8
 Addon version: 2.0.6
 ```
 
@@ -237,7 +237,7 @@ client. That is what makes it work across channels and for people who are not in
 `HELLO` reaches. Each plugin keeps one section in its own meta data (`lc_presence.c`):
 
 ```
-<lc>connected|plugin version|addon version</lc>      e.g. <lc>1|2.0.6|2.0.6</lc>, <lc>0|2.0.6|</lc>
+<lc>connected|plugin version|addon version</lc>      e.g. <lc>1|2.0.8|2.0.6</lc>, <lc>0|2.0.8|</lc>
 ```
 
 `connected` is 1 while the game is running with the addon; the addon version is only known then, and shows

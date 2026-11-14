@@ -212,3 +212,8 @@ session; update after each meaningful step and before ending one. Never rewrite 
   clients seeing it, and coexistence with TFAR/ACRE meta data all need Duke's 2-client check.
 - Done in a git worktree (`plugin\build\wt-ts-info-panel`) so the main checkout stayed on
   perf/occlusion-traces. Plugin version left at 2.0.6: the number for this is Duke's call.
+- Duke: plugin renamed to 2.0.8 (`lc_version.h`), mod left at 2.0.6 (`LC_Version.c` untouched). No 2.0.7
+  exists: no tag, GitHub release, branch or changelog entry (latest release v2.0.6, 2026-11-04). Release
+  notes docs/release-notes-2.0.8.md cover 2.0.6 -> 2.0.8; CHANGELOG heading now 2.0.8. Rebuilt:
+  plugin\build\LimaCharlie_2.0.8.ts3_plugin, "All checks passed". Still not run in TeamSpeak.
+  Not in this build: the plugin changes on perf/occlusion-traces (biquad denormal guard, earshot tracing).

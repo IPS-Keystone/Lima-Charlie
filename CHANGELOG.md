@@ -1,11 +1,14 @@
 # Changelog
 
-## Unreleased — branch `feature/ts-info-panel` (plugin only)
+## 2.0.8 — plugin 2.0.8, mod unchanged at 2.0.6 (testing, unreleased)
+
+Since 2.0.6. There was no 2.0.7. Plugin only: the mod, the bridge protocol (9) and the plugin-to-plugin
+commands are unchanged, so 2.0.8 and 2.0.6 plugins work together in one channel.
 
 - **Lima Charlie status on TeamSpeak profiles.** Click anyone in TeamSpeak and their info shows whether
   they are connected to the game, their plugin version and their addon version, the way Task Force Radio
-  and ACRE2 do. It works across channels and for people who are not in a game. Both people need this
-  plugin build or newer; someone on an older build only shows while in game in your channel. The panel was
+  and ACRE2 do. It works across channels and for people who are not in a game. Both people need plugin
+  2.0.8 or newer; someone on an older build only shows while in game in your channel. The panel was
   meant to be there since 1.0.0 but never appeared: TeamSpeak needs a title for it, which was missing.
 
 ## 2.0.6 — mod 2.0.6, plugin 2.0.6 (testing, unreleased)
